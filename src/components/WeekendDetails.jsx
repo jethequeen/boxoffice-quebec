@@ -411,6 +411,47 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                 ))}
               </tbody>
             </table>
+
+            {/* Mobile card layout */}
+            <div className="mobile-table-cards">
+              {enhancedMovies.map((movie) => (
+                <div key={movie.id} className="mobile-movie-card">
+                  <Link to={`/movies/${movie.id}`} className="mobile-movie-title">
+                    {movie.fr_title || movie.title}
+                  </Link>
+                  <div className="mobile-movie-stats">
+                    <div className="mobile-stat-item">
+                      <span className="mobile-stat-label">Recettes</span>
+                      <span className="mobile-stat-value">{formatCurrency(movie.revenue_qc)}</span>
+                    </div>
+                    <div className="mobile-stat-item">
+                      <span className="mobile-stat-label">Changement</span>
+                      <span className={`mobile-stat-value ${movie.change_percent >= 0 ? 'positive' : 'negative'}`}>
+                        {movie.change_percent > 0 ? '+' : ''}{movie.change_percent.toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="mobile-stat-item">
+                      <span className="mobile-stat-label">Force QC/USA</span>
+                      <span className="mobile-stat-value">
+                        {movie.force_quebec_usa !== null ? `${movie.force_quebec_usa.toFixed(0)}%` : '-'}
+                      </span>
+                    </div>
+                    <div className="mobile-stat-item">
+                      <span className="mobile-stat-label">Semaine</span>
+                      <span className="mobile-stat-value">{movie.week_number}</span>
+                    </div>
+                    <div className="mobile-stat-item">
+                      <span className="mobile-stat-label">Cumulatif</span>
+                      <span className="mobile-stat-value">{formatCurrency(movie.cumulatif_qc)}</span>
+                    </div>
+                    <div className="mobile-stat-item">
+                      <span className="mobile-stat-label">Studio</span>
+                      <span className="mobile-stat-value">{movie.studio_name}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
