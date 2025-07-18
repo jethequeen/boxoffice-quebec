@@ -7,9 +7,20 @@ export const handler = async (event) => {
         const { directorId, type = 'top_grossing' } = event.queryStringParameters || {};
         const NEON_DB_URL = process.env.DATABASE_URL;
 
-        const client = new Client({ 
-            connectionString: NEON_DB_URL, 
-            ssl: { rejectUnauthorized: false } 
+        console.log('Environment check:', {
+            hasDbUrl: !!NEON_DB_URL,
+            dbUrlStart: NEON_DB_URL ? NEON_DB_URL.substring(0, 20) + '...' : 'undefined',
+            nodeEnv: process.env.NODE_ENV
+        });
+
+        if (!NEON_DB_URL) {
+            throw new Error('DATABASE_URL environment variable is not set');
+        }
+
+        const client = new Client({
+            connectionString: NEON_DB_URL,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 10000
         });
         await client.connect();
 
@@ -116,16 +127,25 @@ export const handler = async (event) => {
         };
 
     } catch (err) {
-        console.error('Error fetching director stats:', err);
+        console.error('Error fetching director stats:', {
+            message: err.message,
+            stack: err.stack,
+            code: err.code,
+            hasDbUrl: !!process.env.DATABASE_URL,
+            nodeEnv: process.env.NODE_ENV
+        });
+
         return {
             statusCode: 500,
             headers: {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 error: 'Erreur lors de la récupération des statistiques des réalisateurs',
-                details: err.message 
+                details: err.message,
+                timestamp: new Date().toISOString(),
+                function: 'getDirectorStats'
             }),
         };
     }
