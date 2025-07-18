@@ -408,7 +408,7 @@
   }
 
   .movie-poster {
-    max-width: 180px;
+    max-width: 120px;
     margin: 0 auto;
   }
 
@@ -424,10 +424,12 @@
   }
 
   .stats-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-sm);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
     max-width: 320px;
     margin: 0 auto;
+    justify-content: center;
   }
 
   .details-grid {
@@ -438,17 +440,28 @@
   }
 
   .stat-card {
-    padding: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
     text-align: center;
+    background: var(--background-light);
+    border-radius: var(--radius-sm);
+    min-width: 60px;
+    flex: 1;
+    max-width: 80px;
+  }
+
+  .stat-card .stat-icon {
+    display: none;
   }
 
   .stat-card h3 {
-    font-size: 0.8rem;
-    margin-bottom: var(--spacing-xs);
+    font-size: 0.65rem;
+    margin-bottom: 2px;
+    line-height: 1.1;
   }
 
   .stat-number {
-    font-size: 1rem;
+    font-size: 0.8rem;
+    font-weight: bold;
   }
 
   .detail-section {

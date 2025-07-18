@@ -414,11 +414,14 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
 
             {/* Mobile card layout */}
             <div className="mobile-table-cards">
-              {enhancedMovies.map((movie) => (
+              {enhancedMovies.map((movie, index) => (
                 <div key={movie.id} className="mobile-movie-card">
-                  <Link to={`/movies/${movie.id}`} className="mobile-movie-title">
-                    {movie.fr_title || movie.title}
-                  </Link>
+                  <div className="mobile-movie-header">
+                    <span className="mobile-movie-rank">#{index + 1}</span>
+                    <Link to={`/movies/${movie.id}`} className="mobile-movie-title">
+                      {movie.fr_title || movie.title}
+                    </Link>
+                  </div>
                   <div className="mobile-movie-stats">
                     <div className="mobile-stat-item revenue">
                       <span className="mobile-stat-label">Recettes du week-end</span>
