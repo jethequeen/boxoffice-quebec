@@ -7,9 +7,21 @@ export const handler = async (event) => {
         const { period = 'weekend', limit = 10 } = event.queryStringParameters || {};
         const NEON_DB_URL = process.env.DATABASE_URL;
 
-        const client = new Client({ 
-            connectionString: NEON_DB_URL, 
-            ssl: { rejectUnauthorized: false } 
+        console.log('getBoxOfficeData - Environment check:', {
+            hasDbUrl: !!NEON_DB_URL,
+            dbUrlStart: NEON_DB_URL ? NEON_DB_URL.substring(0, 20) + '...' : 'undefined',
+            period,
+            limit
+        });
+
+        if (!NEON_DB_URL) {
+            throw new Error('DATABASE_URL environment variable is not set');
+        }
+
+        const client = new Client({
+            connectionString: NEON_DB_URL,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 10000
         });
         await client.connect();
 
@@ -75,16 +87,25 @@ export const handler = async (event) => {
         };
 
     } catch (err) {
-        console.error('Error fetching box office data:', err);
+        console.error('Error fetching box office data:', {
+            message: err.message,
+            stack: err.stack,
+            code: err.code,
+            hasDbUrl: !!process.env.DATABASE_URL,
+            nodeEnv: process.env.NODE_ENV
+        });
+
         return {
             statusCode: 500,
             headers: {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 error: 'Erreur lors de la récupération des données box-office',
-                details: err.message 
+                details: err.message,
+                timestamp: new Date().toISOString(),
+                function: 'getBoxOfficeData'
             }),
         };
     }

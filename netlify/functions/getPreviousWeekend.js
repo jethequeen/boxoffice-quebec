@@ -18,9 +18,15 @@ export const handler = async (event) => {
         }
 
         const NEON_DB_URL = process.env.DATABASE_URL;
-        const client = new Client({ 
-            connectionString: NEON_DB_URL, 
-            ssl: { rejectUnauthorized: false } 
+
+        if (!NEON_DB_URL) {
+            throw new Error('DATABASE_URL environment variable is not set');
+        }
+
+        const client = new Client({
+            connectionString: NEON_DB_URL,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 10000
         });
         await client.connect();
 
