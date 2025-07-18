@@ -1,0 +1,386 @@
+﻿.dashboard {
+  padding: 0;
+}
+
+.dashboard-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.dashboard-header h1 {
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-header p {
+  color: #7f8c8d;
+  font-size: 1.1rem;
+}
+
+.current-weekend {
+  margin-top: 1rem;
+}
+
+.weekend-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Loading and Error States */
+.loading, .error {
+  text-align: center;
+  padding: 3rem;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error {
+  color: #e74c3c;
+}
+
+.retry-button {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-top: 1rem;
+  transition: background 0.3s ease;
+}
+
+.retry-button:hover {
+  background: #5a67d8;
+}
+
+/* Statistics Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.stat-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+}
+
+.stat-icon {
+  font-size: 2.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.stat-content h3 {
+  margin: 0 0 0.5rem 0;
+  color: #7f8c8d;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-number {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+/* Chart Section */
+.chart-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.chart-section h2 {
+  margin: 0 0 1.5rem 0;
+  color: #2c3e50;
+  font-size: 1.5rem;
+}
+
+.chart-container {
+  width: 100%;
+  height: 400px;
+}
+
+/* Table Section */
+.table-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.table-section h2 {
+  margin: 0 0 1.5rem 0;
+  color: #2c3e50;
+  font-size: 1.5rem;
+}
+
+.table-container {
+  overflow-x: auto;
+}
+
+.rankings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.rankings-table th {
+  background: #f8f9fa;
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #2c3e50;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.rankings-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.rankings-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+.rank-cell {
+  font-weight: bold;
+  color: #667eea;
+  width: 80px;
+}
+
+.movie-cell {
+  min-width: 200px;
+  text-align: left;
+}
+
+.movie-title-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.movie-title-link:hover {
+  color: #667eea;
+}
+
+.movie-title-link:hover strong {
+  color: #667eea;
+}
+
+.gross-cell {
+  font-weight: 600;
+  color: #27ae60;
+  text-align: right;
+}
+
+.date-cell {
+  color: #7f8c8d;
+  white-space: nowrap;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .stat-card {
+    padding: 1rem;
+  }
+  
+  .stat-icon {
+    font-size: 2rem;
+  }
+  
+  .stat-number {
+    font-size: 1.5rem;
+  }
+  
+  .chart-section, .table-section {
+    padding: 1rem;
+  }
+  
+  .rankings-table {
+    font-size: 0.85rem;
+  }
+  
+  .rankings-table th,
+  .rankings-table td {
+    padding: 0.75rem 0.5rem;
+  }
+
+  .box-office-table {
+    font-size: 0.8rem;
+  }
+
+  .box-office-table th,
+  .box-office-table td {
+    padding: 0.5rem 0.25rem;
+  }
+}
+
+/* Box Office Table Styles */
+.box-office-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.box-office-table th {
+  background: #f8f9fa;
+  color: #2c3e50;
+  font-weight: 600;
+  padding: 1rem 0.75rem;
+  border-bottom: 2px solid #e9ecef;
+  white-space: nowrap;
+}
+
+.box-office-table th:first-child {
+  text-align: left;
+}
+
+.box-office-table th:not(:first-child):not(:last-child) {
+  text-align: center;
+}
+
+.box-office-table th:last-child {
+  text-align: right;
+}
+
+.box-office-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #e9ecef;
+  vertical-align: middle;
+}
+
+.box-office-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+.box-office-table .total-row {
+  background: #667eea;
+  color: white;
+  border-top: 3px solid #5a67d8;
+  font-weight: bold;
+}
+
+.box-office-table .total-row:hover {
+  background: #5a67d8;
+}
+
+.box-office-table .total-row td {
+  padding: 1rem 0.75rem;
+  border-bottom: none;
+}
+
+.box-office-table .total-row .change-cell.positive {
+  color: #a7f3d0;
+}
+
+.box-office-table .total-row .change-cell.negative {
+  color: #fca5a5;
+}
+
+.change-cell {
+  font-weight: 600;
+  text-align: center;
+  min-width: 80px;
+}
+
+.change-cell.positive {
+  color: #27ae60;
+}
+
+.change-cell.negative {
+  color: #e74c3c;
+}
+
+.ratio-cell {
+  text-align: center;
+  color: #7f8c8d;
+  min-width: 80px;
+}
+
+.week-cell {
+  text-align: center;
+  font-weight: 600;
+  color: #667eea;
+  min-width: 60px;
+}
+
+.cumulative-cell {
+  text-align: right;
+  color: #7f8c8d;
+  min-width: 120px;
+}
+
+.studio-cell {
+  color: #2c3e50;
+  min-width: 150px;
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.studio-name {
+  font-size: 0.8rem;
+  font-weight: normal;
+}
+
+.positive {
+  color: #27ae60;
+}
+
+.negative {
+  color: #e74c3c;
+}
+
+.total-row {
+  border-top: 2px solid #dee2e6;
+  background-color: #f8f9fa;
+  font-weight: bold;
+}
+
+.total-row td {
+  padding: 12px 8px;
+  border-top: 2px solid #dee2e6;
+}
