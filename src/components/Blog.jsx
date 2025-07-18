@@ -2,6 +2,36 @@
 import './Blog.css'
 
 function Blog() {
+  // Mock blog posts data - in a real app, this would come from your database
+  const blogPosts = [
+    {
+      id: 1,
+      title: "L'évolution du cinéma québécois en 2024",
+      excerpt: "Une analyse des tendances et performances du box-office québécois cette année, avec un focus sur les productions locales qui ont marqué le public.",
+      date: "2024-12-15",
+      author: "Équipe Box-Office Québec",
+      readTime: "5 min",
+      category: "Analyse"
+    },
+    {
+      id: 2,
+      title: "Top 10 des films québécois les plus rentables",
+      excerpt: "Découvrez quels films québécois ont généré le plus de revenus au box-office et les facteurs qui ont contribué à leur succès commercial.",
+      date: "2024-12-10",
+      author: "Équipe Box-Office Québec",
+      readTime: "7 min",
+      category: "Classement"
+    },
+    {
+      id: 3,
+      title: "Impact des festivals sur le box-office",
+      excerpt: "Comment les festivals de cinéma influencent-ils les performances commerciales des films québécois? Une étude approfondie des données.",
+      date: "2024-12-05",
+      author: "Équipe Box-Office Québec",
+      readTime: "6 min",
+      category: "Étude"
+    }
+  ]
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('fr-CA', {

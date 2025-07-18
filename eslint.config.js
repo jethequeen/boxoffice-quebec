@@ -26,4 +26,14 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    files: ['netlify/functions/**/*.js'], // 👈 adjust if needed
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.node, // 👈 Enables 'process', 'require', etc.
+      parserOptions: {
+        sourceType: 'module',
+      },
+    },
+  }
 ])

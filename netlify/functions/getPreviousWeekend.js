@@ -19,10 +19,6 @@ export const handler = async (event) => {
 
         const NEON_DB_URL = process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
 
-        if (!NEON_DB_URL) {
-            throw new Error('DATABASE_URL environment variable is not set');
-        }
-
         const client = new Client({
             connectionString: NEON_DB_URL,
             ssl: { rejectUnauthorized: false },
@@ -57,12 +53,18 @@ export const handler = async (event) => {
 
         // Get previous weekend data
         const query = `
-            SELECT m.id, m.title, m.fr_title, m.release_date,
-                   r.revenue_qc, r.revenue_us, r.rank, r.weekend_id
+            SELECT m.id,
+                   m.title,
+                   m.fr_title,
+                   m.release_date,
+                   r.revenue_qc,
+                   r.revenue_us,
+                   r.rank,
+                   r.weekend_id
             FROM movies m
-            JOIN revenues r ON m.id = r.film_id
+                     JOIN revenues r ON m.id = r.film_id
             WHERE r.weekend_id = $1
-            ORDER BY r.rank ASC;
+            ORDER BY r.rank;
         `;
 
         const result = await client.query(query, [previousWeekendId]);

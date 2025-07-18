@@ -13,10 +13,6 @@ export const handler = async (event) => {
             nodeEnv: process.env.NODE_ENV
         });
 
-        if (!NEON_DB_URL) {
-            throw new Error('DATABASE_URL environment variable is not set');
-        }
-
         const client = new Client({
             connectionString: NEON_DB_URL,
             ssl: { rejectUnauthorized: false },
@@ -35,8 +31,8 @@ export const handler = async (event) => {
                        SUM(r.revenue_qc) as total_gross,
                        AVG(r.revenue_qc) as avg_weekend_gross,
                        MAX(r.revenue_qc) as best_weekend
-                FROM directors d
-                JOIN movie_directors md ON d.id = md.director_id
+                FROM crew d
+                JOIN movie_crew md ON d.id = md.crew_id
                 JOIN movies m ON md.movie_id = m.id
                 LEFT JOIN revenues r ON m.id = r.film_id
                 WHERE d.id = $1
@@ -51,8 +47,8 @@ export const handler = async (event) => {
                                COUNT(DISTINCT m.id) as total_movies,
                                SUM(r.revenue_qc) as total_gross,
                                AVG(r.revenue_qc) as avg_weekend_gross
-                        FROM directors d
-                        JOIN movie_directors md ON d.id = md.director_id
+                        FROM crew d
+                        JOIN movie_crew md ON d.id = md.crew_id
                         JOIN movies m ON md.movie_id = m.id
                         JOIN revenues r ON m.id = r.film_id
                         GROUP BY d.id, d.name
@@ -67,8 +63,8 @@ export const handler = async (event) => {
                                COUNT(DISTINCT m.id) as total_movies,
                                SUM(r.revenue_qc) as total_gross,
                                AVG(r.revenue_qc) as avg_weekend_gross
-                        FROM directors d
-                        JOIN movie_directors md ON d.id = md.director_id
+                        FROM crew d
+                        JOIN movie_crew md ON d.id = md.crew_id
                         JOIN movies m ON md.movie_id = m.id
                         LEFT JOIN revenues r ON m.id = r.film_id
                         GROUP BY d.id, d.name
@@ -82,8 +78,8 @@ export const handler = async (event) => {
                                COUNT(DISTINCT m.id) as total_movies,
                                SUM(r.revenue_qc) as total_gross,
                                AVG(r.revenue_qc) as avg_weekend_gross
-                        FROM directors d
-                        JOIN movie_directors md ON d.id = md.director_id
+                        FROM crew d
+                        JOIN movie_crew md ON d.id = md.crew_id
                         JOIN movies m ON md.movie_id = m.id
                         JOIN revenues r ON m.id = r.film_id
                         GROUP BY d.id, d.name
@@ -100,8 +96,8 @@ export const handler = async (event) => {
                             COUNT(DISTINCT m.id) as total_movies_with_directors,
                             SUM(r.revenue_qc) as total_gross,
                             AVG(r.revenue_qc) as avg_weekend_gross
-                        FROM directors d
-                        JOIN movie_directors md ON d.id = md.director_id
+                        FROM crew d
+                        JOIN movie_crew md ON d.id = md.crew_id
                         JOIN movies m ON md.movie_id = m.id
                         LEFT JOIN revenues r ON m.id = r.film_id;
                     `;

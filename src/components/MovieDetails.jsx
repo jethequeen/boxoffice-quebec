@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
+import { LineChart, Line, Tooltip, ResponsiveContainer } from 'recharts'
 import { apiCall } from '../utils/api'
 import './MovieDetails.css'
 
@@ -11,8 +11,9 @@ function MovieDetails() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetchMovieDetails()
-  }, [id])
+        fetchMovieDetails()
+      },
+      [id])
 
   const fetchMovieDetails = async () => {
     try {
@@ -61,8 +62,8 @@ function MovieDetails() {
 
   const calculatePercentChange = (current, previous) => {
     if (!previous || previous === 0) return null
-    const change = ((current - previous) / previous) * 100
-    return change
+    return ((current - previous) / previous) * 100
+
   }
 
   if (loading) {
@@ -106,7 +107,7 @@ function MovieDetails() {
           <div className="movie-poster">
             {movie.poster_path ? (
               <img 
-                src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+                src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`} 
                 alt={movie.fr_title || movie.title}
                 onError={(e) => {
                   e.target.style.display = 'none'

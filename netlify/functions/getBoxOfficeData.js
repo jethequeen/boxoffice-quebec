@@ -4,19 +4,9 @@ dotenv.config();
 
 export const handler = async (event) => {
     try {
-        const { period = 'weekend', limit = 10 } = event.queryStringParameters || {};
+        const { limit = 10, weekendId } = event.queryStringParameters || {};
         const NEON_DB_URL = process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
 
-        console.log('getBoxOfficeData - Environment check:', {
-            hasDbUrl: !!NEON_DB_URL,
-            dbUrlStart: NEON_DB_URL ? NEON_DB_URL.substring(0, 20) + '...' : 'undefined',
-            period,
-            limit
-        });
-
-        if (!NEON_DB_URL) {
-            throw new Error('DATABASE_URL environment variable is not set');
-        }
 
         const client = new Client({
             connectionString: NEON_DB_URL,
@@ -25,48 +15,19 @@ export const handler = async (event) => {
         });
         await client.connect();
 
-        let query;
-        let values = [limit];
+        const query = `
+      SELECT m.id, m.title, m.fr_title, m.release_date, m.cumulatif_qc,
+             r.revenue_qc, r.revenue_us, r.rank, r.weekend_id
+      FROM movies m
+      JOIN revenues r ON m.id = r.film_id
+      WHERE r.weekend_id = $2
+      ORDER BY r.rank 
+      LIMIT $1;
+    `;
 
-        switch (period) {
-            case 'weekend':
-                // Get latest weekend box office data
-                query = `
-                    SELECT m.id, m.title, m.fr_title, m.release_date, m.cumulatif_qc,
-                           r.revenue_qc, r.revenue_us, r.rank, r.weekend_id
-                    FROM movies m
-                    JOIN revenues r ON m.id = r.film_id
-                    WHERE r.weekend_id = (
-                        SELECT MAX(weekend_id) FROM revenues
-                    )
-                    ORDER BY r.rank ASC
-                    LIMIT $1;
-                `;
-                break;
-            case 'monthly':
-                // Get monthly aggregated data (by year)
-                query = `
-                    SELECT m.id, m.title, m.fr_title,
-                           SUM(r.revenue_qc) as monthly_gross_qc,
-                           SUM(r.revenue_us) as monthly_gross_us,
-                           RIGHT(r.weekend_id::text, 4) as year
-                    FROM movies m
-                    JOIN revenues r ON m.id = r.film_id
-                    WHERE RIGHT(r.weekend_id::text, 4) = RIGHT((SELECT MAX(weekend_id) FROM revenues)::text, 4)
-                    GROUP BY m.id, m.title, m.fr_title, RIGHT(r.weekend_id::text, 4)
-                    ORDER BY monthly_gross_qc DESC
-                    LIMIT $1;
-                `;
-                break;
-            default:
-                // Default to recent releases
-                query = `
-                    SELECT m.id, m.title, m.fr_title, m.release_date
-                    FROM movies m
-                    ORDER BY m.release_date DESC
-                    LIMIT $1;
-                `;
-        }
+        const values = [limit, weekendId];
+
+        console.log('Query values:', values);
 
         const result = await client.query(query, values);
         await client.end();
@@ -81,7 +42,7 @@ export const handler = async (event) => {
             },
             body: JSON.stringify({
                 data: result.rows,
-                period,
+                weekendId,
                 count: result.rows.length
             }),
         };
@@ -90,9 +51,7 @@ export const handler = async (event) => {
         console.error('Error fetching box office data:', {
             message: err.message,
             stack: err.stack,
-            code: err.code,
-            hasDbUrl: !!process.env.DATABASE_URL,
-            nodeEnv: process.env.NODE_ENV
+            code: err.code
         });
 
         return {

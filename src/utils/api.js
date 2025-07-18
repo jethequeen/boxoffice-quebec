@@ -34,12 +34,7 @@ export const apiCall = async (endpoint, options = {}) => {
       },
     });
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    return data;
+    return await response.json();
   } catch (error) {
     console.error(`API call failed for ${endpoint}:`, error);
     throw error;
@@ -47,8 +42,12 @@ export const apiCall = async (endpoint, options = {}) => {
 };
 
 // Specific API functions
-export const getBoxOfficeData = (period = 'weekend', limit = 10) => {
-  return apiCall(`getBoxOfficeData?period=${period}&limit=${limit}`);
+export const getBoxOfficeData = (limit = 10, weekendId = null) => {
+  const params = new URLSearchParams();
+  params.append('limit', limit);
+  if (weekendId) params.append('weekendId', weekendId);
+
+  return apiCall(`getBoxOfficeData?${params.toString()}`);
 };
 
 export const getMovieStats = (type = 'summary') => {
@@ -84,3 +83,7 @@ export const getWeekendBoxOffice = (weekendId = null) => {
   const params = weekendId ? `?weekendId=${weekendId}` : '';
   return apiCall(`getWeekendBoxOffice${params}`);
 };
+
+export const getPrincipalStudios = (movieIds) => {
+  return apiCall(`getPrincipalStudios?movieIds=${movieIds.join(',')}`)
+}

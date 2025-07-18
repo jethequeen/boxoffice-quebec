@@ -5,9 +5,11 @@ function Layout({ children }) {
   const location = useLocation()
 
   const navItems = [
-    { path: '/', label: 'Tableau de bord' },
-    { path: '/movies', label: 'Films'},
+    { path: '/', label: 'Accueil' },
+    { path: '/box-office', label: 'Box Office'},
+    { path: '/movies', label: 'Films' },
     { path: '/directors', label: 'Réalisateurs' },
+    { path: '/blog', label: 'Blog'}
   ]
 
   return (

@@ -1,11 +1,11 @@
-﻿import { Client } from 'pg';
-import dotenv from 'dotenv';
-dotenv.config();
+﻿import { Client } from 'pg'
+import dotenv from 'dotenv'
+dotenv.config()
 
 export const handler = async (event) => {
     try {
-        const { weekendId } = event.queryStringParameters || {};
-        
+        const { weekendId } = event.queryStringParameters || {}
+
         if (!weekendId) {
             return {
                 statusCode: 400,
@@ -14,40 +14,54 @@ export const handler = async (event) => {
                     'Access-Control-Allow-Origin': '*'
                 },
                 body: JSON.stringify({ error: 'Weekend ID is required' }),
-            };
+            }
         }
 
-        const NEON_DB_URL = process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
-
-        if (!NEON_DB_URL) {
-            throw new Error('DATABASE_URL environment variable is not set');
-        }
+        const NEON_DB_URL = process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL
 
         const client = new Client({
             connectionString: NEON_DB_URL,
             ssl: { rejectUnauthorized: false },
             connectionTimeoutMillis: 10000
-        });
-        await client.connect();
+        })
+        await client.connect()
 
-        // Get week counts for each movie (number of revenue records)
+        // 1. Get end_date of the requested weekend
+        const weekendDateQuery = `SELECT end_date FROM weekends WHERE id = $1`
+        const dateResult = await client.query(weekendDateQuery, [weekendId])
+
+        const endDate = dateResult.rows[0].end_date
+        console.log(`📅 Weekend end date: ${endDate}`)
+
+        // 2. Get all movie IDs for this weekend
+        const movieIdsQuery = `SELECT DISTINCT film_id FROM revenues WHERE weekend_id = $1`
+        const movieIdResult = await client.query(movieIdsQuery, [weekendId])
+        const movieIds = movieIdResult.rows.map(r => r.film_id)
+        console.log(`🎬 Movie IDs for weekend ${weekendId}:`, movieIds)
+
+        if (movieIds.length === 0) {
+            return {
+                statusCode: 200,
+                body: JSON.stringify({ data: {}, weekend_id: weekendId, count: 0 }),
+            }
+        }
+
+        // 3. Count the number of revenue entries for each film_id up to this end date
         const query = `
-            SELECT r.film_id, COUNT(*) as week_count
+            SELECT film_id, COUNT(*) AS week_count
             FROM revenues r
-            WHERE r.film_id IN (
-                SELECT DISTINCT film_id FROM revenues WHERE weekend_id = $1
-            )
-            GROUP BY r.film_id;
-        `;
+            JOIN weekends w ON r.weekend_id = w.id
+            WHERE film_id = ANY($1) AND w.end_date <= $2
+            GROUP BY film_id;
+        `
 
-        const result = await client.query(query, [weekendId]);
-        await client.end();
+        const result = await client.query(query, [movieIds, endDate])
+        await client.end()
 
-        // Convert to object for easier lookup
-        const weekCounts = {};
+        const weekCounts = {}
         result.rows.forEach(row => {
-            weekCounts[row.film_id] = parseInt(row.week_count) || 1;
-        });
+            weekCounts[row.film_id] = parseInt(row.week_count) || 1
+        })
 
         return {
             statusCode: 200,
@@ -62,20 +76,20 @@ export const handler = async (event) => {
                 weekend_id: weekendId,
                 count: result.rows.length
             }),
-        };
+        }
 
     } catch (err) {
-        console.error('Error fetching week counts:', err);
+        console.error('Error fetching week counts:', err)
         return {
             statusCode: 500,
             headers: {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 error: 'Erreur lors de la récupération des compteurs de semaines',
-                details: err.message 
+                details: err.message
             }),
-        };
+        }
     }
-};
+}
