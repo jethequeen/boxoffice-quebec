@@ -420,9 +420,9 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                     {movie.fr_title || movie.title}
                   </Link>
                   <div className="mobile-movie-stats">
-                    <div className="mobile-stat-item">
-                      <span className="mobile-stat-label">Recettes</span>
-                      <span className="mobile-stat-value">{formatCurrency(movie.revenue_qc)}</span>
+                    <div className="mobile-stat-item revenue">
+                      <span className="mobile-stat-label">Recettes du week-end</span>
+                      <span className="mobile-stat-value revenue">{formatCurrency(movie.revenue_qc)}</span>
                     </div>
                     <div className="mobile-stat-item">
                       <span className="mobile-stat-label">Changement</span>

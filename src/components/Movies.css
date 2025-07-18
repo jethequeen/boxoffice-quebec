@@ -57,8 +57,10 @@
 /* Movies Grid - Mobile first */
 .movies-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--spacing-lg);
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 /* Responsive grid */
@@ -66,6 +68,7 @@
   .movies-grid {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: var(--spacing-xl);
+    max-width: none;
   }
 }
 
@@ -226,27 +229,36 @@
     flex-direction: column;
     align-items: stretch;
     gap: var(--spacing-sm);
+    max-width: 320px;
+    margin: 0 auto var(--spacing-lg);
   }
 
   .view-button {
     width: 100%;
     justify-content: center;
-    padding: var(--spacing-md);
-    font-size: 0.9rem;
+    padding: var(--spacing-sm);
+    font-size: 0.85rem;
+  }
+
+  .movies-grid {
+    grid-template-columns: 1fr;
+    max-width: 320px;
+    gap: var(--spacing-md);
   }
 
   .movie-card {
     margin: 0;
+    max-width: 320px;
   }
 
   .movie-content {
-    padding: var(--spacing-lg);
-    padding-top: var(--spacing-xl);
+    padding: var(--spacing-md);
+    padding-top: var(--spacing-lg);
   }
 
   .movie-title {
-    font-size: 1rem;
-    padding-right: 3rem;
+    font-size: 0.95rem;
+    padding-right: 2.5rem;
     line-height: 1.3;
   }
 
@@ -254,7 +266,7 @@
     top: var(--spacing-sm);
     right: var(--spacing-sm);
     padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: 0.75rem;
+    font-size: 0.7rem;
   }
 
   .detail-item {
@@ -265,11 +277,11 @@
 
   .detail-value {
     text-align: left;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
 
   .detail-label {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
   }
 }
 

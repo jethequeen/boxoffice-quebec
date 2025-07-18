@@ -403,38 +403,64 @@
   .movie-hero {
     grid-template-columns: 1fr;
     text-align: center;
-    gap: var(--spacing-lg);
-    padding: var(--spacing-lg);
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
   }
 
   .movie-poster {
-    max-width: 250px;
+    max-width: 180px;
     margin: 0 auto;
   }
 
   .movie-title {
-    font-size: 1.5rem;
+    font-size: 1.3rem;
     line-height: 1.2;
+    margin-bottom: var(--spacing-xs);
   }
 
   .original-title {
-    font-size: 1rem;
+    font-size: 0.9rem;
+    margin-bottom: var(--spacing-sm);
   }
 
   .stats-grid {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-lg);
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-sm);
+    max-width: 320px;
+    margin: 0 auto;
   }
 
   .details-grid {
     grid-template-columns: 1fr;
-    gap: var(--spacing-lg);
+    gap: var(--spacing-md);
+    max-width: 320px;
+    margin: 0 auto;
   }
 
-  .chart-section, .table-section, .stat-card, .detail-section {
-    padding: var(--spacing-lg);
-    margin: 0 calc(-1 * var(--spacing-lg));
-    border-radius: 0;
+  .stat-card {
+    padding: var(--spacing-sm);
+    text-align: center;
+  }
+
+  .stat-card h3 {
+    font-size: 0.8rem;
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .stat-number {
+    font-size: 1rem;
+  }
+
+  .detail-section {
+    padding: var(--spacing-md);
+    max-width: 320px;
+    margin: var(--spacing-md) auto;
+  }
+
+  .chart-section, .table-section {
+    padding: var(--spacing-md);
+    margin: var(--spacing-md) calc(-1 * var(--spacing-lg));
+    border-radius: var(--radius-sm);
   }
 
   .meta-item {
@@ -445,15 +471,15 @@
 
   .meta-label {
     min-width: auto;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
   }
 
   .meta-value {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
 
   .performance-table {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     display: block;
     overflow-x: auto;
     white-space: nowrap;
@@ -461,7 +487,7 @@
 
   .performance-table th,
   .performance-table td {
-    padding: var(--spacing-sm) var(--spacing-xs);
+    padding: var(--spacing-xs);
   }
 
   .table-container {
