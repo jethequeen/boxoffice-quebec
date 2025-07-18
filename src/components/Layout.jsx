@@ -8,8 +8,6 @@ function Layout({ children }) {
     { path: '/', label: 'Accueil' },
     { path: '/box-office', label: 'Box Office'},
     { path: '/movies', label: 'Films' },
-    { path: '/directors', label: 'Réalisateurs' },
-    { path: '/blog', label: 'Blog'}
   ]
 
   return (

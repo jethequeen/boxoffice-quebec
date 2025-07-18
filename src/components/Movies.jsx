@@ -75,21 +75,6 @@ function Movies() {
         <p>Statistiques et performances des films au box-office québécois</p>
       </div>
 
-      <div className="view-controls">
-        <button
-          className={`view-button ${viewType === 'top_grossing' ? 'active' : ''}`}
-          onClick={() => setViewType('top_grossing')}
-        >
-          🏆 Plus gros succès
-        </button>
-        <button
-          className={`view-button ${viewType === 'longest_running' ? 'active' : ''}`}
-          onClick={() => setViewType('longest_running')}
-        >
-          ⏱️ Plus longue durée
-        </button>
-      </div>
-
       <div className="movies-grid">
         {movies.map((movie, index) => (
           <div key={movie.id} className="movie-card">
@@ -111,17 +96,6 @@ function Movies() {
                   <span className="detail-label">Semaines en salle:</span>
                   <span className="detail-value">{movie.weeks_in_theaters || 0} semaines</span>
                 </div>
-                {viewType === 'top_grossing' && (
-                  <div className="detail-item">
-                    <span className="detail-label">Moyenne par semaine:</span>
-                    <span className="detail-value">
-                      {movie.weeks_in_theaters > 0 
-                        ? formatCurrency(movie.total_gross / movie.weeks_in_theaters)
-                        : 'N/A'
-                      }
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
           </div>

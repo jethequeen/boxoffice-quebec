@@ -162,7 +162,7 @@ function MovieDetails() {
         <h2>Performance au box-office</h2>
         <div className="stats-grid">
           <div className="stat-card">
-            <div className="stat-icon">💰</div>
+            <div className="stat-icon"></div>
             <div className="stat-content">
               <h3>Recettes totales QC</h3>
               <p className="stat-number">{formatCurrency(statistics.total_revenue_qc)}</p>
@@ -170,7 +170,7 @@ function MovieDetails() {
           </div>
           
           <div className="stat-card">
-            <div className="stat-icon">🇺🇸</div>
+            <div className="stat-icon"></div>
             <div className="stat-content">
               <h3>Recettes totales US</h3>
               <p className="stat-number">{formatCurrency(statistics.total_revenue_us)}</p>
@@ -178,20 +178,13 @@ function MovieDetails() {
           </div>
           
           <div className="stat-card">
-            <div className="stat-icon">📅</div>
+            <div className="stat-icon"></div>
             <div className="stat-content">
               <h3>Recettes week-ends QC</h3>
               <p className="stat-number">{formatCurrency(statistics.weekend_revenue_qc)}</p>
             </div>
           </div>
-          
-          <div className="stat-card">
-            <div className="stat-icon">🏆</div>
-            <div className="stat-content">
-              <h3>Meilleur classement</h3>
-              <p className="stat-number">#{statistics.best_rank}</p>
-            </div>
-          </div>
+
         </div>
       </div>
 
@@ -284,7 +277,7 @@ function MovieDetails() {
                   to={`/crew/${director.id}`} 
                   className="person-link"
                 >
-                  🎭 {director.name}
+                  {director.name}
                 </Link>
               ))}
             </div>

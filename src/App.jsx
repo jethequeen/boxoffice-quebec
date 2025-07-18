@@ -4,11 +4,8 @@ import Home from './components/Home'
 import WeekendDetails from './components/WeekendDetails'
 import Movies from './components/Movies'
 import MovieDetails from './components/MovieDetails'
-import Directors from './components/Directors'
 import GenreDetails from './components/GenreDetails'
 import CrewDetails from './components/CrewDetails'
-import Blog from './components/Blog'
-import BlogPost from './components/BlogPost'
 import './App.css'
 
 function App() {
@@ -22,11 +19,8 @@ function App() {
           <Route path="/weekend/:weekendId" element={<WeekendDetails />} />
           <Route path="/movies" element={<Movies />} />
           <Route path="/movies/:id" element={<MovieDetails />} />
-          <Route path="/directors" element={<Directors />} />
           <Route path="/genres/:id" element={<GenreDetails />} />
           <Route path="/crew/:id" element={<CrewDetails />} />
-          <Route path="/blog" element={<Blog />} />
-          <Route path="/blog/:id" element={<BlogPost />} />
         </Routes>
       </Layout>
     </Router>
