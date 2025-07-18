@@ -25,8 +25,21 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [studioNames, setStudios] = useState({})
+  const [expandedCards, setExpandedCards] = useState(new Set())
 
   const realWeekendId = weekendId || getCurrentWeekendId()
+
+  const toggleCardExpansion = (movieId) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(movieId)) {
+        newSet.delete(movieId)
+      } else {
+        newSet.add(movieId)
+      }
+      return newSet
+    })
+  }
 
   useEffect(() => {
     fetchWeekendData()
@@ -414,46 +427,70 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
 
             {/* Mobile card layout */}
             <div className="mobile-table-cards">
-              {enhancedMovies.map((movie, index) => (
-                <div key={movie.id} className="mobile-movie-card">
-                  <div className="mobile-movie-header">
-                    <span className="mobile-movie-rank">#{index + 1}</span>
-                    <Link to={`/movies/${movie.id}`} className="mobile-movie-title">
-                      {movie.fr_title || movie.title}
-                    </Link>
-                  </div>
-                  <div className="mobile-movie-stats">
+              {enhancedMovies.map((movie, index) => {
+                const isExpanded = expandedCards.has(movie.id)
+                return (
+                  <div key={movie.id} className="mobile-movie-card">
+                    <div className="mobile-movie-main" onClick={() => toggleCardExpansion(movie.id)}>
+                      <div className="mobile-movie-header">
+                        <span className="mobile-movie-rank">#{index + 1}</span>
+                        <Link
+                          to={`/movies/${movie.id}`}
+                          className="mobile-movie-title"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {movie.fr_title || movie.title}
+                        </Link>
+                      </div>
+                      <button
+                        className={`mobile-expand-button ${isExpanded ? 'expanded' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleCardExpansion(movie.id)
+                        }}
+                      >
+                        ▼
+                      </button>
+                    </div>
+
+                    {/* Always visible revenue */}
                     <div className="mobile-stat-item revenue">
                       <span className="mobile-stat-label">Recettes du week-end</span>
                       <span className="mobile-stat-value revenue">{formatCurrency(movie.revenue_qc)}</span>
                     </div>
-                    <div className="mobile-stat-item">
-                      <span className="mobile-stat-label">Changement</span>
-                      <span className={`mobile-stat-value ${movie.change_percent >= 0 ? 'positive' : 'negative'}`}>
-                        {movie.change_percent > 0 ? '+' : ''}{movie.change_percent.toFixed(0)}%
-                      </span>
-                    </div>
-                    <div className="mobile-stat-item">
-                      <span className="mobile-stat-label">Force QC/USA</span>
-                      <span className="mobile-stat-value">
-                        {movie.force_quebec_usa !== null ? `${movie.force_quebec_usa.toFixed(0)}%` : '-'}
-                      </span>
-                    </div>
-                    <div className="mobile-stat-item">
-                      <span className="mobile-stat-label">Semaine</span>
-                      <span className="mobile-stat-value">{movie.week_number}</span>
-                    </div>
-                    <div className="mobile-stat-item">
-                      <span className="mobile-stat-label">Cumulatif</span>
-                      <span className="mobile-stat-value">{formatCurrency(movie.cumulatif_qc)}</span>
-                    </div>
-                    <div className="mobile-stat-item">
-                      <span className="mobile-stat-label">Studio</span>
-                      <span className="mobile-stat-value">{movie.studio_name}</span>
+
+                    {/* Expandable details */}
+                    <div className={`mobile-movie-details ${isExpanded ? 'expanded' : 'collapsed'}`}>
+                      <div className="mobile-movie-stats">
+                        <div className="mobile-stat-item">
+                          <span className="mobile-stat-label">Changement</span>
+                          <span className={`mobile-stat-value ${movie.change_percent >= 0 ? 'positive' : 'negative'}`}>
+                            {movie.change_percent > 0 ? '+' : ''}{movie.change_percent.toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="mobile-stat-item">
+                          <span className="mobile-stat-label">Force QC/USA</span>
+                          <span className="mobile-stat-value">
+                            {movie.force_quebec_usa !== null ? `${movie.force_quebec_usa.toFixed(0)}%` : '-'}
+                          </span>
+                        </div>
+                        <div className="mobile-stat-item">
+                          <span className="mobile-stat-label">Semaine</span>
+                          <span className="mobile-stat-value">{movie.week_number}</span>
+                        </div>
+                        <div className="mobile-stat-item">
+                          <span className="mobile-stat-label">Cumulatif</span>
+                          <span className="mobile-stat-value">{formatCurrency(movie.cumulatif_qc)}</span>
+                        </div>
+                        <div className="mobile-stat-item">
+                          <span className="mobile-stat-label">Studio</span>
+                          <span className="mobile-stat-value">{movie.studio_name}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         </div>
