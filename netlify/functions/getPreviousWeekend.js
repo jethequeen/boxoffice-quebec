@@ -17,7 +17,7 @@ export const handler = async (event) => {
             };
         }
 
-        const NEON_DB_URL = process.env.DATABASE_URL;
+        const NEON_DB_URL = process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
 
         if (!NEON_DB_URL) {
             throw new Error('DATABASE_URL environment variable is not set');

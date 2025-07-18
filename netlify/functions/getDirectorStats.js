@@ -5,7 +5,7 @@ dotenv.config();
 export const handler = async (event) => {
     try {
         const { directorId, type = 'top_grossing' } = event.queryStringParameters || {};
-        const NEON_DB_URL = process.env.DATABASE_URL;
+        const NEON_DB_URL = process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
 
         console.log('Environment check:', {
             hasDbUrl: !!NEON_DB_URL,

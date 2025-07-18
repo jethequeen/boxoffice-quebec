@@ -5,7 +5,7 @@ dotenv.config();
 export const handler = async (event) => {
     try {
         const { period = 'weekend', limit = 10 } = event.queryStringParameters || {};
-        const NEON_DB_URL = process.env.DATABASE_URL;
+        const NEON_DB_URL = process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
 
         console.log('getBoxOfficeData - Environment check:', {
             hasDbUrl: !!NEON_DB_URL,
