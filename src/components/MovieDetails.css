@@ -192,3 +192,110 @@
   margin: 0;
 }
 
+/* Scrolling wrapper and momentum scrolling on iOS */
+.table-container{
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Make the table wide enough to scroll if needed, and keep numbers on one line */
+.box-office-table{
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;          /* keeps column widths stable */
+  min-width: 760px;             /* guarantees a scrollable width on small screens */
+}
+.box-office-table th,
+.box-office-table td{
+  white-space: nowrap;          /* prevent wrapping that breaks alignment */
+}
+
+/* Tighten padding/size gradually */
+@media (max-width: 900px){
+  .box-office-table{ min-width: 680px; font-size: .92rem; }
+  .box-office-table th, .box-office-table td{ padding: .7rem .6rem; }
+}
+
+/* Hide lowest-priority column first: $ / salle */
+@media (max-width: 700px){
+  .box-office-table{ min-width: 600px; }
+  .box-office-table th.col-pertheater,
+  .box-office-table td.pertheater-cell{ display: none; }
+}
+
+/* Then hide Salles */
+@media (max-width: 560px){
+  .box-office-table{ min-width: 520px; }
+  .box-office-table th.col-theaters,
+  .box-office-table td.theaters-cell{ display: none; }
+}
+
+/* Then hide % Changement on very narrow screens */
+@media (max-width: 420px){
+  .box-office-table{ min-width: 440px; font-size: .88rem; }
+  .box-office-table th.col-change,
+  .box-office-table td.change-cell{ display: none; }
+}
+
+/* Optional: sticky header for long lists (remove if you don't want it) */
+@supports (position: sticky){
+  .box-office-table thead th{
+    position: sticky; top: 0;
+    background: #fff; z-index: 1;
+  }
+}
+
+/* ===== Compact hero (about ~40–50% shorter) ===== */
+.tmdb-hero--compact{ min-height:220px; }
+.tmdb-hero--compact .tmdb-hero__content{
+  grid-template-columns:120px 1fr;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  align-items:flex-start;
+}
+
+/* Poster smaller */
+.tmdb-hero--compact .tmdb-hero__poster img,
+.tmdb-hero--compact .poster-placeholder{
+  width:110px; height:165px; border-radius:10px;
+  box-shadow:0 6px 14px rgba(0,0,0,.35);
+}
+
+/* Title + subtitle smaller */
+.tmdb-hero--compact .tmdb-hero__title{
+  font-size: clamp(1.25rem, 1.2vw + .9rem, 1.6rem);
+  margin-bottom: .25rem;
+}
+.tmdb-hero--compact .tmdb-hero__subtitle{
+  font-size: clamp(.7rem, .5vw + .45rem, .9rem);
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* Chips smaller/tighter */
+.tmdb-hero--compact .chip{ padding:.3rem .5rem; font-size:.8rem; }
+.tmdb-hero--compact .tmdb-hero__chips{ gap:.4rem; margin:.3rem 0 .5rem; }
+
+/* KPIs denser */
+.tmdb-hero--compact .metrics{
+  grid-template-columns: repeat(5, minmax(120px,1fr));
+  gap: .5rem;
+  margin:.4rem 0 .2rem;
+}
+.tmdb-hero--compact .metric__label{ font-size:.7rem; }
+.tmdb-hero--compact .metric__value{ font-size:1rem; }
+
+/* People smaller */
+.tmdb-hero--compact .avatar{ width:28px; height:28px; }
+.tmdb-hero--compact .people-list{ gap:.4rem .6rem; }
+.tmdb-hero--compact .person-name{ font-size:.85rem; }
+
+/* Optional: shorter overview line-height */
+.tmdb-hero--compact .tmdb-hero__overview p{ line-height:1.25; }
+
+/* Container query keeps it readable on very small widths */
+@container hero (max-width: 560px){
+  .tmdb-hero--compact .tmdb-hero__content{ grid-template-columns:1fr; padding: var(--space-4); }
+  .tmdb-hero--compact .tmdb-hero__poster{ order:-1; margin:0 auto .5rem; }
+  .tmdb-hero--compact .metrics{ grid-template-columns: 1fr 1fr; }
+}

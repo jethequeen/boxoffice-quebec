@@ -171,7 +171,7 @@ function MovieDetails() {
         <div className="movie-header compact">
           <Link to="/movies" className="back-link">← Retour aux films</Link>
 
-          <section className="tmdb-hero tmdb-hero--tight">
+          <section className="tmdb-hero tmdb-hero--compact">
             {backdropUrl && (
                 <div className="tmdb-hero__backdrop">
                   <img src={backdropUrl} alt="" loading="lazy" />
@@ -293,29 +293,30 @@ function MovieDetails() {
                 <table className="box-office-table">
                   <thead>
                   <tr>
-                    <th className="sortable th-left" onClick={() => toggleSort('date')}>
+                    <th className="th-left  col-date  sortable center" onClick={() => toggleSort('date')}>
                       Date{arrow('date')}
                     </th>
-                    <th className="sortable center" onClick={() => toggleSort('rank')}>
+                    <th className="th-center col-rank  sortable center" onClick={() => toggleSort('rank')}>
                       Rank{arrow('rank')}
                     </th>
-                    <th className="sortable center" onClick={() => toggleSort('revenue_qc')}>
+                    <th className="th-right col-gross sortable center" onClick={() => toggleSort('revenue_qc')}>
                       Recettes{arrow('revenue_qc')}
                     </th>
-                    <th className="sortable center" onClick={() => toggleSort('change_percent')}>
+                    <th className="th-center col-change sortable center" onClick={() => toggleSort('change_percent')}>
                       % Changement{arrow('change_percent')}
                     </th>
-                    <th className="sortable center" onClick={() => toggleSort('theater_count')}>
+                    <th className="th-right col-theaters sortable center" onClick={() => toggleSort('theater_count')}>
                       Salles{arrow('theater_count')}
                     </th>
-                    <th className="sortable center" onClick={() => toggleSort('rev_per_theater')}>
+                    <th className="th-right col-pertheater sortable center" onClick={() => toggleSort('rev_per_theater')}>
                       $ / salle{arrow('rev_per_theater')}
                     </th>
-                    <th className="sortable center" onClick={() => toggleSort('week_number')}>
+                    <th className="th-center col-week sortable center" onClick={() => toggleSort('week_number')}>
                       Week{arrow('week_number')}
                     </th>
                   </tr>
                   </thead>
+
 
                   <tbody>
                   {sortedRows.map((r) => (
