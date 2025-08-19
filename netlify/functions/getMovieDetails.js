@@ -79,7 +79,7 @@ export const handler = async (event) => {
         let castResult = { rows: [] };
         try {
             const castQuery = `
-                SELECT c.id, c.name, mc.order
+                SELECT c.id, c.name, mc.order, c.profile_path
                 FROM actors c
                 JOIN movie_actors mc ON c.id = mc.actor_id
                 WHERE mc.movie_id = $1

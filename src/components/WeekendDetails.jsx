@@ -199,6 +199,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
     });
   };
 
+
   if (loading)
     return (
         <div className="dashboard">

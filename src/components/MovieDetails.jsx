@@ -1,328 +1,345 @@
-﻿import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { LineChart, Line, Tooltip, ResponsiveContainer } from 'recharts'
-import { apiCall } from '../utils/api'
-import './MovieDetails.css'
+﻿import { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { apiCall } from '../utils/api';
+import './MovieDetails.css';
+import { getFridayFromWeekendId } from '../utils/weekendUtils';
+
 
 function MovieDetails() {
-  const { id } = useParams()
-  const [movieData, setMovieData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const { id } = useParams();
+  const [movieData, setMovieData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [sort, setSort] = useState({ key: 'date', dir: 'asc' });
 
-  useEffect(() => {
-        fetchMovieDetails()
-      },
-      [id])
+  useEffect(() => { fetchMovieDetails(); }, [id]);
 
-  const fetchMovieDetails = async () => {
+  async function fetchMovieDetails() {
     try {
-      setLoading(true)
-      const result = await apiCall(`getMovieDetails?movieId=${id}`)
-      setMovieData(result)
+      setLoading(true);
+      const result = await apiCall(`getMovieDetails?movieId=${id}`);
+      setMovieData(result);
     } catch (err) {
-      console.error('Error fetching movie details:', err)
-      setError('Erreur lors du chargement des détails du film')
+      console.error('Error fetching movie details:', err);
+      setError('Erreur lors du chargement des détails du film');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
-  const formatCurrency = (amount) => {
-    if (!amount) return 'N/A'
-    return new Intl.NumberFormat('fr-CA', {
-      style: 'currency',
-      currency: 'CAD',
-      minimumFractionDigits: 0
-    }).format(amount)
-  }
-
-  const formatWeekendId = (weekendId) => {
-    const str = weekendId.toString()
-    const year = str.slice(-4)
-    const week = str.slice(0, -4)
-    return `S${week} ${year}`
-  }
-
-  const formatWeekendDate = (weekendId) => {
-    const str = weekendId.toString()
-    const year = str.slice(-4)
-    const week = parseInt(str.slice(0, -4))
-
-    // Calculate approximate date (first day of year + (week-1) * 7 days)
-    const startOfYear = new Date(parseInt(year), 0, 1)
-    const weekStart = new Date(startOfYear.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000)
-
-    return weekStart.toLocaleDateString('fr-CA', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
-  }
-
-  const calculatePercentChange = (current, previous) => {
-    if (!previous || previous === 0) return null
-    return ((current - previous) / previous) * 100
-
-  }
+  const formatCurrency = (n) =>
+      n == null
+          ? 'N/A'
+          : new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', minimumFractionDigits: 0 }).format(n);
 
   if (loading) {
     return (
-      <div className="movie-details">
-        <div className="loading">
-          <div className="loading-spinner"></div>
-          <p>Chargement des détails du film...</p>
+        <div className="movie-details">
+          <div className="loading">
+            <div className="loading-spinner" />
+            <p>Chargement des détails du film...</p>
+          </div>
         </div>
-      </div>
-    )
+    );
   }
 
   if (error || !movieData) {
     return (
-      <div className="movie-details">
-        <div className="error">
-          <h2>Erreur</h2>
-          <p>{error || 'Film non trouvé'}</p>
-          <Link to="/movies" className="back-link">← Retour aux films</Link>
+        <div className="movie-details">
+          <div className="error">
+            <h2>Erreur</h2>
+            <p>{error || 'Film non trouvé'}</p>
+            <Link to="/movies" className="back-link">← Retour aux films</Link>
+          </div>
         </div>
-      </div>
-    )
+    );
   }
 
-  const { movie, revenues, directors, genres, cast, statistics } = movieData
+  const { movie, revenues = [], directors = [], genres = [], cast = [], statistics = {} } = movieData;
 
-  // Prepare chart data - only Quebec data
-  const revenueChartData = revenues.map(rev => ({
-    weekend: formatWeekendId(rev.weekend_id),
-    revenue_qc: parseFloat(rev.revenue_qc) || 0,
-    rank: parseInt(rev.rank) || 0
-  }))
+  const TMDB = {
+    poster: (p) => (p ? `https://image.tmdb.org/t/p/w185${p}` : null),
+    backdrop: (p) => (p ? `https://image.tmdb.org/t/p/w1280${p}` : null),
+    profile: (p) => (p ? `https://image.tmdb.org/t/p/w185${p}` : null),
+  };
+
+  const backdropUrl = TMDB.backdrop(movie?.backdrop_path) || TMDB.poster(movie?.poster_path) || null;
+  const year = movie.release_date ? new Date(movie.release_date).getFullYear() : '';
+  const runtime = movie.runtime ? `${movie.runtime} min` : null;
+
+  // --- KPI calculs ---
+  const sum = (arr, key) => arr.reduce((s, r) => s + (Number(r[key]) || 0), 0);
+
+  const totalQC = Number(statistics.total_revenue_qc) || sum(revenues, 'revenue_qc');
+  const totalUS = Number(statistics.total_revenue_us) || sum(revenues, 'revenue_us');
+
+  // Force QC/USA globale (référence ~2.29% de part de marché)
+  const POP_RATIO = 0.0229; // 2.29%
+  const forceQcUsa = totalUS > 0 ? ((totalQC / totalUS) / POP_RATIO) * 100 : null;
+
+  // semaines en salle (prends le max si week_count existe, sinon longueur)
+  const maxWeeks = Math.max(
+      revenues.length,
+      ...revenues.map((r, i) => Number(r.week_count) || (i + 1))
+  );
+
+  // budget (si présent sur movie)
+  const budget = Number(movie.budget) || null;
+
+  // Pills genres (look “chip”)
+  const genreChips = (genres || []).slice(0, 8).map((g) => (
+      <Link key={g.id ?? g.name} to={`/genres/${g.id ?? encodeURIComponent(g.name)}`} className="chip chip--link chip--genre">
+        {g.name}
+      </Link>
+  ));
+
+  // Pays (après genres) – format pill “ghost”
+  const countries = movie?.production_countries || movie?.countries || [];
+  const countryChips = countries.map((c) => (
+      <span key={c.iso_3166_1 ?? c.name} className="chip chip--ghost">
+      {c.name ?? c.iso_3166_1}
+    </span>
+  ));
+
+  // 9 acteurs
+  const TOP_CAST_COUNT = 9;
+  const topCast = cast.slice(0, TOP_CAST_COUNT);
+
+  // ---------- helpers ----------
+  const formatInt = (n) =>
+      n == null ? '—' : Number(n).toLocaleString('fr-CA');
+  const pct0 = (n) =>
+      n == null ? '—' : `${n >= 0 ? '+' : ''}${Number(n).toFixed(0)}%`;
+
+// Build rows with the fields we need for sorting/formatting
+  const revRows = revenues.map((r, i) => {
+    const dateObj = r.start_date
+        ? new Date(r.start_date)
+        : getFridayFromWeekendId(String(r.weekend_id)); // reliable Friday
+    const revenue_qc_num = Number(r.revenue_qc) || 0;
+    const prev = i > 0 ? Number(revenues[i - 1].revenue_qc) || 0 : null;
+    const change_percent = prev ? ((revenue_qc_num - prev) / prev) * 100 : null;
+    const theater_count_num = Number(r.theater_count) || 0;
+    const rev_per_theater =
+        theater_count_num > 0 ? revenue_qc_num / theater_count_num : null;
+    const week_number = Number(r.week_count) || i + 1;
+
+    return {
+      ...r,
+      dateObj,
+      dateStr: dateObj
+          ? dateObj.toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })
+          : '—',
+      rankNum: Number(r.rank) || 0,
+      revenue_qc_num,
+      change_percent,
+      theater_count_num,
+      rev_per_theater,
+      week_number,
+    };
+  });
+
+// ---------- sorting like WeekendDetails ----------
+  const toggleSort = (key) =>
+      setSort((s) =>
+          s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'date' ? 'asc' : 'desc' }
+      );
+  const arrow = (key) => (sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '');
+
+  const sortVal = (row, key) => {
+    switch (key) {
+      case 'date': return row.dateObj ? row.dateObj.getTime() : -Infinity;
+      case 'rank': return row.rankNum;
+      case 'revenue_qc': return row.revenue_qc_num;
+      case 'change_percent': return row.change_percent ?? -Infinity;
+      case 'theater_count': return row.theater_count_num;
+      case 'rev_per_theater': return row.rev_per_theater ?? -Infinity;
+      case 'week_number': return row.week_number ?? -Infinity;
+      default: return 0;
+    }
+  };
+
+  const sortedRows = [...revRows].sort((a, b) => {
+    const va = sortVal(a, sort.key);
+    const vb = sortVal(b, sort.key);
+    return sort.dir === 'asc' ? va - vb : vb - va;
+  });
+
 
   return (
-    <div className="movie-details">
-      <div className="movie-header">
-        <Link to="/movies" className="back-link">← Retour aux films</Link>
-        
-        <div className="movie-hero">
-          <div className="movie-poster">
-            {movie.poster_path ? (
-              <img 
-                src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`} 
-                alt={movie.fr_title || movie.title}
-                onError={(e) => {
-                  e.target.style.display = 'none'
-                }}
-              />
-            ) : (
-              <div className="poster-placeholder">
-                <span>🎬</span>
-              </div>
-            )}
-          </div>
-          
-          <div className="movie-info">
-            <h1 className="movie-title">{movie.fr_title || movie.title}</h1>
-            {movie.fr_title && movie.title !== movie.fr_title && (
-              <h2 className="original-title">{movie.title}</h2>
-            )}
-            
-            <div className="movie-meta">
-              <div className="meta-item">
-                <span className="meta-label">Date de sortie:</span>
-                <span className="meta-value">
-                  {movie.release_date ? new Date(movie.release_date).toLocaleDateString('fr-CA') : 'N/A'}
-                </span>
-              </div>
-              
-              {movie.runtime && (
-                <div className="meta-item">
-                  <span className="meta-label">Durée:</span>
-                  <span className="meta-value">{movie.runtime} minutes</span>
+      <div className="movie-details">
+        <div className="movie-header compact">
+          <Link to="/movies" className="back-link">← Retour aux films</Link>
+
+          <section className="tmdb-hero tmdb-hero--tight">
+            {backdropUrl && (
+                <div className="tmdb-hero__backdrop">
+                  <img src={backdropUrl} alt="" loading="lazy" />
                 </div>
-              )}
-              
-              <div className="meta-item">
-                <span className="meta-label">Semaines en salle:</span>
-                <span className="meta-value">{statistics.weeks_in_theaters} semaines</span>
-              </div>
-            </div>
-
-            {movie.overview && (
-              <div className="movie-overview">
-                <h3>Synopsis</h3>
-                <p>{movie.overview}</p>
-              </div>
             )}
-          </div>
-        </div>
-      </div>
+            <div className="tmdb-hero__overlay" />
 
-      {/* Performance Statistics */}
-      <div className="stats-section">
-        <h2>Performance au box-office</h2>
-        <div className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-icon"></div>
-            <div className="stat-content">
-              <h3>Recettes totales QC</h3>
-              <p className="stat-number">{formatCurrency(statistics.total_revenue_qc)}</p>
-            </div>
-          </div>
-          
-          <div className="stat-card">
-            <div className="stat-icon"></div>
-            <div className="stat-content">
-              <h3>Recettes totales US</h3>
-              <p className="stat-number">{formatCurrency(statistics.total_revenue_us)}</p>
-            </div>
-          </div>
-          
-          <div className="stat-card">
-            <div className="stat-icon"></div>
-            <div className="stat-content">
-              <h3>Recettes week-ends QC</h3>
-              <p className="stat-number">{formatCurrency(statistics.weekend_revenue_qc)}</p>
-            </div>
-          </div>
+            <div className="tmdb-hero__content tmdb-hero__content--top">
+              {/* Poster (small) */}
+              <div className="tmdb-hero__poster tmdb-hero__poster--sm">
+                {movie.poster_path ? (
+                    <img
+                        src={TMDB.poster(movie.poster_path)}
+                        alt={movie.fr_title || movie.title}
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                ) : (
+                    <div className="poster-placeholder"><span>🎬</span></div>
+                )}
+              </div>
 
-        </div>
-      </div>
+              {/* Text + KPI + people */}
+              <div className="tmdb-hero__text">
+                <div className="tmdb-hero__titleblock">
+                  <h1 className="tmdb-hero__title">
+                    {movie.fr_title || movie.title}
+                    {year ? <span className="tmdb-hero__year">({year})</span> : null}
+                  </h1>
 
-      {/* Revenue Chart - Quebec only */}
-      {revenueChartData.length > 0 && (
-        <div className="chart-section">
-          <h2>Évolution des recettes - Québec</h2>
-          <div className="chart-container">
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={revenueChartData} margin={{ top: 20, right: 20, left: 20, bottom: 20 }}>
-                <Tooltip
-                  formatter={(value) => [formatCurrency(value), 'Recettes']}
-                  labelFormatter={(label) => `Semaine ${label}`}
-                  contentStyle={{
-                    backgroundColor: 'white',
-                    border: '1px solid #ccc',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="revenue_qc"
-                  stroke="#667eea"
-                  strokeWidth={4}
-                  dot={{ fill: '#667eea', strokeWidth: 2, r: 6 }}
-                  activeDot={{ r: 8, fill: '#667eea' }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* Weekend Performance Table */}
-      {revenues.length > 0 && (
-        <div className="table-section">
-          <h2>Weekend Box Office Performance</h2>
-          <div className="table-container">
-            <table className="performance-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Rank</th>
-                  <th>Gross</th>
-                  <th>% Change</th>
-                  <th>Theaters</th>
-                  <th>Per Theater</th>
-                  <th>Week</th>
-                </tr>
-              </thead>
-              <tbody>
-                {revenues.map((rev, index) => {
-                  const currentRevenue = parseFloat(rev.revenue_qc) || 0
-                  const previousRevenue = index > 0 ? parseFloat(revenues[index - 1].revenue_qc) || 0 : null
-                  const percentChange = calculatePercentChange(currentRevenue, previousRevenue)
-                  const theaterCount = parseInt(rev.theater_count) || 0
-                  const perTheater = theaterCount > 0 ? currentRevenue / theaterCount : 0
-
-                  return (
-                    <tr key={rev.weekend_id}>
-                      <td className="date-cell">{formatWeekendDate(rev.weekend_id)}</td>
-                      <td className="rank-cell">#{rev.rank}</td>
-                      <td className="gross-cell">{formatCurrency(currentRevenue)}</td>
-                      <td className={`change-cell ${percentChange !== null ? (percentChange >= 0 ? 'positive' : 'negative') : ''}`}>
-                        {percentChange !== null ? `${percentChange > 0 ? '+' : ''}${percentChange.toFixed(0)}%` : '-'}
-                      </td>
-                      <td className="theater-cell">{theaterCount.toLocaleString()}</td>
-                      <td className="per-theater-cell">{formatCurrency(perTheater)}</td>
-                      <td className="week-cell">{index + 1}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Cast and Crew */}
-      <div className="details-grid">
-        {/* Directors */}
-        {directors.length > 0 && (
-          <div className="detail-section">
-            <h3>Réalisation</h3>
-            <div className="person-list">
-              {directors.map(director => (
-                <Link 
-                  key={director.id} 
-                  to={`/crew/${director.id}`} 
-                  className="person-link"
-                >
-                  {director.name}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Genres */}
-        {genres.length > 0 && (
-          <div className="detail-section">
-            <h3>Genres</h3>
-            <div className="genre-list">
-              {genres.map(genre => (
-                <Link 
-                  key={genre.id} 
-                  to={`/genres/${genre.id}`} 
-                  className="genre-tag"
-                >
-                  {genre.name}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Cast */}
-        {cast.length > 0 && (
-          <div className="detail-section">
-            <h3>Distribution</h3>
-            <div className="cast-list">
-              {cast.map(actor => (
-                <div key={actor.id} className="cast-member">
-                  <Link to={`/crew/${actor.id}`} className="actor-name">
-                    {actor.name}
-                  </Link>
-                  {actor.character_name && (
-                    <span className="character-name">({actor.character_name})</span>
+                  {movie.fr_title && movie.title && movie.title !== movie.fr_title && (
+                      <div className="tmdb-hero__subtitle">{movie.title}</div>
                   )}
                 </div>
-              ))}
+
+
+                <div className="tmdb-hero__chips">
+                  {movie.release_date && (
+                      <span className="chip chip--meta">{new Date(movie.release_date).toLocaleDateString('fr-CA')}</span>
+                  )}
+                  {runtime && <span className="chip chip--meta">{runtime}</span>}
+                  {genreChips}
+                  {countryChips}
+                </div>
+
+                {/* KPIs (5 tuiles) */}
+                <div className="metrics">
+                  <div className="metric">
+                    <div className="metric__label">Recettes totales QC</div>
+                    <div className="metric__value">{formatCurrency(totalQC)}</div>
+                  </div>
+                  <div className="metric">
+                    <div className="metric__label">Recettes totales US</div>
+                    <div className="metric__value">{formatCurrency(totalUS)}</div>
+                  </div>
+                  <div className="metric">
+                    <div className="metric__label">Force Québec/USA</div>
+                    <div className="metric__value">{forceQcUsa == null ? '—' : `${forceQcUsa.toFixed(0)}%`}</div>
+                  </div>
+                  <div className="metric">
+                    <div className="metric__label">Semaines en salle</div>
+                    <div className="metric__value">{maxWeeks || '—'}</div>
+                  </div>
+                  <div className="metric">
+                    <div className="metric__label">Budget</div>
+                    <div className="metric__value">{budget ? formatCurrency(budget) : '—'}</div>
+                  </div>
+                </div>
+
+                {/* People: réal (sans avatar) + cast (avec avatar) */}
+                <div className="people-block">
+                  {directors.length > 0 && (
+                      <div className="people-group">
+                        <div className="people-label">Réalisation</div>
+                        <div className="people-list">
+                          {directors.map((d) => (
+                              <Link className="person person--text" to={`/crew/${d.id}`} key={`dir-${d.id}`}>
+                                <span className="person-name">{d.name}</span>
+                              </Link>
+                          ))}
+                        </div>
+                      </div>
+                  )}
+
+                  {topCast.length > 0 && (
+                      <div className="people-group">
+                        <div className="people-label">Distribution</div>
+                        <div className="people-list">
+                          {topCast.map((a) => (
+                              <Link className="person" to={`/crew/${a.id}`} key={`cast-${a.id}`}>
+                                <div className="avatar">
+                                  <img
+                                      src={TMDB.profile(a.profile_path) || ''}
+                                      onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                                      alt=""
+                                  />
+                                </div>
+                                <span className="person-name">{a.name}</span>
+                              </Link>
+                          ))}
+                        </div>
+                      </div>
+                  )}
+                </div>
+
+                {movie.overview && (
+                    <div className="tmdb-hero__overview tmdb-hero__overview--short">
+                      <p>{movie.overview}</p>
+                    </div>
+                )}
+              </div>
             </div>
-          </div>
+          </section>
+        </div>
+
+        {/* Table (same behavior/style as WeekendDetails) */}
+        {revenues.length > 0 && (
+            <div className="table-section">
+              <div className="table-container">
+                <table className="box-office-table">
+                  <thead>
+                  <tr>
+                    <th className="sortable th-left" onClick={() => toggleSort('date')}>
+                      Date{arrow('date')}
+                    </th>
+                    <th className="sortable center" onClick={() => toggleSort('rank')}>
+                      Rank{arrow('rank')}
+                    </th>
+                    <th className="sortable center" onClick={() => toggleSort('revenue_qc')}>
+                      Recettes{arrow('revenue_qc')}
+                    </th>
+                    <th className="sortable center" onClick={() => toggleSort('change_percent')}>
+                      % Changement{arrow('change_percent')}
+                    </th>
+                    <th className="sortable center" onClick={() => toggleSort('theater_count')}>
+                      Salles{arrow('theater_count')}
+                    </th>
+                    <th className="sortable center" onClick={() => toggleSort('rev_per_theater')}>
+                      $ / salle{arrow('rev_per_theater')}
+                    </th>
+                    <th className="sortable center" onClick={() => toggleSort('week_number')}>
+                      Week{arrow('week_number')}
+                    </th>
+                  </tr>
+                  </thead>
+
+                  <tbody>
+                  {sortedRows.map((r) => (
+                      <tr key={r.weekend_id}>
+                        <td className="date-cell">{r.dateStr}</td>
+                        <td className="rank-cell">#{r.rank}</td>
+                        <td className="gross-cell">{formatCurrency(r.revenue_qc_num)}</td>
+                        <td className={`change-cell ${r.change_percent == null ? '' : r.change_percent >= 0 ? 'positive' : 'negative'}`}>
+                          {pct0(r.change_percent)}
+                        </td>
+                        <td className="theaters-cell">{formatInt(r.theater_count_num)}</td>
+                        <td className="pertheater-cell">
+                          {r.rev_per_theater == null ? '—' : formatCurrency(r.rev_per_theater)}
+                        </td>
+                        <td className="week-cell">{r.week_number}</td>
+                      </tr>
+                  ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
         )}
       </div>
-    </div>
-  )
+  );
 }
 
-export default MovieDetails
+export default MovieDetails;

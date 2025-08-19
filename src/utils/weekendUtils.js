@@ -55,22 +55,27 @@ export const parseWeekendId = (weekendId) => {
   return { year: parseInt(s.slice(0, 4), 10), week: parseInt(s.slice(4), 10) };
 };
 
-/** Friday date for a given YYYYWW */
+/** Friday date for a given YYYYWW (returns a real Date) */
 export const getFridayFromWeekendId = (weekendId) => {
   const parts = parseWeekendId(weekendId);
   if (!parts) return null;
   const { year, week } = parts;
 
-  // Monday of ISO week 1
+  // Monday of ISO week 1 (UTC)
   const jan4 = new Date(Date.UTC(year, 0, 4));
   const mondayWeek1 = new Date(jan4);
   mondayWeek1.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7));
 
-  // Friday of requested week (Mon + (week-1)*7 + 4)
+  // Friday = Monday + (week-1)*7 + 4 (UTC)
   const fri = new Date(mondayWeek1);
   fri.setUTCDate(mondayWeek1.getUTCDate() + (week - 1) * 7 + 4);
-  return new Date(fri.getTime());
+
+  // ⛳️ anchor at noon UTC so local time never rolls back to Thursday
+  fri.setUTCHours(12, 0, 0, 0);
+
+  return fri;
 };
+
 
 /** Previous weekend ID (handles year boundaries via date math) */
 export const getPreviousWeekendId = (weekendId) => {
