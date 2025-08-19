@@ -39,6 +39,7 @@ export const handler = async (event) => {
           r.cumulatif_qc_to_date::float8  AS cumulatif_qc_to_date,
           r.cumulatif_us_to_date::float8  AS cumulatif_us_to_date,
           r.force_qc_usa::float8          AS force_qc_usa,
+          r.week_count                    AS week_count,
           LAG(r.revenue_qc::float8)
             OVER (PARTITION BY r.film_id ORDER BY r.weekend_id) AS prev_qc
         FROM revenues r
@@ -59,6 +60,7 @@ export const handler = async (event) => {
         x.cumulatif_qc_to_date AS cumulatif_qc,
         x.cumulatif_us_to_date,
         x.force_qc_usa,
+        x.week_count,
         CASE
           WHEN x.prev_qc IS NULL OR x.prev_qc = 0 THEN NULL
           ELSE ((x.revenue_qc - x.prev_qc) / x.prev_qc) * 100

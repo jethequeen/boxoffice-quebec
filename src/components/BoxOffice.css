@@ -16,6 +16,25 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+.box-office-table th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.box-office-table th.sortable:hover { text-decoration: underline; }
+/* keep revenues right-aligned */
+.gross-cell { text-align: right; }
+
+/* center-aligned numeric columns */
+.box-office-table th.center,
+.box-office-table td.center {
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* (optional explicit override if you keep other rules around) */
+.ratio-cell.center,
+.cumulative-cell.center,
+.theaters-cell.center,
+.pertheater-cell.center,
+.week-cell.center { text-align: center; }
+
 .weekend-navigation {
   display: flex;
   align-items: center;
@@ -136,6 +155,47 @@
   margin-bottom: 1rem;
 }
 
+/* Title block */
+.movie-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.movie-title-fr {
+  font-weight: 700;
+  color: #16324f; /* adjust to your palette */
+  text-decoration: none;
+}
+
+.movie-title-fr:hover {
+  text-decoration: underline;
+}
+
+.movie-title-vo {
+  color: #6b7280;        /* grey */
+  font-style: italic;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+
+
+/* Center helpers */
+.box-office-table th.center,
+.box-office-table td.center {
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* (Optional) keep numeric columns aligned nicely */
+.gross-cell,
+.cumulative-cell,
+.rev-per-theater-cell {
+  white-space: nowrap;
+}
+
+
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
@@ -145,6 +205,14 @@
 @media (max-width: 480px) {
   .box-office {
     padding: var(--spacing-lg);
+  }
+
+  /* Optional: mobile subtitle style */
+  .mobile-movie-subtitle {
+    color: #6b7280;
+    font-style: italic;
+    font-size: 0.9rem;
+    margin-top: 2px;
   }
 
   .box-office-header {
