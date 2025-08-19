@@ -299,3 +299,85 @@
   .tmdb-hero--compact .tmdb-hero__poster{ order:-1; margin:0 auto .5rem; }
   .tmdb-hero--compact .metrics{ grid-template-columns: 1fr 1fr; }
 }
+
+/* --- swipe hint / toggle (only visible on mobile) --- */
+.hero-toggle{
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: none;
+  padding: .35rem .7rem;
+  font-size: .85rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0,0,0,.35);
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+@media (max-width: 680px){ .hero-toggle{ display: inline-flex; } }
+
+/* --- collapse mode on mobile --- */
+@media (max-width: 680px){
+  .is-collapsed .tmdb-hero{
+    position: sticky;     /* stays at top as a slim bar */
+    top: 0;
+    min-height: 0;
+    max-height: 56px;
+    overflow: hidden;
+    z-index: 20;
+  }
+  .is-collapsed .tmdb-hero__content{
+    grid-template-columns: 1fr;
+    padding: 8px 12px;
+    align-items: center;
+  }
+  /* show only title row in collapsed bar */
+  .is-collapsed .tmdb-hero__poster,
+  .is-collapsed .tmdb-hero__chips,
+  .is-collapsed .metrics,
+  .is-collapsed .people-block,
+  .is-collapsed .tmdb-hero__overview{ display: none !important; }
+
+  .is-collapsed .tmdb-hero__title{
+    font-size: 1rem;
+    margin: 0;
+  }
+  .is-collapsed .tmdb-hero__subtitle{ display: none; }
+  .is-collapsed .hero-toggle{
+    bottom: 6px;
+    background: rgba(0,0,0,.28);
+  }
+
+  /* full-screen table below the slim hero bar */
+  .is-collapsed .table-section{
+    position: fixed;
+    top: 56px;     /* same as collapsed hero height */
+    left: 0; right: 0; bottom: 0;
+    margin: 0; border-radius: 0;
+    z-index: 10;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px;   /* inner breathing */
+  }
+
+  /* tighter table typography on mobile */
+  .box-office-table,
+  .performance-table{ font-size: .9rem; }
+  .box-office-table th, .box-office-table td,
+  .performance-table th, .performance-table td{ padding: .55rem .5rem; }
+
+  /* keep numbers on one line + allow horizontal scroll when needed */
+  .table-container{ overflow-x: auto; }
+  .box-office-table, .performance-table{
+    min-width: 560px;
+    white-space: nowrap;
+  }
+
+  /* smaller KPIs when not collapsed (prevents huge text) */
+  .metrics{ grid-template-columns: 1fr 1fr; gap: .5rem; }
+  .metric__label{ font-size: .7rem; }
+  .metric__value{ font-size: .95rem; }
+}

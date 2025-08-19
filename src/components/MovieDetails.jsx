@@ -1,16 +1,21 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiCall } from '../utils/api';
 import './MovieDetails.css';
 import { getFridayFromWeekendId } from '../utils/weekendUtils';
-
 
 function MovieDetails() {
   const { id } = useParams();
   const [movieData, setMovieData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // sorting for the table (default: date asc)
   const [sort, setSort] = useState({ key: 'date', dir: 'asc' });
+
+  // collapse + swipe
+  const [collapsed, setCollapsed] = useState(false);
+  const touchRef = useRef({ active: false, startY: 0, deltaY: 0 });
 
   useEffect(() => { fetchMovieDetails(); }, [id]);
 
@@ -26,6 +31,25 @@ function MovieDetails() {
       setLoading(false);
     }
   }
+
+  // swipe handlers (mobile only)
+  const onTouchStart = (e) => {
+    if (window.innerWidth > 680) return;
+    const t = e.touches[0];
+    touchRef.current = { active: true, startY: t.clientY, deltaY: 0 };
+  };
+  const onTouchMove = (e) => {
+    if (!touchRef.current.active) return;
+    const t = e.touches[0];
+    touchRef.current.deltaY = t.clientY - touchRef.current.startY;
+  };
+  const onTouchEnd = () => {
+    if (!touchRef.current.active) return;
+    const dy = touchRef.current.deltaY;
+    touchRef.current.active = false;
+    if (dy < -60) setCollapsed(true);   // swipe up: collapse
+    if (dy >  60) setCollapsed(false);  // swipe down: expand
+  };
 
   const formatCurrency = (n) =>
       n == null
@@ -67,33 +91,21 @@ function MovieDetails() {
   const year = movie.release_date ? new Date(movie.release_date).getFullYear() : '';
   const runtime = movie.runtime ? `${movie.runtime} min` : null;
 
-  // --- KPI calculs ---
+  // KPIs
   const sum = (arr, key) => arr.reduce((s, r) => s + (Number(r[key]) || 0), 0);
-
   const totalQC = Number(statistics.total_revenue_qc) || sum(revenues, 'revenue_qc');
   const totalUS = Number(statistics.total_revenue_us) || sum(revenues, 'revenue_us');
-
-  // Force QC/USA globale (référence ~2.29% de part de marché)
-  const POP_RATIO = 0.0229; // 2.29%
+  const POP_RATIO = 0.0229;
   const forceQcUsa = totalUS > 0 ? ((totalQC / totalUS) / POP_RATIO) * 100 : null;
-
-  // semaines en salle (prends le max si week_count existe, sinon longueur)
-  const maxWeeks = Math.max(
-      revenues.length,
-      ...revenues.map((r, i) => Number(r.week_count) || (i + 1))
-  );
-
-  // budget (si présent sur movie)
+  const maxWeeks = Math.max(revenues.length, ...revenues.map((r, i) => Number(r.week_count) || (i + 1)));
   const budget = Number(movie.budget) || null;
 
-  // Pills genres (look “chip”)
+  // chips
   const genreChips = (genres || []).slice(0, 8).map((g) => (
       <Link key={g.id ?? g.name} to={`/genres/${g.id ?? encodeURIComponent(g.name)}`} className="chip chip--link chip--genre">
         {g.name}
       </Link>
   ));
-
-  // Pays (après genres) – format pill “ghost”
   const countries = movie?.production_countries || movie?.countries || [];
   const countryChips = countries.map((c) => (
       <span key={c.iso_3166_1 ?? c.name} className="chip chip--ghost">
@@ -101,27 +113,21 @@ function MovieDetails() {
     </span>
   ));
 
-  // 9 acteurs
-  const TOP_CAST_COUNT = 9;
-  const topCast = cast.slice(0, TOP_CAST_COUNT);
+  // cast
+  const topCast = cast.slice(0, 9);
 
-  // ---------- helpers ----------
-  const formatInt = (n) =>
-      n == null ? '—' : Number(n).toLocaleString('fr-CA');
-  const pct0 = (n) =>
-      n == null ? '—' : `${n >= 0 ? '+' : ''}${Number(n).toFixed(0)}%`;
+  // helpers
+  const formatInt = (n) => (n == null ? '—' : Number(n).toLocaleString('fr-CA'));
+  const pct0 = (n) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${Number(n).toFixed(0)}%`);
 
-// Build rows with the fields we need for sorting/formatting
+  // table rows
   const revRows = revenues.map((r, i) => {
-    const dateObj = r.start_date
-        ? new Date(r.start_date)
-        : getFridayFromWeekendId(String(r.weekend_id)); // reliable Friday
+    const dateObj = r.start_date ? new Date(r.start_date) : getFridayFromWeekendId(String(r.weekend_id));
     const revenue_qc_num = Number(r.revenue_qc) || 0;
     const prev = i > 0 ? Number(revenues[i - 1].revenue_qc) || 0 : null;
     const change_percent = prev ? ((revenue_qc_num - prev) / prev) * 100 : null;
     const theater_count_num = Number(r.theater_count) || 0;
-    const rev_per_theater =
-        theater_count_num > 0 ? revenue_qc_num / theater_count_num : null;
+    const rev_per_theater = theater_count_num > 0 ? revenue_qc_num / theater_count_num : null;
     const week_number = Number(r.week_count) || i + 1;
 
     return {
@@ -139,7 +145,7 @@ function MovieDetails() {
     };
   });
 
-// ---------- sorting like WeekendDetails ----------
+  // sorting
   const toggleSort = (key) =>
       setSort((s) =>
           s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'date' ? 'asc' : 'desc' }
@@ -165,13 +171,17 @@ function MovieDetails() {
     return sort.dir === 'asc' ? va - vb : vb - va;
   });
 
-
   return (
-      <div className="movie-details">
+      <div className={`movie-details ${collapsed ? 'is-collapsed' : ''}`}>
         <div className="movie-header compact">
           <Link to="/movies" className="back-link">← Retour aux films</Link>
 
-          <section className="tmdb-hero tmdb-hero--compact">
+          <section
+              className="tmdb-hero tmdb-hero--compact"
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
+          >
             {backdropUrl && (
                 <div className="tmdb-hero__backdrop">
                   <img src={backdropUrl} alt="" loading="lazy" />
@@ -179,8 +189,18 @@ function MovieDetails() {
             )}
             <div className="tmdb-hero__overlay" />
 
+            {/* tap fallback to swipe */}
+            <button
+                type="button"
+                className="hero-toggle"
+                onClick={() => setCollapsed(v => !v)}
+                aria-expanded={!collapsed}
+            >
+              {collapsed ? 'Afficher les détails' : 'Afficher le tableau'}
+            </button>
+
             <div className="tmdb-hero__content tmdb-hero__content--top">
-              {/* Poster (small) */}
+              {/* Poster */}
               <div className="tmdb-hero__poster tmdb-hero__poster--sm">
                 {movie.poster_path ? (
                     <img
@@ -193,19 +213,17 @@ function MovieDetails() {
                 )}
               </div>
 
-              {/* Text + KPI + people */}
+              {/* Text + KPIs + people */}
               <div className="tmdb-hero__text">
                 <div className="tmdb-hero__titleblock">
                   <h1 className="tmdb-hero__title">
                     {movie.fr_title || movie.title}
                     {year ? <span className="tmdb-hero__year">({year})</span> : null}
                   </h1>
-
                   {movie.fr_title && movie.title && movie.title !== movie.fr_title && (
                       <div className="tmdb-hero__subtitle">{movie.title}</div>
                   )}
                 </div>
-
 
                 <div className="tmdb-hero__chips">
                   {movie.release_date && (
@@ -216,7 +234,6 @@ function MovieDetails() {
                   {countryChips}
                 </div>
 
-                {/* KPIs (5 tuiles) */}
                 <div className="metrics">
                   <div className="metric">
                     <div className="metric__label">Recettes totales QC</div>
@@ -240,7 +257,6 @@ function MovieDetails() {
                   </div>
                 </div>
 
-                {/* People: réal (sans avatar) + cast (avec avatar) */}
                 <div className="people-block">
                   {directors.length > 0 && (
                       <div className="people-group">
@@ -286,38 +302,36 @@ function MovieDetails() {
           </section>
         </div>
 
-        {/* Table (same behavior/style as WeekendDetails) */}
+        {/* Table */}
         {revenues.length > 0 && (
             <div className="table-section">
               <div className="table-container">
                 <table className="box-office-table">
                   <thead>
                   <tr>
-                    <th className="th-left  col-date  sortable center" onClick={() => toggleSort('date')}>
+                    <th className="th-left  col-date  sortable" onClick={() => toggleSort('date')}>
                       Date{arrow('date')}
                     </th>
-                    <th className="th-center col-rank  sortable center" onClick={() => toggleSort('rank')}>
+                    <th className="th-center col-rank  sortable" onClick={() => toggleSort('rank')}>
                       Rank{arrow('rank')}
                     </th>
-                    <th className="th-right col-gross sortable center" onClick={() => toggleSort('revenue_qc')}>
+                    <th className="th-right col-gross sortable" onClick={() => toggleSort('revenue_qc')}>
                       Recettes{arrow('revenue_qc')}
                     </th>
-                    <th className="th-center col-change sortable center" onClick={() => toggleSort('change_percent')}>
+                    <th className="th-center col-change sortable" onClick={() => toggleSort('change_percent')}>
                       % Changement{arrow('change_percent')}
                     </th>
-                    <th className="th-right col-theaters sortable center" onClick={() => toggleSort('theater_count')}>
+                    <th className="th-right col-theaters sortable" onClick={() => toggleSort('theater_count')}>
                       Salles{arrow('theater_count')}
                     </th>
-                    <th className="th-right col-pertheater sortable center" onClick={() => toggleSort('rev_per_theater')}>
+                    <th className="th-right col-pertheater sortable" onClick={() => toggleSort('rev_per_theater')}>
                       $ / salle{arrow('rev_per_theater')}
                     </th>
-                    <th className="th-center col-week sortable center" onClick={() => toggleSort('week_number')}>
+                    <th className="th-center col-week sortable" onClick={() => toggleSort('week_number')}>
                       Week{arrow('week_number')}
                     </th>
                   </tr>
                   </thead>
-
-
                   <tbody>
                   {sortedRows.map((r) => (
                       <tr key={r.weekend_id}>
