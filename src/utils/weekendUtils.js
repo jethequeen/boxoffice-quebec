@@ -39,7 +39,7 @@ const getLastFriday = (date) => {
   return base;
 };
 
-/** Format: "Week 28, 2025" */
+/** Format: "2025, Week 28" */
 export const formatWeekendId = (weekendId) => {
   if (!weekendId) return 'N/A';
   const s = String(weekendId);
@@ -89,3 +89,23 @@ export const getNextWeekendId = (weekendId) => {
   nextFri.setUTCDate(nextFri.getUTCDate() + 7);
   return weekendIdFromDate(nextFri);
 };
+
+// Accepts "YYYY-MM-DD" and returns your 6-digit weekendId.
+// Supports either "YYYYWW" or "WWYYYY" as your canonical format—pick one and stick to it.
+// Below I’ll produce "YYYYWW".
+export function weekendIdFromDateString(dateStr) {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) throw new Error(`Invalid date: ${dateStr}`);
+
+  // Get ISO week number
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  // Thursday in current week decides the year per ISO 8601
+  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+
+  const yyyy = String(date.getUTCFullYear());
+  const ww = String(week).padStart(2, '0');
+
+  return `${yyyy}${ww}`; // canonical weekendId = YYYYWW
+}

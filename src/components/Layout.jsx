@@ -39,7 +39,7 @@ function Layout({ children }) {
       
       <footer className="footer">
         <div className="footer-content">
-          <p>&copy; 2025 Box-Office Québec - Données et analyses du cinéma québécois</p>
+          <p>&copy; 2025 The Black Box - Données et analyses du cinéma québécois</p>
         </div>
       </footer>
     </div>

@@ -1,89 +1,96 @@
-﻿// API utility to handle different development environments
+﻿// src/utils/api.js
 
-const getApiBaseUrl = () => {
-  // Check if we're in development and which port we're on
-  if (import.meta.env.DEV) {
-    const currentPort = window.location.port;
-    
-    // If we're on Vite dev server (5173/5174), we need to proxy to Netlify dev
-    if (currentPort === '5173' || currentPort === '5174') {
-      // Check if Netlify dev is running on 8888
-      return 'http://localhost:8888';
-    }
-    
-    // If we're already on Netlify dev (8888), use current origin
-    if (currentPort === '8888') {
-      return window.location.origin;
-    }
-  }
-  
-  // Production or default case
-  return window.location.origin;
+// ---- Config ----
+// Prefer a single override for local dev if you run Vite separately from `netlify dev`.
+// If you run `netlify dev`, you can leave VITE_API_BASE undefined (same origin).
+const API_BASE =
+    import.meta.env.VITE_API_BASE   // e.g. "http://localhost:8888"
+    || window.location.origin;      // prod/preview or netlify dev proxy
+
+// ---- Helpers ----
+const withTimeout = (ms = 15000) => {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return { signal: ctrl.signal, cancel: () => clearTimeout(id) };
 };
 
-export const apiCall = async (endpoint, options = {}) => {
-  const baseUrl = getApiBaseUrl();
-  const url = `${baseUrl}/.netlify/functions/${endpoint}`;
-  
-  try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+const buildUrl = (endpoint, query) => {
+  const u = new URL(`/.netlify/functions/${endpoint}`, API_BASE);
+  if (query && typeof query === 'object') {
+    Object.entries(query).forEach(([k, v]) => {
+      if (v === undefined || v === null) return;
+      if (Array.isArray(v)) v.forEach(val => u.searchParams.append(k, String(val)));
+      else u.searchParams.set(k, String(v));
     });
-    
-    return await response.json();
-  } catch (error) {
-    console.error(`API call failed for ${endpoint}:`, error);
-    throw error;
+  }
+  return u.toString();
+};
+
+const handleResponse = async (res) => {
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    // Fallback if server didn’t send JSON
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  if (!res.ok) {
+    const msg = data?.error || data?.message || `HTTP ${res.status}`;
+    const e = new Error(msg);
+    e.details = data;
+    throw e;
+  }
+  return data;
+};
+
+// ---- Core caller ----
+export const apiCall = async (endpoint, { method = 'GET', query, body, headers, timeoutMs } = {}) => {
+  const url = buildUrl(endpoint, query);
+  const { signal, cancel } = withTimeout(timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method,
+      signal,
+      headers: { 'Content-Type': 'application/json', ...(headers || {}) },
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'same-origin',
+    });
+    return await handleResponse(res);
+  } finally {
+    cancel();
   }
 };
 
-// Specific API functions
-export const getBoxOfficeData = (limit = 10, weekendId = null) => {
-  const params = new URLSearchParams();
-  params.append('limit', limit);
-  if (weekendId) params.append('weekendId', weekendId);
+// ---- Specific API functions ----
+// GET with query params
+export const getBoxOfficeData = (limit = 10, weekendId) =>
+    apiCall('getBoxOfficeData', { query: { limit, weekendId } });
 
-  return apiCall(`getBoxOfficeData?${params.toString()}`);
-};
+export const getMovieStats = (type = 'summary') =>
+    apiCall('getMovieStats', { query: { type } });
 
-export const getMovieStats = (type = 'summary') => {
-  return apiCall(`getMovieStats?type=${type}`);
-};
+export const getDirectorStats = (type = 'top_grossing') =>
+    apiCall('getDirectorStats', { query: { type } });
 
-export const getDirectorStats = (type = 'top_grossing') => {
-  return apiCall(`getDirectorStats?type=${type}`);
-};
+export const getWeekendInfo = (weekendId) =>
+    apiCall('getWeekendInfo', { query: { weekendId } });
 
-export const getWeekendInfo = (weekendId = null) => {
-  const query = weekendId ? `?weekendId=${weekendId}` : '';
-  return apiCall(`getWeekendInfo${query}`);
-};
+export const testDatabase = () =>
+    apiCall('testDatabase');
 
-export const testDatabase = () => {
-  return apiCall('testDatabase');
-};
+// If IDs can get long, prefer POST JSON to avoid long URLs.
+export const getPrincipalStudios = (movieIds = []) =>
+    apiCall('getPrincipalStudios', { method: 'POST', body: { movieIds } });
 
-export const getMovieDetails = (movieId) => {
-  return apiCall(`getMovieDetails?movieId=${movieId}`);
-};
+export const getMovieDetails = (movieId) =>
+    apiCall('getMovieDetails', { query: { movieId } });
 
-export const getPreviousWeekend = (currentWeekendId) => {
-  return apiCall(`getPreviousWeekend?currentWeekendId=${currentWeekendId}`);
-};
+export const getPreviousWeekend = (currentWeekendId) =>
+    apiCall('getPreviousWeekend', { query: { currentWeekendId } });
 
-export const getWeekCounts = (weekendId) => {
-  return apiCall(`getWeekCounts?weekendId=${weekendId}`);
-};
+export const getWeekCounts = (weekendId) =>
+    apiCall('getWeekCounts', { query: { weekendId } });
 
-export const getWeekendBoxOffice = (weekendId = null) => {
-  const params = weekendId ? `?weekendId=${weekendId}` : '';
-  return apiCall(`getWeekendBoxOffice${params}`);
-};
-
-export const getPrincipalStudios = (movieIds) => {
-  return apiCall(`getPrincipalStudios?movieIds=${movieIds.join(',')}`)
-}
+export const getWeekendBoxOffice = (weekendId) =>
+    apiCall('getWeekendBoxOffice', { query: { weekendId } });

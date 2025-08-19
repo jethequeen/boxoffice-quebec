@@ -1,502 +1,262 @@
-﻿import {useEffect, useState} from 'react'
-import {Link, useNavigate, useParams} from 'react-router-dom'
-import {getBoxOfficeData, getPreviousWeekend, getPrincipalStudios, getWeekCounts} from '../utils/api'
+﻿import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { getBoxOfficeData } from '../utils/api'; // if you keep separate weekendInfo
 import {
   formatWeekendId,
   getCurrentWeekendId,
   getFridayFromWeekendId,
   getNextWeekendId,
   getPreviousWeekendId,
-  parseWeekendId
-} from '../utils/weekendUtils'
-import './Dashboard.css'
-import './BoxOffice.css'
+  parseWeekendId,
+} from '../utils/weekendUtils';
+import { formatCurrency, toNum, pct0 } from '../utils/formatUtils';
+import './Dashboard.css';
+import './BoxOffice.css';
 
 function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
-  const { weekendId: paramWeekendId } = useParams()
-  const navigate = useNavigate()
-  const weekendId = propWeekendId || paramWeekendId || getCurrentWeekendId()
+  const { weekendId: paramWeekendId } = useParams();
+  const navigate = useNavigate();
+  const realWeekendId = propWeekendId || paramWeekendId || getCurrentWeekendId();
 
-  const [weekendData, setWeekendData] = useState([])
-  const [previousWeekendData, setPreviousWeekendData] = useState([])
-  const [weekCounts, setWeekCounts] = useState({})
-  const [weekendInfo] = useState(null)
-  const [availableWeekends, setAvailableWeekends] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [studioNames, setStudios] = useState({})
-  const [expandedCards, setExpandedCards] = useState(new Set())
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const realWeekendId = weekendId || getCurrentWeekendId()
-
-  const toggleCardExpansion = (movieId) => {
-    setExpandedCards(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(movieId)) {
-        newSet.delete(movieId)
-      } else {
-        newSet.add(movieId)
-      }
-      return newSet
-    })
-  }
+  // NEW compact state
+  const [weekendMeta, setWeekendMeta] = useState(null); // { id, start_date, end_date, total_revenues_qc, total_revenues_us, change_qc, change_us }
+  const [movies, setMovies] = useState([]);
+  const [availableWeekends, setAvailableWeekends] = useState([]);
+  const [expanded, setExpanded] = useState(new Set());
 
   useEffect(() => {
-    fetchWeekendData()
-    if (showNavigation) {
-      generateAvailableWeekends()
-    }
-  }, [realWeekendId, showNavigation])
+    fetchData();
+    if (showNavigation) generateAvailableWeekends();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realWeekendId, showNavigation]);
 
   const generateAvailableWeekends = () => {
-    const current = getCurrentWeekendId()
-    const weekends = []
-    const { week, year } = parseWeekendId(current)
-
+    const current = getCurrentWeekendId();
+    const weekends = [];
+    const { week, year } = parseWeekendId(current);
     for (let i = 0; i < 5; i++) {
-      let targetWeek = week - i
-      let targetYear = year
-
-      if (targetWeek <= 0) {
-        targetYear -= 1
-        targetWeek = 52 + targetWeek
-      }
-
-      const weekendId = `${targetWeek.toString().padStart(2, '0')}${targetYear}`
-      const fridayDate = getFridayFromWeekendId(weekendId)
-
+      let w = week - i, y = year;
+      if (w <= 0) { y -= 1; w = 52 + w; }
+      const id = `${String(y)}${String(w).padStart(2, '0')}`; // YYYYWW canonical
+      const fri = getFridayFromWeekendId(id);
       weekends.push({
-        weekend_id: weekendId,
-        formatted_weekend: formatWeekendId(weekendId),
-        display_date: fridayDate ? fridayDate.toLocaleDateString('fr-CA', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        }) : 'Date inconnue'
-      })
+        weekend_id: id,
+        formatted_weekend: formatWeekendId(id),
+        display_date: fri
+            ? fri.toLocaleDateString('fr-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+            : 'Date inconnue',
+      });
     }
-
-    setAvailableWeekends(weekends)
-  }
+    setAvailableWeekends(weekends);
+  };
 
   const handleWeekendChange = (newWeekendId) => {
-    if (showNavigation) {
-      navigate(`/box-office/${newWeekendId}`)
-    }
-  }
-
-  const navigateToPrevious = () => {
-    const prevWeekendId = getPreviousWeekendId(realWeekendId)
-    handleWeekendChange(prevWeekendId)
-  }
-
+    if (showNavigation) navigate(`/box-office/${newWeekendId}`);
+  };
+  const navigateToPrevious = () => handleWeekendChange(getPreviousWeekendId(realWeekendId));
   const navigateToNext = () => {
-    const currentWeekend = getCurrentWeekendId()
-    if (realWeekendId >= currentWeekend) return
+    const current = getCurrentWeekendId();
+    if (realWeekendId >= current) return;
+    handleWeekendChange(getNextWeekendId(realWeekendId));
+  };
 
-    const nextWeekendId = getNextWeekendId(realWeekendId)
-    handleWeekendChange(nextWeekendId)
-  }
-
-  const fetchWeekendData = async () => {
+  const fetchData = async () => {
     try {
-      setLoading(true)
+      setLoading(true);
+      setError(null);
 
-      console.log('Fetching weekend data for', realWeekendId)
-      const weekendResult = await getBoxOfficeData(10, realWeekendId)
+      const res = await getBoxOfficeData(10, realWeekendId);
+      if (res.weekend) setWeekendMeta(res.weekend);
+      setMovies((res.movies ?? res.data ?? []).map(normalizeMovie));
 
-      console.log('Weekend info result:', weekendResult)
-
-      if (weekendResult.data) {
-        setWeekendData(weekendResult.data)
-        
-        // Get the weekend ID from the data or use the provided one
-        const currentWeekendId = weekendResult.data.length > 0 ? weekendResult.data[0].weekend_id : realWeekendId
-        
-        // Fetch previous weekend data
-        try {
-          const previousResult = await getPreviousWeekend(currentWeekendId)
-          if (previousResult.data) {
-            setPreviousWeekendData(previousResult.data)
-          }
-        } catch (err) {
-          console.log('Previous weekend data not available:', err)
-          setPreviousWeekendData([])
-        }
-
-        const studiosResult = await fetchStudios(weekendResult.data)
-        setStudios(studiosResult)
-
-        // Fetch week counts
-        try {
-          const weekCountsResult = await getWeekCounts(currentWeekendId)
-          if (weekCountsResult.data) {
-            setWeekCounts(weekCountsResult.data)
-          }
-        } catch (err) {
-          console.log('Week counts not available:', err)
-          setWeekCounts({})
-        }
-      }
-
-
-
-    } catch (err) {
-      console.error('Error fetching weekend data:', err)
-      setError('Erreur lors du chargement des données du weekend')
+    } catch (e) {
+      console.error(e);
+      setError('Erreur lors du chargement des données du weekend');
+      setMovies([]);
+      setWeekendMeta(null);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const formatCurrency = (amount) => {
-    if (!amount) return 'N/A'
-    return new Intl.NumberFormat('fr-CA', {
-      style: 'currency',
-      currency: 'CAD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
+  const normalizeMovie = (m) => ({
+    ...m,
+    revenue_qc: toNum(m.revenue_qc) ?? 0,
+    revenue_us: toNum(m.revenue_us) ?? 0,
+    change_percent: toNum(m.change_percent ?? m.change_qc), // after A) you have change_percent
+    force_qc_usa: toNum(m.force_qc_usa),
+    cumulatif_qc: toNum(m.cumulatif_qc) ?? toNum(m.revenue_qc) ?? 0,
+    week_number: m.week_number ?? 1,
+    studio_name: m.studio_name ?? 'Independent',
+  });
 
-  // Calculate enhanced data for box office table
-  const getEnhancedMovieData = () => {
-    if (!weekendData.length) return []
+  const isCurrentWeekend = !realWeekendId || realWeekendId === getCurrentWeekendId();
+  const canGoNext = realWeekendId < getCurrentWeekendId();
 
-    // Create lookup for previous weekend data
-    const previousLookup = {}
-    previousWeekendData.forEach(movie => {
-      previousLookup[movie.id] = movie
-    })
+  const totalQC = toNum(weekendMeta?.total_revenues_qc);
+  const totalUS = toNum(weekendMeta?.total_revenues_us);
+  const changeQC = toNum(weekendMeta?.change_qc);  // already a percent in `weekends`
+  const overallForceQcUsa =
+      totalUS && totalUS > 0 ? (((totalQC ?? 0) / totalUS) * 100) / 2.29 * 100 : null;
 
-    return weekendData.map(movie => {
-      const currentRevQC = parseFloat(movie.revenue_qc) || 0
-      const currentRevUS = parseFloat(movie.revenue_us) || 0
-      const previousMovie = previousLookup[movie.id]
-      
-      // Calculate change percent
-      let changePercent = 0
-      if (previousMovie) {
-        const prevRevQC = parseFloat(previousMovie.revenue_qc) || 0
-        if (prevRevQC > 0) {
-          changePercent = ((currentRevQC - prevRevQC) / prevRevQC) * 100
-        }
-      }
-      
-      // Calculate Force Québec/USA using 2.29% population ratio
-      let forceQuebecUSA = null
-      if (currentRevUS > 0) {
-        const actualRatio = (currentRevQC / currentRevUS) * 100
-        const expectedRatio = 2.29
-        forceQuebecUSA = (actualRatio / expectedRatio) * 100
-      }
-      // Get week number from database
-      const weekNumber = weekCounts[movie.id] || 1
-      // Get studio name from database
-      const studioName = studioNames[movie.id] || 'Independent'
+  const toggle = (id) => {
+    setExpanded(prev => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  };
 
-      return {
-        ...movie,
-        change_percent: changePercent,
-        force_quebec_usa: forceQuebecUSA,
-        week_number: weekNumber,
-        studio_name: studioName,
-        cumulatif_qc: parseFloat(movie.cumulatif_qc) || currentRevQC
-      }
-    })
-  }
-
-  const fetchStudios = async (movies) => {
-    const ids = movies.map(m => m.id)
-    try {
-      return await getPrincipalStudios(ids)
-    } catch (err) {
-      console.error('Erreur lors de la récupération des studios:', err)
-      return {}
-    }
-  }
-
-
-
-  const enhancedMovies = getEnhancedMovieData()
-
-  const calculateOverallStats = () => {
-    if (!enhancedMovies.length || !previousWeekendData.length) {
-      return { totalChange: 0, totalForceQcUsa: 0 }
-    }
-
-    // 🔁 1. Somme totale QC ce week-end
-    const currentTotalQC = enhancedMovies.reduce((sum, movie) => sum + (parseFloat(movie.revenue_qc) || 0), 0)
-
-    // 🔁 2. Somme totale QC week-end précédent
-    const previousTotalQC = previousWeekendData.reduce((sum, movie) => sum + (parseFloat(movie.revenue_qc) || 0), 0)
-
-    // 📈 3. Changement global en %
-    const totalChange = previousTotalQC > 0
-        ? ((currentTotalQC - previousTotalQC) / previousTotalQC) * 100
-        : 0
-
-    // 📊 4. Force Québec / USA
-    const totalRevQC = enhancedMovies.reduce((sum, movie) => sum + (parseFloat(movie.revenue_qc) || 0), 0)
-    const totalRevUS = enhancedMovies.reduce((sum, movie) => sum + (parseFloat(movie.revenue_us) || 0), 0)
-
-    const overallForceQcUsa = totalRevUS > 0
-        ? ((totalRevQC / totalRevUS) * 100) / 2.29 * 100
-        : 0
-
-    return {
-      totalChange,
-      totalForceQcUsa: overallForceQcUsa
-    }
-  }
-
-
-  const overallStats = calculateOverallStats()
-  const isCurrentWeekend = !realWeekendId || realWeekendId === getCurrentWeekendId()
-
-  if (loading) {
-    return (
-      <div className="dashboard">
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <p>Chargement des données du weekend...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="dashboard">
-        <div className="error-container">
-          <h2>Erreur</h2>
-          <p>{error}</p>
-          <button onClick={fetchWeekendData} className="retry-button">
-            Réessayer
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  const canGoNext = realWeekendId < getCurrentWeekendId()
+  if (loading) return <div className="dashboard"><div className="loading-container"><div className="loading-spinner" /><p>Chargement des données du weekend...</p></div></div>;
+  if (error)   return <div className="dashboard"><div className="error-container"><h2>Erreur</h2><p>{error}</p><button onClick={fetchData} className="retry-button">Réessayer</button></div></div>;
 
   return (
-    <div className="dashboard">
-      {/* Weekend Navigation - only show when showNavigation is true */}
-      {showNavigation && (
-        <div className="box-office-header">
-          <div className="weekend-navigation">
-            <button
-              className="nav-arrow prev"
-              onClick={navigateToPrevious}
-              title="Weekend précédent"
-            >
-              ←
-            </button>
-
-            <div className="weekend-selector">
-              <select
-                value={realWeekendId}
-                onChange={(e) => handleWeekendChange(e.target.value)}
-                className="weekend-dropdown"
-              >
-                {availableWeekends.map(weekend => (
-                  <option key={weekend.weekend_id} value={weekend.weekend_id}>
-                    {weekend.display_date}
-                  </option>
-                ))}
-              </select>
+      <div className="dashboard">
+        {showNavigation && (
+            <div className="box-office-header">
+              <div className="weekend-navigation">
+                <button className="nav-arrow prev" onClick={navigateToPrevious} title="Weekend précédent">←</button>
+                <div className="weekend-selector">
+                  <select value={realWeekendId} onChange={(e) => handleWeekendChange(e.target.value)} className="weekend-dropdown">
+                    {availableWeekends.map(w => (
+                        <option key={w.weekend_id} value={w.weekend_id}>{w.display_date}</option>
+                    ))}
+                  </select>
+                </div>
+                <button className={`nav-arrow next ${!canGoNext ? 'disabled' : ''}`} onClick={navigateToNext} disabled={!canGoNext} title="Weekend suivant">→</button>
+              </div>
+              {isCurrentWeekend && <div className="current-badge"><span className="badge">Weekend actuel</span></div>}
             </div>
-
-            <button
-              className={`nav-arrow next ${!canGoNext ? 'disabled' : ''}`}
-              onClick={navigateToNext}
-              disabled={!canGoNext}
-              title="Weekend suivant"
-            >
-              →
-            </button>
-          </div>
-
-          {isCurrentWeekend && (
-            <div className="current-badge">
-              <span className="badge">Weekend actuel</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="dashboard-header">
-        <h1>{realWeekendId ? formatWeekendId(realWeekendId) : 'Box-office québécois'}</h1>
-        <p>{realWeekendId ? 'Détails du weekend' : 'Weekend actuel'}</p>
-        
-        {/* Show weekend info for current weekend */}
-        {weekendInfo && isCurrentWeekend && (
-          <div className="current-weekend">
-            <span className="weekend-badge">
-              📅 {weekendInfo.formatted_weekend} - {weekendInfo.total_movies} films
-            </span>
-          </div>
         )}
-        
-        {/* Show basic info for historical weekends */}
-        {realWeekendId && !isCurrentWeekend && (
-          <div className="current-weekend">
-            <span className="weekend-badge historical">
-              📅 {formatWeekendId(realWeekendId)} - {enhancedMovies.length} films
-            </span>
-          </div>
+
+        <div className="dashboard-header">
+          <h1>{formatWeekendId(realWeekendId)}</h1>
+          <p>{isCurrentWeekend ? 'Weekend actuel' : 'Détails du weekend'}</p>
+        </div>
+
+        {/* Stats from `weekends` */}
+        {(totalQC != null || changeQC != null || overallForceQcUsa != null) && (
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-icon">💰</div>
+                <div className="stat-content">
+                  <h3>Recettes totales</h3>
+                  <p className="stat-number">{totalQC == null ? 'N/A' : formatCurrency(totalQC)}</p>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-icon">📈</div>
+                <div className="stat-content">
+                  <h3>Changement</h3>
+                  <p className={`stat-number ${toNum(changeQC) >= 0 ? 'positive' : 'negative'}`}>
+                    {pct0(changeQC)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-icon"></div>
+                <div className="stat-content">
+                  <h3>Force Québec/USA</h3>
+                  <p className="stat-number">{pct0(overallForceQcUsa)}</p>
+                </div>
+              </div>
+            </div>
+        )}
+
+        {movies.length > 0 && (
+            <div className="table-section">
+              <h2>Box-office du week-end</h2>
+              <div className="table-container">
+                <table className="box-office-table">
+                  <thead>
+                  <tr>
+                    <th>Film</th>
+                    <th>Recettes</th>
+                    <th>Changement</th>
+                    <th>Force Québec/USA</th>
+                    <th>Week</th>
+                    <th>Cumulatif</th>
+                    <th>Studio majeur</th>
+                  </tr>
+                  </thead>
+                  <tbody>
+                  {movies.map((m) => (
+                      <tr key={m.id}>
+                        <td className="movie-cell">
+                          <Link to={`/movies/${m.id}`} className="movie-title-link"><strong>{m.fr_title || m.title}</strong></Link>
+                        </td>
+                        <td className="gross-cell">{formatCurrency(m.revenue_qc)}</td>
+                        <td className={`change-cell ${toNum(m.change_percent) >= 0 ? 'positive' : 'negative'}`}>{pct0(m.change_percent)}</td>
+                        <td className="ratio-cell">{pct0(m.force_qc_usa)}</td>
+                        <td className="week-cell">{m.week_number}</td>
+                        <td className="cumulative-cell">{formatCurrency(m.cumulatif_qc)}</td>
+                        <td className="studio-cell">{m.studio_name}</td>
+                      </tr>
+                  ))}
+                  </tbody>
+                </table>
+
+                <div className="mobile-table-cards">
+                  {movies.map((m, index) => {
+                    const isOpen = expanded.has(m.id);
+                    return (
+                        <div key={m.id} className="mobile-movie-card">
+                          <div className="mobile-movie-main" onClick={() => toggle(m.id)}>
+                            <div className="mobile-movie-header">
+                              <span className="mobile-movie-rank">#{index + 1}</span>
+                              <Link to={`/movies/${m.id}`} className="mobile-movie-title" onClick={(e) => e.stopPropagation()}>
+                                {m.fr_title || m.title}
+                              </Link>
+                            </div>
+                            <button className={`mobile-expand-button ${isOpen ? 'expanded' : ''}`} onClick={(e) => { e.stopPropagation(); toggle(m.id); }}>▼</button>
+                          </div>
+
+                          <div className="mobile-stat-item revenue">
+                            <span className="mobile-stat-label">Recettes du week-end</span>
+                            <span className="mobile-stat-value revenue">{formatCurrency(m.revenue_qc)}</span>
+                          </div>
+
+                          <div className={`mobile-movie-details ${isOpen ? 'expanded' : 'collapsed'}`}>
+                            <div className="mobile-movie-stats">
+                              <div className="mobile-stat-item">
+                                <span className="mobile-stat-label">Changement</span>
+                                <span className={`mobile-stat-value ${toNum(m.change_percent) >= 0 ? 'positive' : 'negative'}`}>
+                            {pct0(m.change_percent)}
+                          </span>
+                              </div>
+                              <div className="mobile-stat-item">
+                                <span className="mobile-stat-label">Force QC/USA</span>
+                                <span className="mobile-stat-value">{pct0(m.force_qc_usa)}</span>
+                              </div>
+                              <div className="mobile-stat-item">
+                                <span className="mobile-stat-label">Semaine</span>
+                                <span className="mobile-stat-value">{m.week_number}</span>
+                              </div>
+                              <div className="mobile-stat-item">
+                                <span className="mobile-stat-label">Cumulatif</span>
+                                <span className="mobile-stat-value">{formatCurrency(m.cumulatif_qc)}</span>
+                              </div>
+                              <div className="mobile-stat-item">
+                                <span className="mobile-stat-label">Studio</span>
+                                <span className="mobile-stat-value">{m.studio_name}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                    );
+                  })}
+                </div>
+
+              </div>
+            </div>
         )}
       </div>
-
-      {/* Box Office Statistics Cards */}
-      {enhancedMovies.length > 0 && (
-        <div className="stats-grid">
-          
-          <div className="stat-card">
-            <div className="stat-icon">💰</div>
-            <div className="stat-content">
-              <h3>Recettes totales</h3>
-              <p className="stat-number">
-                {formatCurrency(enhancedMovies.reduce((sum, movie) => sum + (parseFloat(movie.revenue_qc) || 0), 0))}
-              </p>
-            </div>
-          </div>
-          
-          <div className="stat-card">
-            <div className="stat-icon">📈</div>
-            <div className="stat-content">
-              <h3>Changement</h3>
-              <p className={`stat-number ${overallStats.totalChange >= 0 ? 'positive' : 'negative'}`}>
-                {overallStats.totalChange > 0 ? '+' : ''}{overallStats.totalChange.toFixed(0)}%
-              </p>
-            </div>
-          </div>
-          
-          <div className="stat-card">
-            <div className="stat-icon"></div>
-            <div className="stat-content">
-              <h3>Force Québec/USA</h3>
-              <p className="stat-number">{overallStats.totalForceQcUsa.toFixed(0)}%</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Box Office Table */}
-      {enhancedMovies.length > 0 && (
-        <div className="table-section">
-          <h2>Box-office du week-end</h2>
-          <div className="table-container">
-            <table className="box-office-table">
-              <thead>
-                <tr>
-                  <th>Film</th>
-                  <th>Recettes</th>
-                  <th>Changement</th>
-                  <th>Force Québec/USA</th>
-                  <th>Week</th>
-                  <th>Cumulatif</th>
-                  <th>Studio majeur</th>
-                </tr>
-              </thead>
-              <tbody>
-                {enhancedMovies.map((movie) => (
-                  <tr key={movie.id}>
-                    <td className="movie-cell">
-                      <Link to={`/movies/${movie.id}`} className="movie-title-link">
-                        <strong>{movie.fr_title || movie.title}</strong>
-                      </Link>
-                    </td>
-                    <td className="gross-cell">{formatCurrency(movie.revenue_qc)}</td>
-                    <td className={`change-cell ${movie.change_percent >= 0 ? 'positive' : 'negative'}`}>
-                      {movie.change_percent > 0 ? '+' : ''}{movie.change_percent.toFixed(0)}%
-                    </td>
-                    <td className="ratio-cell">
-                      {movie.force_quebec_usa !== null ? `${movie.force_quebec_usa.toFixed(0)}%` : '-'}
-                    </td>
-                    <td className="week-cell">{movie.week_number}</td>
-                    <td className="cumulative-cell">{formatCurrency(movie.cumulatif_qc)}</td>
-                    <td className="studio-cell">{movie.studio_name}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Mobile card layout */}
-            <div className="mobile-table-cards">
-              {enhancedMovies.map((movie, index) => {
-                const isExpanded = expandedCards.has(movie.id)
-                return (
-                  <div key={movie.id} className="mobile-movie-card">
-                    <div className="mobile-movie-main" onClick={() => toggleCardExpansion(movie.id)}>
-                      <div className="mobile-movie-header">
-                        <span className="mobile-movie-rank">#{index + 1}</span>
-                        <Link
-                          to={`/movies/${movie.id}`}
-                          className="mobile-movie-title"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {movie.fr_title || movie.title}
-                        </Link>
-                      </div>
-                      <button
-                        className={`mobile-expand-button ${isExpanded ? 'expanded' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleCardExpansion(movie.id)
-                        }}
-                      >
-                        ▼
-                      </button>
-                    </div>
-
-                    {/* Always visible revenue */}
-                    <div className="mobile-stat-item revenue">
-                      <span className="mobile-stat-label">Recettes du week-end</span>
-                      <span className="mobile-stat-value revenue">{formatCurrency(movie.revenue_qc)}</span>
-                    </div>
-
-                    {/* Expandable details */}
-                    <div className={`mobile-movie-details ${isExpanded ? 'expanded' : 'collapsed'}`}>
-                      <div className="mobile-movie-stats">
-                        <div className="mobile-stat-item">
-                          <span className="mobile-stat-label">Changement</span>
-                          <span className={`mobile-stat-value ${movie.change_percent >= 0 ? 'positive' : 'negative'}`}>
-                            {movie.change_percent > 0 ? '+' : ''}{movie.change_percent.toFixed(0)}%
-                          </span>
-                        </div>
-                        <div className="mobile-stat-item">
-                          <span className="mobile-stat-label">Force QC/USA</span>
-                          <span className="mobile-stat-value">
-                            {movie.force_quebec_usa !== null ? `${movie.force_quebec_usa.toFixed(0)}%` : '-'}
-                          </span>
-                        </div>
-                        <div className="mobile-stat-item">
-                          <span className="mobile-stat-label">Semaine</span>
-                          <span className="mobile-stat-value">{movie.week_number}</span>
-                        </div>
-                        <div className="mobile-stat-item">
-                          <span className="mobile-stat-label">Cumulatif</span>
-                          <span className="mobile-stat-value">{formatCurrency(movie.cumulatif_qc)}</span>
-                        </div>
-                        <div className="mobile-stat-item">
-                          <span className="mobile-stat-label">Studio</span>
-                          <span className="mobile-stat-value">{movie.studio_name}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
+  );
 }
 
-export default WeekendDetails
+export default WeekendDetails;
