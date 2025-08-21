@@ -256,12 +256,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                   →
                 </button>
               </div>
-
-              {isCurrentWeekend && (
-                  <div className="current-badge">
-                    <span className="badge">Weekend actuel</span>
-                  </div>
-              )}
             </div>
         )}
 
@@ -369,88 +363,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                   ))}
                   </tbody>
                 </table>
-
-                {/* Mobile cards */}
-                <div className="mobile-table-cards">
-                  {movies.map((m, index) => {
-                    const isOpen = expanded.has(m.id);
-                    return (
-                        <div key={m.id} className="mobile-movie-card">
-                          <div className="mobile-movie-main" onClick={() => toggle(m.id)}>
-                            <div className="mobile-movie-header">
-                              <span className="mobile-movie-rank">#{index + 1}</span>
-                              <Link
-                                  to={`/movies/${m.id}`}
-                                  className="mobile-movie-title"
-                                  onClick={(e) => e.stopPropagation()}
-                              >
-                                {m.fr_title || m.title}
-                                {m.title && m.title !== m.fr_title && (
-                                    <div className="mobile-movie-subtitle">{m.title}</div>
-                                )}
-
-                              </Link>
-                            </div>
-                            <button
-                                className={`mobile-expand-button ${isOpen ? 'expanded' : ''}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggle(m.id);
-                                }}
-                            >
-                              ▼
-                            </button>
-                          </div>
-
-                          <div className="mobile-stat-item revenue">
-                            <span className="mobile-stat-label">Recettes du week-end</span>
-                            <span className="mobile-stat-value revenue">{formatCurrency(m.revenue_qc)}</span>
-                          </div>
-
-                          <div className={`mobile-movie-details ${isOpen ? 'expanded' : 'collapsed'}`}>
-                            <div className="mobile-movie-stats">
-                              <div className="mobile-stat-item">
-                                <span className="mobile-stat-label">Delta</span>
-                                <span
-                                    className={`mobile-stat-value ${
-                                        toNum(m.change_percent) >= 0 ? 'positive' : 'negative'
-                                    }`}
-                                >
-                            {pct0(m.change_percent)}
-                          </span>
-                              </div>
-                              <div className="mobile-stat-item">
-                                <span className="mobile-stat-label">QC/USA</span>
-                                <span className="mobile-stat-value">{pct0(m.force_qc_usa)}</span>
-                              </div>
-                              <div className="mobile-stat-item">
-                                <span className="mobile-stat-label">Semaine</span>
-                                <span className="mobile-stat-value">{m.week_number}</span>
-                              </div>
-                              <div className="mobile-stat-item">
-                                <span className="mobile-stat-label">Cumulatif</span>
-                                <span className="mobile-stat-value">{formatCurrency(m.cumulatif_qc)}</span>
-                              </div>
-                              <div className="mobile-stat-item">
-                                <span className="mobile-stat-label">Salles</span>
-                                <span className="mobile-stat-value">{formatInt(m.theater_count)}</span>
-                              </div>
-                              <div className="mobile-stat-item">
-                                <span className="mobile-stat-label">$/salle</span>
-                                <span className="mobile-stat-value">
-                            {m.rev_per_theater == null ? '—' : formatCurrency(m.rev_per_theater)}
-                          </span>
-                              </div>
-                              <div className="mobile-stat-item">
-                                <span className="mobile-stat-label">Studio</span>
-                                <span className="mobile-stat-value">{m.studio_name}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                    );
-                  })}
-                </div>
               </div>
             </div>
         )}
