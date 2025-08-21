@@ -1,4 +1,5 @@
-﻿.box-office {
+﻿/* ===== Layout (desktop only) ===== */
+.box-office {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
@@ -11,131 +12,96 @@
   align-items: center;
   margin-bottom: 2rem;
   padding: 1rem;
-  background: white;
+  background: #fff;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,.1);
 }
 
+/* ===== Table ===== */
+.box-office-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;         /* lock widths so ellipsis works */
+}
+
+.box-office-table th,
+.box-office-table td {
+  padding: .6rem .75rem;
+  border-bottom: 1px solid #eef2f7;
+  vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Sortable headers */
 .box-office-table th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .box-office-table th.sortable:hover { text-decoration: underline; }
-/* keep revenues right-aligned */
+
+/* Header style */
+.box-office-table thead th {
+  color: #111827;
+  font-size: .95rem;
+  font-weight: 700;
+  letter-spacing: .15px;
+  background: #f8fafc;
+}
+
+
+.box-office-table tbody td:last-child {
+  width: 14%;
+  font-size: .85rem;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.box-office-table tbody td:last-child a,
+.box-office-table tbody td:last-child span {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Numeric cells compact + aligned */
+.gross-cell,
+.cumulative-cell,
+.rev-per-theater-cell { white-space: nowrap; }
+.box-office-table td:not(:first-child):not(:last-child) {
+  font-size: .92rem;
+  line-height: 1;
+  color: #334155;
+}
+
+/* Film title block (no overlap, clamp to 2 lines) */
+.movie-title-wrap { display: flex; flex-direction: column; min-width: 0; max-width: 100%; }
+.movie-title-fr {
+  font-weight: 800;
+  font-size: 1rem;
+  line-height: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: #16324f;
+  text-decoration: none;
+  margin-bottom: 0;
+}
+.movie-title-fr:hover { text-decoration: underline; }
+
+.movie-title-vo {
+  color: #6b7280;
+  font-style: italic;
+  font-size: .8rem;
+}
+
+/* Align helpers */
+.box-office-table th.center,
+.box-office-table td.center { text-align: center; }
 .gross-cell { text-align: right; }
 
-/* center-aligned numeric columns */
-.box-office-table th.center,
-.box-office-table td.center {
-  text-align: center;
-  vertical-align: middle;
-}
-
-/* (optional explicit override if you keep other rules around) */
-.ratio-cell.center,
-.cumulative-cell.center,
-.theaters-cell.center,
-.pertheater-cell.center,
-.week-cell.center { text-align: center; }
-
-.weekend-navigation {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.nav-arrow {
-  background: #6366f1;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 1.2rem;
-  font-weight: bold;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
-}
-
-.nav-arrow:hover:not(.disabled) {
-  background: #4f46e5;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(99, 102, 241, 0.4);
-}
-
-.nav-arrow:active:not(.disabled) {
-  transform: translateY(0);
-}
-
-.nav-arrow.disabled {
-  background: #d1d5db;
-  color: #9ca3af;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.weekend-selector {
-  position: relative;
-}
-
-.weekend-dropdown {
-  background: white;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  font-size: 1rem;
-  font-weight: 500;
-  color: #374151;
-  cursor: pointer;
-  min-width: 250px;
-  transition: all 0.2s ease;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
-  background-position: right 0.5rem center;
-  background-repeat: no-repeat;
-  background-size: 1.5em 1.5em;
-  padding-right: 2.5rem;
-}
-
-.weekend-dropdown:hover {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-}
-
-.weekend-dropdown:focus {
-  outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
-}
-
-.current-badge {
-  display: flex;
-  align-items: center;
-}
-
-.badge {
-  background: linear-gradient(135deg, #10b981, #059669);
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.8;
-  }
-}
-
+/* Loader */
 .loading-container {
   display: flex;
   flex-direction: column;
@@ -144,141 +110,100 @@
   padding: 4rem 2rem;
   text-align: center;
 }
-
 .loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f3f4f6;
-  border-top: 4px solid #6366f1;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
+  width: 40px; height: 40px;
+  border: 4px solid #f3f4f6; border-top: 4px solid #6366f1;
+  border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1rem;
+}
+@keyframes spin { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.8} }
+
+/* --- Adjusted column widths --- */
+.box-office-table th:nth-child(1),
+.box-office-table td:nth-child(1) { width: 41%; }   /* Film (was 42%) */
+
+.box-office-table th:nth-child(2),
+.box-office-table td:nth-child(2) { width: 12%; text-align: right; } /* Recettes */
+
+.box-office-table th:nth-child(3),
+.box-office-table td:nth-child(3) { width: 9%;  text-align: center; } /* Delta */
+
+.box-office-table th:nth-child(4),
+.box-office-table td:nth-child(4) { width: 11%;  text-align: center; } /* QC/USA */
+
+.box-office-table th:nth-child(5),
+.box-office-table td:nth-child(5) { width: 9%;  text-align: center; } /* Week (bumped from 5%) */
+
+.box-office-table th:nth-child(6),
+.box-office-table td:nth-child(6) { width: 12%; text-align: right; } /* Cumulatif */
+
+.box-office-table th:nth-child(7),
+.box-office-table td:nth-child(7) { width: 10%;  text-align: center; } /* Salles */
+
+.box-office-table th:nth-child(8),
+.box-office-table td:nth-child(8) { width: 20%;  text-align: right; } /* $/salle (a bit wider) */
+
+.box-office-table th:nth-child(9),
+.box-office-table td:nth-child(9) { width: 12%; text-align: left; } /* Studio */
+
+/* force a tight vertical stack */
+.box-office-table .movie-cell .movie-title-wrap{
+  display:flex;
+  flex-direction:column;
+  gap:0;               /* no extra flex gap */
+  line-height:1.1;
 }
 
-/* Title block */
-.movie-title-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+/* target the LINK specifically so it overrides any global link styles */
+.box-office-table .movie-cell .movie-title-wrap > a.movie-title-fr,
+.box-office-table .movie-cell .movie-title-wrap > a.movie-title-fr:link,
+.box-office-table .movie-cell .movie-title-wrap > a.movie-title-fr:visited{
+  margin:0 !important;          /* kill any inherited margins */
+  padding:0 !important;
+  line-height:0.7;
+  display:inline-block;         /* keeps it snug with subtitle */
+  text-decoration:none;
 }
 
-.movie-title-fr {
-  font-weight: 700;
-  color: #16324f; /* adjust to your palette */
-  text-decoration: none;
+/* VO: true subtitle look */
+.box-office-table .movie-cell .movie-title-wrap > .movie-title-vo{
+  margin-top:1px !important;    /* hairline gap under FR title */
+  padding:0;
+  font-style:italic;
+  font-size:.85rem;
+  opacity:.85;
+  line-height:0.3;
+  display:inline-block;
 }
 
-.movie-title-fr:hover {
-  text-decoration: underline;
+/* --- Subtitle (VO) look exactly like your screenshot --- */
+.box-office-table .movie-cell .movie-title-wrap{
+  display:block;            /* simpler than flex; no gap surprises */
+  line-height:1.15;
 }
 
-.movie-title-vo {
-  color: #6b7280;        /* grey */
-  font-style: italic;
-  font-size: 0.8rem;
-  line-height: 1.2;
+.box-office-table .movie-cell .movie-title-wrap > a.movie-title-fr{
+  display:inline;           /* sits tight above the subtitle */
+  margin:0 !important;
+  padding:0 !important;
+  line-height:1.15 !important;
+  text-decoration:none;
+  color:#0f172a;
+  font-weight:800;
 }
 
-
-
-/* Center helpers */
-.box-office-table th.center,
-.box-office-table td.center {
-  text-align: center;
-  vertical-align: middle;
+/* If you had a clamp, disable it so spacing is predictable */
+.box-office-table .movie-cell .movie-title-wrap > a.movie-title-fr{
+  -webkit-line-clamp:unset !important;
+  -webkit-box-orient:unset !important;
+  display:inline !important;  /* overrides any previous -webkit-box */
 }
 
-/* (Optional) keep numeric columns aligned nicely */
-.gross-cell,
-.cumulative-cell,
-.rev-per-theater-cell {
-  white-space: nowrap;
-}
-
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Mobile-first responsive design */
-@media (max-width: 480px) {
-  .box-office {
-    padding: var(--spacing-lg);
-  }
-
-  /* Optional: mobile subtitle style */
-  .mobile-movie-subtitle {
-    color: #6b7280;
-    font-style: italic;
-    font-size: 0.9rem;
-    margin-top: 2px;
-  }
-
-  .box-office-header {
-    flex-direction: column;
-    gap: var(--spacing-lg);
-    align-items: stretch;
-    padding: var(--spacing-lg);
-  }
-
-  .weekend-navigation {
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: var(--spacing-sm);
-  }
-
-  .weekend-dropdown {
-    min-width: 180px;
-    font-size: 0.85rem;
-    padding: var(--spacing-sm);
-  }
-
-  .nav-arrow {
-    width: var(--touch-target);
-    height: var(--touch-target);
-    font-size: 1rem;
-    min-width: var(--touch-target);
-  }
-
-  .current-badge {
-    justify-content: center;
-    width: 100%;
-  }
-
-  .badge {
-    font-size: 0.8rem;
-    padding: var(--spacing-sm) var(--spacing-lg);
-  }
-}
-
-@media (max-width: 768px) {
-  .box-office {
-    padding: var(--spacing-lg);
-  }
-
-  .box-office-header {
-    flex-direction: column;
-    gap: var(--spacing-lg);
-    align-items: stretch;
-  }
-
-  .weekend-navigation {
-    justify-content: center;
-  }
-
-  .weekend-dropdown {
-    min-width: 200px;
-    font-size: 0.9rem;
-  }
-
-  .nav-arrow {
-    width: 35px;
-    height: 35px;
-    font-size: 1rem;
-  }
-
-  .current-badge {
-    justify-content: center;
-  }
+.box-office-table .movie-cell .movie-title-wrap > .movie-title-vo{
+  display:block;
+  margin-top:2px;           /* hairline gap */
+  line-height:1.15;
+  font-size:.85rem;
+  letter-spacing:.02em;
+  color:#94a3b8;            /* muted grey */
 }

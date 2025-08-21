@@ -315,10 +315,10 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                       Recettes {sort.key === 'revenue_qc' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
                     </th>
                     <th className="sortable center" onClick={() => setSortKey('change_percent')}>
-                      Changement {sort.key === 'change_percent' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
+                      Delta {sort.key === 'change_percent' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
                     </th>
                     <th className="sortable center" onClick={() => setSortKey('force_qc_usa')}>
-                      Force QC/USA {sort.key === 'force_qc_usa' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
+                      QC/USA {sort.key === 'force_qc_usa' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
                     </th>
                     <th className="sortable center" onClick={() => setSortKey('week_number')}>
                       Week {sort.key === 'week_number' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
@@ -326,11 +326,8 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                     <th className="sortable center" onClick={() => setSortKey('cumulatif_qc')}>
                       Cumulatif {sort.key === 'cumulatif_qc' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
                     </th>
-                    <th className="sortable center" onClick={() => setSortKey('theater_count')}>
-                      Salles {sort.key === 'theater_count' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
-                    </th>
                     <th className="sortable center" onClick={() => setSortKey('rev_per_theater')}>
-                      $ / salle {sort.key === 'rev_per_theater' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
+                      $/salle {sort.key === 'rev_per_theater' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
                     </th>
                     <th>Studio majeur</th>
                   </tr>
@@ -345,7 +342,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                               {m.fr_title || m.title}
                             </Link>
                             {m.title && m.title !== m.fr_title && (
-                                <div className="movie-title-vo">{m.title}</div>
+                                <span className="movie-title-vo">{m.title}</span>
                             )}
                           </div>
                         </td>
@@ -362,8 +359,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                         <td className="week-cell">{m.week_number}</td>
 
                         <td className="cumulative-cell">{formatCurrency(m.cumulatif_qc)}</td>
-
-                        <td className="theaters-cell">{formatInt(m.theater_count)}</td>
 
                         <td className="pertheater-cell">
                           {m.rev_per_theater == null ? '—' : formatCurrency(m.rev_per_theater)}
@@ -415,7 +410,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                           <div className={`mobile-movie-details ${isOpen ? 'expanded' : 'collapsed'}`}>
                             <div className="mobile-movie-stats">
                               <div className="mobile-stat-item">
-                                <span className="mobile-stat-label">Changement</span>
+                                <span className="mobile-stat-label">Delta</span>
                                 <span
                                     className={`mobile-stat-value ${
                                         toNum(m.change_percent) >= 0 ? 'positive' : 'negative'
@@ -425,7 +420,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                           </span>
                               </div>
                               <div className="mobile-stat-item">
-                                <span className="mobile-stat-label">Force QC/USA</span>
+                                <span className="mobile-stat-label">QC/USA</span>
                                 <span className="mobile-stat-value">{pct0(m.force_qc_usa)}</span>
                               </div>
                               <div className="mobile-stat-item">
@@ -441,7 +436,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                                 <span className="mobile-stat-value">{formatInt(m.theater_count)}</span>
                               </div>
                               <div className="mobile-stat-item">
-                                <span className="mobile-stat-label">$ / salle</span>
+                                <span className="mobile-stat-label">$/salle</span>
                                 <span className="mobile-stat-value">
                             {m.rev_per_theater == null ? '—' : formatCurrency(m.rev_per_theater)}
                           </span>
