@@ -18,8 +18,8 @@ import './BoxOffice.css';
 const formatInt = (n) =>
     n == null ? '—' : new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 0 }).format(n);
 
-const dollarsPerTheater = (revenueQc, theaterCount) =>
-    theaterCount > 0 ? revenueQc / theaterCount : null;
+const dollarsPerTheater = (revenueQc, screenCount) =>
+    screenCount > 0 ? revenueQc / screenCount : null;
 
 const formatWeekendRange = (weekendId) => {
   const fri = getFridayFromWeekendId(weekendId);
@@ -51,7 +51,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   const [weekendMeta, setWeekendMeta] = useState(null);
   const [rawMovies, setRawMovies] = useState([]);
   const [availableWeekends, setAvailableWeekends] = useState([]);
-  const [expanded, setExpanded] = useState(new Set());
 
   useEffect(() => {
     fetchData();
@@ -98,11 +97,13 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
     handleWeekendChange(getNextWeekendId(realWeekendId));
   };
 
-  /* ---------- row normalization ---------- */
   const normalizeMovie = (m) => {
     const revenue_qc = toNum(m.revenue_qc) ?? 0;
-    const theater_count = toNum(m.theater_count);
-    const rev_per_theater = dollarsPerTheater(revenue_qc, theater_count);
+
+    const rawSC = m.screen_count ?? m.theater_count ?? 0;
+    const screen_count = Number.isFinite(+rawSC) ? +rawSC : 0;
+
+    const rev_per_screen = screen_count > 0 ? revenue_qc / screen_count : null;
 
     return {
       ...m,
@@ -113,10 +114,11 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       cumulatif_qc: toNum(m.cumulatif_qc) ?? revenue_qc,
       week_number: m.week_count ?? 1,
       studio_name: m.studio_name ?? 'Independent',
-      theater_count,
-      rev_per_theater,
+      screen_count,
+      rev_per_screen,
     };
   };
+
 
   /* ---------- data fetch ---------- */
   const fetchData = async () => {
@@ -155,10 +157,10 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
           return toNum(m.week_number) ?? -Infinity;
         case 'cumulatif_qc':
           return toNum(m.cumulatif_qc) ?? -Infinity;
-        case 'theater_count':
-          return toNum(m.theater_count) ?? -Infinity;
-        case 'rev_per_theater':
-          return toNum(m.rev_per_theater) ?? -Infinity;
+        case 'screen_count':
+          return toNum(m.screen_count) ?? -Infinity;
+        case 'rev_per_screen':
+          return toNum(m.rev_per_screen) ?? -Infinity;
         default:
           return toNum(m.revenue_qc) ?? -Infinity;
       }
@@ -191,13 +193,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   const overallForceQcUsa =
       totalUS && totalUS > 0 ? ((totalQC ?? 0) / totalUS) * 100 / 2.29 * 100 : null;
 
-  const toggle = (id) => {
-    setExpanded((prev) => {
-      const n = new Set(prev);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
-  };
 
 
   if (loading)
@@ -320,8 +315,8 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                     <th className="sortable center" onClick={() => setSortKey('cumulatif_qc')}>
                       Cumulatif {sort.key === 'cumulatif_qc' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
                     </th>
-                    <th className="sortable center" onClick={() => setSortKey('rev_per_theater')}>
-                      $/salle {sort.key === 'rev_per_theater' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
+                    <th className="sortable center" onClick={() => setSortKey('rev_per_screen')}>
+                      $/salle {sort.key === 'rev_per_screen' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
                     </th>
                     <th>Studio majeur</th>
                   </tr>
@@ -355,7 +350,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                         <td className="cumulative-cell">{formatCurrency(m.cumulatif_qc)}</td>
 
                         <td className="pertheater-cell">
-                          {m.rev_per_theater == null ? '—' : formatCurrency(m.rev_per_theater)}
+                          {m.rev_per_screen == null ? '—' : formatCurrency(m.rev_per_screen)}
                         </td>
 
                         <td className="studio-cell">{m.studio_name}</td>
