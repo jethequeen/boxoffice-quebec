@@ -188,8 +188,8 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       sortable: false,
       required: true,
       priority: 0,
-      widthPct: 25,
-      mobileWidthPct: 18,     // give it room on phones
+      widthPct: 20,
+      mobileWidthPct: 18,
       align: 'left',
       headerAlign: 'left',
       className: 'movie-cell',
@@ -303,7 +303,10 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                 initialSort={{ key: 'revenue_qc', dir: 'desc' }}
                 initialVisibleKeys={['title','revenue_qc','change_percent','week_number','cumulatif_qc','rev_per_screen']}
                 caps={{ mobile: 4, tablet: 6, desktop: Infinity }}
+                mobileMode="auto"
+                searchAccessors={[r=>r.fr_title, r=>r.title, r=>r.studio_name]}
             />
+
         )}
       </div>
   );
