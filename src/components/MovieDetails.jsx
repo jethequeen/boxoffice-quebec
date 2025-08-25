@@ -3,6 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { apiCall } from '../utils/api';
 import './MovieDetails.css';
 import { getFridayFromWeekendId } from '../utils/weekendUtils';
+import { createColumnsCatalog, presets } from '../utils/catalog';
+import MovieTable from '../components/movieTable';
 
 
 function MovieDetails() {
@@ -32,6 +34,12 @@ function MovieDetails() {
           ? 'N/A'
           : new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', minimumFractionDigits: 0 }).format(n);
 
+
+  const { pickColumns } = createColumnsCatalog({
+    Link, formatCurrency, pct0: (n)=> (n==null?'—':`${n>=0?'+':''}${Number(n).toFixed(0)}%`), toNum:(x)=> Number(x) || 0
+  });
+
+
   if (loading) {
     return (
         <div className="movie-details">
@@ -56,6 +64,7 @@ function MovieDetails() {
   }
 
   const { movie, revenues = [], directors = [], genres = [], cast = [], statistics = {} } = movieData;
+
 
   const TMDB = {
     poster: (p) => (p ? `https://image.tmdb.org/t/p/w185${p}` : null),
@@ -125,6 +134,7 @@ function MovieDetails() {
     const week_number = Number(r.week_count) || i + 1;
 
     return {
+      id: r.weekend_id || `${r.start_date || ''}-${i}`,
       ...r,
       dateObj,
       dateStr: dateObj
@@ -287,56 +297,16 @@ function MovieDetails() {
         </div>
 
         {/* Table (same behavior/style as WeekendDetails) */}
-        {revenues.length > 0 && (
-            <div className="table-section">
-              <div className="table-container">
-                <table className="box-office-table">
-                  <thead>
-                  <tr>
-                    <th className="sortable th-left" onClick={() => toggleSort('date')}>
-                      Date{arrow('date')}
-                    </th>
-                    <th className="sortable center" onClick={() => toggleSort('rank')}>
-                      Rank{arrow('rank')}
-                    </th>
-                    <th className="sortable center" onClick={() => toggleSort('revenue_qc')}>
-                      Recettes{arrow('revenue_qc')}
-                    </th>
-                    <th className="sortable center" onClick={() => toggleSort('change_percent')}>
-                      % Changement{arrow('change_percent')}
-                    </th>
-                    <th className="sortable center" onClick={() => toggleSort('theater_count')}>
-                      Salles{arrow('theater_count')}
-                    </th>
-                    <th className="sortable center" onClick={() => toggleSort('rev_per_theater')}>
-                      $ / salle{arrow('rev_per_theater')}
-                    </th>
-                    <th className="sortable center" onClick={() => toggleSort('week_number')}>
-                      Week{arrow('week_number')}
-                    </th>
-                  </tr>
-                  </thead>
-
-                  <tbody>
-                  {sortedRows.map((r) => (
-                      <tr key={r.weekend_id}>
-                        <td className="date-cell">{r.dateStr}</td>
-                        <td className="rank-cell">#{r.rank}</td>
-                        <td className="gross-cell">{formatCurrency(r.revenue_qc_num)}</td>
-                        <td className={`change-cell ${r.change_percent == null ? '' : r.change_percent >= 0 ? 'positive' : 'negative'}`}>
-                          {pct0(r.change_percent)}
-                        </td>
-                        <td className="theaters-cell">{formatInt(r.theater_count_num)}</td>
-                        <td className="pertheater-cell">
-                          {r.rev_per_theater == null ? '—' : formatCurrency(r.rev_per_theater)}
-                        </td>
-                        <td className="week-cell">{r.week_number}</td>
-                      </tr>
-                  ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        {revRows.length > 0 && (
+            <MovieTable
+                rows={revRows}
+                columns={pickColumns(presets.historyInitialVisible)}
+                initialSort={{ key: 'date', dir: 'asc' }}
+                initialVisibleKeys={presets.historyInitialVisible}
+                caps={{ mobile: 4, tablet: 7, desktop: Infinity }}
+                mobileMode="auto"
+                searchAccessors={[r => r.dateObj?.toISOString?.().slice(0,10), r => String(r.rank)]}
+            />
         )}
       </div>
   );

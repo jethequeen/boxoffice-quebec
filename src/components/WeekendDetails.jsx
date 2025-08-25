@@ -11,6 +11,7 @@ import { formatCurrency, toNum, pct0 } from '../utils/formatUtils';
 import './Dashboard.css';
 import './BoxOffice.css';
 import MovieTable from '../components/movieTable';
+import { createColumnsCatalog } from '../utils/catalog';
 
 /* ---------------- UI helpers ---------------- */
 
@@ -39,6 +40,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
 
   const [weekendMeta, setWeekendMeta] = useState(null);
   const [rawMovies, setRawMovies] = useState([]);
+  const { C, pickColumns } = createColumnsCatalog({ Link, formatCurrency, pct0, toNum });
 
   useEffect(() => {
     fetchData();
@@ -149,34 +151,16 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   const overallForceQcUsa =
       totalUS && totalUS > 0 ? ((totalQC ?? 0) / totalUS) * 100 / 2.29 * 100 : null;
 
-  const columns = [
-    {
-      key: 'title',
-      label: 'Film',
-      sortable: false,
-      required: true,
-      priority: 0,
-      widthPct: 20,
-      mobileWidthPct: 18,
-      align: 'left',
-      headerAlign: 'left',
-      className: 'movie-cell',
-      value: (m) => (m.fr_title || m.title || ''),
-      render: (value, m) => (
-          <div className="movie-title-wrap">
-            <Link to={`/movies/${m.id}`} className="movie-title-fr">{value}</Link>
-            {m.title && m.title !== m.fr_title && <span className="movie-title-vo">{m.title}</span>}
-          </div>
-      ),
-    },
-    { key: 'revenue_qc',  label: 'Recettes',  sortable: true, priority: 1, widthPct: 9,  mobileWidthPct: 18, align: 'center', headerAlign: 'center', value: (m)=>m.revenue_qc, render: v=>formatCurrency(v) },
-    { key: 'change_percent', label: 'Delta',   sortable: true, priority: 2, widthPct: 6,  mobileWidthPct: 14, headerAlign:'center', className:(m)=>`change-cell ${toNum(m.change_percent)>=0?'positive':'negative'}`, value:(m)=>m.change_percent, render:(v,m)=><span className={toNum(m.change_percent)>=0?'positive':'negative'}>{pct0(v)}</span> },
-    { key: 'week_number', label: 'Semaine',    sortable: true, priority: 3, widthPct: 6,  mobileWidthPct: 12, align: 'center', headerAlign:'center', value:(m)=>m.week_number },
-    { key: 'cumulatif_qc',label: 'Cumulatif',  sortable: true, priority: 4, widthPct: 10, mobileWidthPct: 12, align: 'center', headerAlign:'center', value:(m)=>m.cumulatif_qc, render:v=>formatCurrency(v) },
-    { key: 'rev_per_screen', label: '$/salle', sortable: true, priority: 5, widthPct: 6,  mobileWidthPct: 14, align: 'center', headerAlign:'center', value:(m)=>m.rev_per_screen, render:v=> (v==null?'—':formatCurrency(v)) },
-    // add others with lower priority numbers if you want them to show earlier
-  ];
-
+  const columns = pickColumns(
+      ['title','revenue_qc','change_percent','week_number','cumulatif_qc','rev_per_screen'],
+      {
+        // Optional per-table tweaks/overrides:
+        change_percent: {
+          // e.g., narrow on mobile for this table only
+          mobileWidthPct: 12,
+        },
+      }
+  );
 
   if (loading)
     return (
