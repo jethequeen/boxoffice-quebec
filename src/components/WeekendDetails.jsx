@@ -12,14 +12,9 @@ import {
 import { formatCurrency, toNum, pct0 } from '../utils/formatUtils';
 import './Dashboard.css';
 import './BoxOffice.css';
+import MovieTable from '../components/MovieTable';
 
 /* ---------------- UI helpers ---------------- */
-
-const formatInt = (n) =>
-    n == null ? '—' : new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 0 }).format(n);
-
-const dollarsPerTheater = (revenueQc, screenCount) =>
-    screenCount > 0 ? revenueQc / screenCount : null;
 
 const formatWeekendRange = (weekendId) => {
   const fri = getFridayFromWeekendId(weekendId);
@@ -50,7 +45,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
 
   const [weekendMeta, setWeekendMeta] = useState(null);
   const [rawMovies, setRawMovies] = useState([]);
-  const [availableWeekends, setAvailableWeekends] = useState([]);
 
   useEffect(() => {
     fetchData();
@@ -181,7 +175,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   }, [rawMovies, sort]);
 
   /* ---------- header + cards data ---------- */
-  const isCurrentWeekend = !realWeekendId || realWeekendId === getCurrentWeekendId();
   const canGoNext = realWeekendId < getCurrentWeekendId();
 
   const sum = (arr, key) => arr.reduce((s, m) => s + (toNum(m[key]) || 0), 0);
@@ -193,6 +186,99 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   const overallForceQcUsa =
       totalUS && totalUS > 0 ? ((totalQC ?? 0) / totalUS) * 100 / 2.29 * 100 : null;
 
+  const columns = [
+    {
+      key: 'title',
+      label: 'Film',
+      sortable: false,
+      widthPct: 17,
+      align: 'left',
+      headerClassName: 'left',
+      className: 'movie-cell',
+      value: (m) => (m.fr_title || m.title || ''),
+      sortValue: (m) => (m.fr_title || m.title || '').toLowerCase(),
+      render: (value, m) => (
+          <div className="movie-title-wrap">
+            <Link to={`/movies/${m.id}`} className="movie-title-fr">{value}</Link>
+            {m.title && m.title !== m.fr_title && <span className="movie-title-vo">{m.title}</span>}
+          </div>
+      ),
+    },
+    {
+      key: 'revenue_qc',
+      label: 'Recettes',
+      sortable: true,
+      widthPct: 9,
+      align: 'center',
+      headerClassName: 'center',
+      value: (m) => m.revenue_qc,
+      render: (v) => formatCurrency(v),
+      sortValue: (m) => toNum(m.revenue_qc) ?? Number.NEGATIVE_INFINITY,
+    },
+    {
+      key: 'change_percent',
+      label: 'Delta',
+      sortable: true,
+      widthPct: 6,
+      headerClassName: 'center',
+      className: (m) => `change-cell ${toNum(m.change_percent) >= 0 ? 'positive' : 'negative'} align-center`,
+      value: (m) => m.change_percent,
+      render: (v, m) => <span className={toNum(m.change_percent) >= 0 ? 'positive' : 'negative'}>{pct0(v)}</span>,
+      sortValue: (m) => toNum(m.change_percent) ?? Number.NEGATIVE_INFINITY,
+    },
+    {
+      key: 'force_qc_usa',
+      label: 'QC/USA',
+      sortable: true,
+      widthPct: 6,
+      align: 'center',
+      headerClassName: 'center',
+      value: (m) => m.force_qc_usa,
+      render: (v) => pct0(v),
+      sortValue: (m) => toNum(m.force_qc_usa) ?? Number.NEGATIVE_INFINITY,
+    },
+    {
+      key: 'week_number',
+      label: 'Semaine',
+      sortable: true,
+      widthPct: 6,
+      headerClassName: 'center',
+      className: 'week-cell align-center',
+      value: (m) => m.week_number,
+    },
+    {
+      key: 'cumulatif_qc',
+      label: 'Cumulatif',
+      sortable: true,
+      widthPct: 10,
+      align: 'center',
+      headerClassName: 'center',
+      value: (m) => m.cumulatif_qc,
+      render: (v) => formatCurrency(v),
+      sortValue: (m) => toNum(m.cumulatif_qc) ?? Number.NEGATIVE_INFINITY,
+    },
+    {
+      key: 'rev_per_screen',
+      label: '$/salle',
+      sortable: true,
+      widthPct: 6,
+      align: 'center',
+      headerClassName: 'center',
+      value: (m) => m.rev_per_screen,
+      render: (v) => (v == null ? '—' : formatCurrency(v)),
+      sortValue: (m) => toNum(m.rev_per_screen) ?? Number.NEGATIVE_INFINITY,
+    },
+    {
+      key: 'studio_name',
+      label: 'Studio majeur',
+      sortable: false,
+      widthPct: 8,
+      headerClassName: 'center',
+      className: 'studio-cell',
+      value: (m) => m.studio_name ?? 'Independent',
+      sortValue: (m) => (m.studio_name ?? 'Independent').toLowerCase(),
+    },
+  ];
 
 
   if (loading)
@@ -220,44 +306,34 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
 
   return (
       <div className="dashboard">
-        {/* Weekend Navigation */}
+        {/* Weekend Navigation + Title (cardless) */}
         {showNavigation && (
-            <div className="box-office-header">
-              <div className="weekend-navigation">
-                <button className="nav-arrow prev" onClick={navigateToPrevious} title="Weekend précédent">
-                  ←
-                </button>
+            <div className="weekend-hero-plain">
+              <button
+                  className="nav-arrow prev"
+                  onClick={navigateToPrevious}
+                  title="Weekend précédent"
+                  aria-label="Weekend précédent"
+              >
+                ←
+              </button>
 
-                <div className="weekend-selector">
-                  <select
-                      value={realWeekendId}
-                      onChange={(e) => handleWeekendChange(e.target.value)}
-                      className="weekend-dropdown"
-                  >
-                    {availableWeekends.map((w) => (
-                        <option key={w.weekend_id} value={w.weekend_id}>
-                          {w.display_date}
-                        </option>
-                    ))}
-                  </select>
-                </div>
+              <h1 className="weekend-title">{formatWeekendRange(realWeekendId)}</h1>
 
-                <button
-                    className={`nav-arrow next ${!canGoNext ? 'disabled' : ''}`}
-                    onClick={navigateToNext}
-                    disabled={!canGoNext}
-                    title="Weekend suivant"
-                >
-                  →
-                </button>
-              </div>
+              <button
+                  className={`nav-arrow next ${!canGoNext ? 'disabled' : ''}`}
+                  onClick={navigateToNext}
+                  disabled={!canGoNext}
+                  title="Weekend suivant"
+                  aria-label="Weekend suivant"
+              >
+                →
+              </button>
             </div>
         )}
 
-        <div className="dashboard-header">
-          <h1>{formatWeekendRange(realWeekendId)}</h1>
-          <p>{isCurrentWeekend ? 'Weekend actuel' : 'Détails du weekend'}</p>
-        </div>
+
+
 
         {/* Stat Cards */}
         {(totalQC != null || changeQC != null || overallForceQcUsa != null) && (
@@ -292,74 +368,14 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
 
         {/* Table */}
         {movies.length > 0 && (
-            <div className="table-section">
-              <div className="table-container">
-                <table className="box-office-table">
-                  <thead>
-                  <tr>
-                    <th className="sortable center" onClick={() => setSortKey('title')}>
-                      Film {sort.key === 'title' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
-                    </th>
-                    <th className="sortable center" onClick={() => setSortKey('revenue_qc')}>
-                      Recettes {sort.key === 'revenue_qc' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
-                    </th>
-                    <th className="sortable center" onClick={() => setSortKey('change_percent')}>
-                      Delta {sort.key === 'change_percent' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
-                    </th>
-                    <th className="sortable center" onClick={() => setSortKey('force_qc_usa')}>
-                      QC/USA {sort.key === 'force_qc_usa' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
-                    </th>
-                    <th className="sortable center" onClick={() => setSortKey('week_number')}>
-                      Week {sort.key === 'week_number' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
-                    </th>
-                    <th className="sortable center" onClick={() => setSortKey('cumulatif_qc')}>
-                      Cumulatif {sort.key === 'cumulatif_qc' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
-                    </th>
-                    <th className="sortable center" onClick={() => setSortKey('rev_per_screen')}>
-                      $/salle {sort.key === 'rev_per_screen' ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
-                    </th>
-                    <th>Studio majeur</th>
-                  </tr>
-                  </thead>
-
-                  <tbody>
-                  {movies.map((m) => (
-                      <tr key={m.id}>
-                        <td className="movie-cell">
-                          <div className="movie-title-wrap">
-                            <Link to={`/movies/${m.id}`} className="movie-title-fr">
-                              {m.fr_title || m.title}
-                            </Link>
-                            {m.title && m.title !== m.fr_title && (
-                                <span className="movie-title-vo">{m.title}</span>
-                            )}
-                          </div>
-                        </td>
-
-
-                        <td className="gross-cell">{formatCurrency(m.revenue_qc)}</td>
-
-                        <td className={`change-cell ${toNum(m.change_percent) >= 0 ? 'positive' : 'negative'}`}>
-                          {pct0(m.change_percent)}
-                        </td>
-
-                        <td className="ratio-cell">{pct0(m.force_qc_usa)}</td>
-
-                        <td className="week-cell">{m.week_number}</td>
-
-                        <td className="cumulative-cell">{formatCurrency(m.cumulatif_qc)}</td>
-
-                        <td className="pertheater-cell">
-                          {m.rev_per_screen == null ? '—' : formatCurrency(m.rev_per_screen)}
-                        </td>
-
-                        <td className="studio-cell">{m.studio_name}</td>
-                      </tr>
-                  ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <MovieTable
+                rows={movies}
+                columns={columns}
+                initialSort={{ key: 'revenue_qc', dir: 'desc' }}
+                initialVisibleKeys={[
+                  'title','revenue_qc','change_percent','week_number','cumulatif_qc', 'rev_per_screen'
+                ]}
+            />
         )}
       </div>
   );
