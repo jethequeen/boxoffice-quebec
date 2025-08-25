@@ -37,11 +37,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   const [error, setError] = useState(null);
 
   // sorting
-  const [sort, setSort] = useState({ key: 'revenue_qc', dir: 'desc' });
-  const setSortKey = (key) =>
-      setSort((prev) =>
-          prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' }
-      );
+  const [sort] = useState({ key: 'revenue_qc', dir: 'desc' });
 
   const [weekendMeta, setWeekendMeta] = useState(null);
   const [rawMovies, setRawMovies] = useState([]);
@@ -78,7 +74,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
             : 'Date inconnue',
       });
     }
-    setAvailableWeekends(weekends);
   };
 
   const handleWeekendChange = (newWeekendId) => {
@@ -191,12 +186,14 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       key: 'title',
       label: 'Film',
       sortable: false,
-      widthPct: 17,
+      required: true,
+      priority: 0,
+      widthPct: 25,
+      mobileWidthPct: 18,     // give it room on phones
       align: 'left',
-      headerClassName: 'left',
+      headerAlign: 'left',
       className: 'movie-cell',
       value: (m) => (m.fr_title || m.title || ''),
-      sortValue: (m) => (m.fr_title || m.title || '').toLowerCase(),
       render: (value, m) => (
           <div className="movie-title-wrap">
             <Link to={`/movies/${m.id}`} className="movie-title-fr">{value}</Link>
@@ -204,80 +201,12 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
           </div>
       ),
     },
-    {
-      key: 'revenue_qc',
-      label: 'Recettes',
-      sortable: true,
-      widthPct: 9,
-      align: 'center',
-      headerClassName: 'center',
-      value: (m) => m.revenue_qc,
-      render: (v) => formatCurrency(v),
-      sortValue: (m) => toNum(m.revenue_qc) ?? Number.NEGATIVE_INFINITY,
-    },
-    {
-      key: 'change_percent',
-      label: 'Delta',
-      sortable: true,
-      widthPct: 6,
-      headerClassName: 'center',
-      className: (m) => `change-cell ${toNum(m.change_percent) >= 0 ? 'positive' : 'negative'} align-center`,
-      value: (m) => m.change_percent,
-      render: (v, m) => <span className={toNum(m.change_percent) >= 0 ? 'positive' : 'negative'}>{pct0(v)}</span>,
-      sortValue: (m) => toNum(m.change_percent) ?? Number.NEGATIVE_INFINITY,
-    },
-    {
-      key: 'force_qc_usa',
-      label: 'QC/USA',
-      sortable: true,
-      widthPct: 6,
-      align: 'center',
-      headerClassName: 'center',
-      value: (m) => m.force_qc_usa,
-      render: (v) => pct0(v),
-      sortValue: (m) => toNum(m.force_qc_usa) ?? Number.NEGATIVE_INFINITY,
-    },
-    {
-      key: 'week_number',
-      label: 'Semaine',
-      sortable: true,
-      widthPct: 6,
-      headerClassName: 'center',
-      className: 'week-cell align-center',
-      value: (m) => m.week_number,
-    },
-    {
-      key: 'cumulatif_qc',
-      label: 'Cumulatif',
-      sortable: true,
-      widthPct: 10,
-      align: 'center',
-      headerClassName: 'center',
-      value: (m) => m.cumulatif_qc,
-      render: (v) => formatCurrency(v),
-      sortValue: (m) => toNum(m.cumulatif_qc) ?? Number.NEGATIVE_INFINITY,
-    },
-    {
-      key: 'rev_per_screen',
-      label: '$/salle',
-      sortable: true,
-      widthPct: 6,
-      align: 'center',
-      headerClassName: 'center',
-      value: (m) => m.rev_per_screen,
-      render: (v) => (v == null ? '—' : formatCurrency(v)),
-      sortValue: (m) => toNum(m.rev_per_screen) ?? Number.NEGATIVE_INFINITY,
-    },
-    {
-      key: 'studio_name',
-      label: 'Studio majeur',
-      sortable: false,
-      widthPct: 8,
-      headerClassName: 'center',
-      className: 'studio-cell',
-      value: (m) => m.studio_name ?? 'Independent',
-      sortValue: (m) => (m.studio_name ?? 'Independent').toLowerCase(),
-    },
+    { key: 'revenue_qc',  label: 'Recettes',  sortable: true, priority: 1, widthPct: 9,  mobileWidthPct: 18, align: 'center', headerAlign: 'center', value: (m)=>m.revenue_qc, render: v=>formatCurrency(v) },
+    { key: 'change_percent', label: 'Delta',   sortable: true, priority: 2, widthPct: 6,  mobileWidthPct: 14, headerAlign:'center', className:(m)=>`change-cell ${toNum(m.change_percent)>=0?'positive':'negative'}`, value:(m)=>m.change_percent, render:(v,m)=><span className={toNum(m.change_percent)>=0?'positive':'negative'}>{pct0(v)}</span> },
+    { key: 'week_number', label: 'Semaine',    sortable: true, priority: 3, widthPct: 6,  mobileWidthPct: 12, align: 'center', headerAlign:'center', value:(m)=>m.week_number },
+    { key: 'cumulatif_qc',label: 'Cumulatif',  sortable: true, priority: 4, widthPct: 10, mobileWidthPct: 12, align: 'center', headerAlign:'center', value:(m)=>m.cumulatif_qc, render:v=>formatCurrency(v) },
+    { key: 'rev_per_screen', label: '$/salle', sortable: true, priority: 5, widthPct: 6,  mobileWidthPct: 14, align: 'center', headerAlign:'center', value:(m)=>m.rev_per_screen, render:v=> (v==null?'—':formatCurrency(v)) },
+    // add others with lower priority numbers if you want them to show earlier
   ];
 
 
@@ -339,7 +268,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
         {(totalQC != null || changeQC != null || overallForceQcUsa != null) && (
             <div className="stats-grid">
               <div className="stat-card">
-                <div className="stat-icon">💰</div>
+                <div className="stat-icon"></div>
                 <div className="stat-content">
                   <h3>Recettes totales</h3>
                   <p className="stat-number">{totalQC == null ? 'N/A' : formatCurrency(totalQC)}</p>
@@ -347,7 +276,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
               </div>
 
               <div className="stat-card">
-                <div className="stat-icon">📈</div>
+                <div className="stat-icon"></div>
                 <div className="stat-content">
                   <h3>Changement</h3>
                   <p className={`stat-number ${toNum(changeQC) >= 0 ? 'positive' : 'negative'}`}>
@@ -372,9 +301,8 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                 rows={movies}
                 columns={columns}
                 initialSort={{ key: 'revenue_qc', dir: 'desc' }}
-                initialVisibleKeys={[
-                  'title','revenue_qc','change_percent','week_number','cumulatif_qc', 'rev_per_screen'
-                ]}
+                initialVisibleKeys={['title','revenue_qc','change_percent','week_number','cumulatif_qc','rev_per_screen']}
+                caps={{ mobile: 4, tablet: 6, desktop: Infinity }}
             />
         )}
       </div>

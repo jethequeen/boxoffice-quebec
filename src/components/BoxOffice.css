@@ -310,3 +310,64 @@
 .picker-item input { accent-color:#6366f1; }
 .picker-item.disabled { opacity:.5; cursor:not-allowed; }
 .picker-item.disabled input { pointer-events:none; }
+
+/* Make the table horizontally scrollable if needed */
+.table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Tighten spacing/fonts on mobile */
+@media (max-width: 680px) {
+  .table-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: .5rem;
+  }
+  .table-filter-input { width: 100%; }
+
+  .box-office-table th,
+  .box-office-table td {
+    padding: .5rem .55rem;
+    font-size: .92rem;
+  }
+
+  /* Hide VO subtitle on small screens to save space (optional) */
+  .movie-title-vo { display: none; }
+
+  /* Let the title column be a bit wider */
+  .box-office-table col.col-title { width: 44% !important; }
+}
+
+/* Stats grid becomes fluid and numbers wrap gracefully */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 680px) {
+  .stats-grid { grid-template-columns: 1fr; }
+}
+
+/* Prevent long numbers from overflowing; allow breaks even with NBSPs */
+.stat-number {
+  font-size: clamp(1.25rem, 5vw, 2rem);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Nice cards still */
+.stat-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.stat-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: linear-gradient(180deg,#818cf8,#6366f1);
+}

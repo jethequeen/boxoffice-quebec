@@ -1,26 +1,22 @@
 ﻿// src/components/MovieTable.jsx
 import { useEffect, useMemo, useState } from 'react';
 
-// ---------- helpers ----------
 const SortIcon = ({ dir }) => (dir === 'asc' ? '▲' : '▼');
 const alignClass = (a) => (a ? `align-${a}` : '');
-
-// map window width → breakpoint
 const getBp = (w) => (w <= 680 ? 'mobile' : w <= 1024 ? 'tablet' : 'desktop');
-
-// default max visible columns per breakpoint (override via props.caps)
 const defaultCaps = { mobile: 4, tablet: 6, desktop: Infinity };
 
 export default function MovieTable({
                                        rows,
                                        columns,
                                        initialSort = { key: columns.find(c => c.sortable)?.key ?? columns[0]?.key, dir: 'desc' },
-                                       initialVisibleKeys,                 // optional array of column keys to start visible
-                                       onRowClick,                         // optional (row) => void
-                                       filterPlaceholder = 'Filtrer (titre, studio)…',
+                                       initialVisibleKeys,
+                                       onRowClick,
+                                       filterPlaceholder = 'Filtrer (FR, VO, studio)…',
                                        enableQuickFilter = true,
-                                       caps = defaultCaps,                 // { mobile, tablet, desktop }
-                                       hidePickerOnMobile = false,         // true = hide "Colonnes" picker on mobile
+                                       caps = defaultCaps,
+                                       hidePickerOnMobile = false,
+                                       searchAccessors,
                                    }) {
     const allKeys = columns.map(c => c.key);
 
@@ -39,15 +35,12 @@ export default function MovieTable({
         return () => window.removeEventListener('resize', onResize);
     }, []);
 
-    // ---- cap visible columns by breakpoint (always keep 'required' ones; then fill by 'priority') ----
+    // ---- cap visible columns by breakpoint ----
     const cappedVisible = useMemo(() => {
         const cap = caps[bp] ?? Infinity;
         const required = columns.filter(c => c.required).map(c => c.key);
-
-        // start with required, preserving original order
         const kept = columns.filter(c => required.includes(c.key)).map(c => c.key);
 
-        // then add selected, non-required, by priority (lower is more important)
         const selectedNonReq = columns
             .filter(c => !c.required && visible.has(c.key))
             .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
@@ -57,7 +50,6 @@ export default function MovieTable({
             if (!kept.includes(c.key)) kept.push(c.key);
         }
 
-        // fallback: if nothing left, keep as many required as the cap allows
         if (kept.length === 0) {
             for (const k of required) {
                 if (kept.length >= cap) break;
@@ -74,12 +66,10 @@ export default function MovieTable({
 
     const handleToggleColumn = (key) => {
         const col = columns.find(c => c.key === key);
-        if (col?.required) return; // cannot hide required
+        if (col?.required) return;
         const cap = caps[bp] ?? Infinity;
         const isShown = cappedVisible.has(key);
         const shownCount = visibleColumns.length;
-
-        // trying to show a new column while at cap → block
         if (!isShown && shownCount >= cap) return;
 
         setVisible(prev => {
@@ -90,40 +80,33 @@ export default function MovieTable({
     };
 
     const handleSort = (key) => {
-        setSort(prev =>
-            prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' }
-        );
+        setSort(prev => prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' });
     };
 
-    // ---- filter + sort ----
+    // ---- filter (FR title + VO title + studio) ----
     const filteredRows = useMemo(() => {
         if (!enableQuickFilter || !query.trim()) return rows;
-        const q = query.toLowerCase();
-        return rows.filter(r => {
-            const title = (r.fr_title || r.title || '').toLowerCase();
-            const studio = (r.studio_name || '').toLowerCase();
-            return title.includes(q) || studio.includes(q);
-        });
-    }, [rows, query, enableQuickFilter]);
+        const norm = (s) => (s ?? '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const q = norm(query);
+        const accessors = (searchAccessors && searchAccessors.length)
+            ? searchAccessors
+            : [r => r.fr_title, r => r.title, r => r.studio_name];
+        return rows.filter(r => accessors.some(fn => norm(fn?.(r)).includes(q)));
+    }, [rows, query, enableQuickFilter, searchAccessors]);
 
+    // ---- sort ----
     const sortedRows = useMemo(() => {
         const col = columns.find(c => c.key === sort.key) ?? columns[0];
-        const get = (row) => {
-            if (col?.sortValue) return col.sortValue(row);
-            if (col?.value) return col.value(row);
-            return row?.[col?.key];
-        };
+        const get = (row) => col?.sortValue ? col.sortValue(row) : (col?.value ? col.value(row) : row?.[col?.key]);
         const arr = [...filteredRows];
         arr.sort((a, b) => {
-            const va = get(a);
-            const vb = get(b);
+            const va = get(a); const vb = get(b);
             const isStr = typeof va === 'string' || typeof vb === 'string';
             if (isStr) {
                 const cmp = String(va ?? '').localeCompare(String(vb ?? ''), 'fr');
                 return sort.dir === 'asc' ? cmp : -cmp;
             }
-            const na = va ?? Number.NEGATIVE_INFINITY;
-            const nb = vb ?? Number.NEGATIVE_INFINITY;
+            const na = va ?? Number.NEGATIVE_INFINITY; const nb = vb ?? Number.NEGATIVE_INFINITY;
             if (na === nb) return 0;
             return sort.dir === 'asc' ? na - nb : nb - na;
         });
@@ -132,12 +115,15 @@ export default function MovieTable({
 
     // ---- classes ----
     const tdClass = (col, row) => {
-        const base =
-            typeof col.className === 'function'
-                ? col.className(row) || ''
-                : (col.className || '');
+        const base = typeof col.className === 'function' ? col.className(row) || '' : (col.className || '');
         return `${base} ${alignClass(col.align)}`.trim();
     };
+
+    // width resolver per breakpoint
+    const widthFor = (col) =>
+        bp === 'mobile'  && col.mobileWidthPct  != null ? col.mobileWidthPct  :
+            bp === 'tablet'  && col.tabletWidthPct  != null ? col.tabletWidthPct  :
+                col.widthPct;
 
     const shownCount = visibleColumns.length;
     const cap = caps[bp] ?? Infinity;
@@ -192,16 +178,14 @@ export default function MovieTable({
                 )}
             </div>
 
-
             <div className="table-container">
                 <table className="box-office-table">
-                    {/* dynamic widths from visible columns */}
                     <colgroup>
                         {visibleColumns.map(col => (
                             <col
                                 key={col.key}
                                 className={`col-${col.key}`}
-                                style={col.widthPct ? { width: `${col.widthPct}%` } : undefined}
+                                style={widthFor(col) != null ? { width: `${widthFor(col)}%` } : undefined}
                             />
                         ))}
                     </colgroup>
@@ -228,11 +212,7 @@ export default function MovieTable({
                     {sortedRows.map((row) => {
                         const clickable = !!onRowClick;
                         return (
-                            <tr
-                                key={row.id}
-                                className={clickable ? 'row-clickable' : undefined}
-                                onClick={clickable ? () => onRowClick(row) : undefined}
-                            >
+                            <tr key={row.id} className={clickable ? 'row-clickable' : undefined} onClick={clickable ? () => onRowClick(row) : undefined}>
                                 {visibleColumns.map(col => {
                                     const v = col.value ? col.value(row) : row[col.key];
                                     return (
