@@ -12,7 +12,7 @@ import {
 import { formatCurrency, toNum, pct0 } from '../utils/formatUtils';
 import './Dashboard.css';
 import './BoxOffice.css';
-import MovieTable from '../components/MovieTable';
+import MovieTable from '../components/movieTable';
 
 /* ---------------- UI helpers ---------------- */
 
