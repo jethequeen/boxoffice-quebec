@@ -358,6 +358,7 @@
   font-size: clamp(1.25rem, 5vw, 2rem);
   white-space: normal;
   overflow-wrap: anywhere;
+  text-align: center;
 }
 
 /* Nice cards still */

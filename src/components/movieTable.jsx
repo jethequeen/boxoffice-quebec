@@ -1,5 +1,7 @@
 ﻿// src/components/MovieTable.jsx
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+
 
 const SortIcon = ({ dir }) => (dir === 'asc' ? '▲' : '▼');
 const alignClass = (a) => (a ? `align-${a}` : '');
@@ -84,10 +86,6 @@ export default function MovieTable({
         return arr;
     }, [filteredRows, columns, sort]);
 
-    const tdClass = (col, row) => {
-        const base = typeof col.className === 'function' ? col.className(row) || '' : (col.className || '');
-        return `${base} ${alignClass(col.align)}`.trim();
-    };
 
     // resolve widths per breakpoint
     const widthFor = (col) =>

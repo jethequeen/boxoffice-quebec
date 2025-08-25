@@ -2,12 +2,10 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getBoxOfficeData } from '../utils/api';
 import {
-  formatWeekendId,
   getCurrentWeekendId,
   getFridayFromWeekendId,
   getNextWeekendId,
   getPreviousWeekendId,
-  parseWeekendId,
 } from '../utils/weekendUtils';
 import { formatCurrency, toNum, pct0 } from '../utils/formatUtils';
 import './Dashboard.css';
@@ -44,37 +42,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
 
   useEffect(() => {
     fetchData();
-    if (showNavigation) generateAvailableWeekends();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [realWeekendId, showNavigation]);
-
-  const generateAvailableWeekends = () => {
-    const current = getCurrentWeekendId();
-    const weekends = [];
-    const { week, year } = parseWeekendId(current);
-    for (let i = 0; i < 5; i++) {
-      let w = week - i,
-          y = year;
-      if (w <= 0) {
-        y -= 1;
-        w = 52 + w;
-      }
-      const id = `${String(y)}${String(w).padStart(2, '0')}`; // YYYYWW canonical
-      const fri = getFridayFromWeekendId(id);
-      weekends.push({
-        weekend_id: id,
-        formatted_weekend: formatWeekendId(id),
-        display_date: fri
-            ? fri.toLocaleDateString('fr-CA', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })
-            : 'Date inconnue',
-      });
-    }
-  };
 
   const handleWeekendChange = (newWeekendId) => {
     if (showNavigation) navigate(`/box-office/${newWeekendId}`);
@@ -268,7 +236,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
         {(totalQC != null || changeQC != null || overallForceQcUsa != null) && (
             <div className="stats-grid">
               <div className="stat-card">
-                <div className="stat-icon"></div>
                 <div className="stat-content">
                   <h3>Recettes totales</h3>
                   <p className="stat-number">{totalQC == null ? 'N/A' : formatCurrency(totalQC)}</p>
@@ -276,7 +243,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
               </div>
 
               <div className="stat-card">
-                <div className="stat-icon"></div>
                 <div className="stat-content">
                   <h3>Changement</h3>
                   <p className={`stat-number ${toNum(changeQC) >= 0 ? 'positive' : 'negative'}`}>
@@ -286,7 +252,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
               </div>
 
               <div className="stat-card">
-                <div className="stat-icon"></div>
                 <div className="stat-content">
                   <h3>Force Québec/USA</h3>
                   <p className="stat-number">{pct0(overallForceQcUsa)}</p>
