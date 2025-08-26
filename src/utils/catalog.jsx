@@ -51,7 +51,7 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         headerAlign: 'center',
         className: (m) =>
             `change-cell ${toNum(m.change_percent) >= 0 ? 'positive' : 'negative'}`,
-        value: (m) => m.change_percent,
+        value: (m) => m.change_percent || "-",
         render: (v, m) => (
             <span className={toNum(m.change_percent) >= 0 ? 'positive' : 'negative'}>
         {pct0(v)}
@@ -65,7 +65,7 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         sortable: true,
         priority: 3,
         widthPct: 6,
-        mobileWidthPct: 12,
+        mobileWidthPct: 7,
         align: 'center',
         headerAlign: 'center',
         value: (m) => m.week_number,
@@ -86,7 +86,7 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
 
     const rev_per_screen = {
         key: 'rev_per_screen',
-        label: '$/salle',
+        label: '$/Shows',
         sortable: true,
         priority: 5,
         widthPct: 6,
@@ -126,33 +126,21 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         render: (v, r) => `#${Number(r.rank) || 0}`,
     };
 
-    const revenue_qc_hist = {
-        key: 'revenue_qc',
-        label: 'Recettes',
+    const qc_usa = {
+        key: 'qc_usa',
+        label: 'QC/USA',
         sortable: true,
-        priority: 1,
-        widthPct: 14,
-        mobileWidthPct: 16,
+        priority: 10,
+        widthPct: 8,
+        mobileWidthPct: 10,
         headerAlign: 'center',
         align: 'center',
-        value: (r) => (Number(r.revenue_qc_num) || 0),
-        render: (v, r) => formatCurrency(r.revenue_qc_num),
-    };
-
-    const change_percent_hist = {
-        key: 'change_percent',
-        label: '% Changement',
-        sortable: true,
-        priority: 2,
-        widthPct: 12,
-        mobileWidthPct: 14,
-        headerAlign: 'center',
-        align: 'center',
-        className: (r) =>
-            `change-cell ${toNum(r.change_percent) >= 0 ? 'positive' : 'negative'}`,
-        value: (r) => (toNum(r.change_percent) ?? -Infinity),
-        render: (v, r) =>
-            r.change_percent == null ? '—' : `${r.change_percent >= 0 ? '+' : ''}${Number(r.change_percent).toFixed(0)}%`,
+        value: (m) => m.force_qc_usa || "-",
+        render: (v, m) => (
+            <span className={toNum(v) >= 75 ? 'positive' : 'negative'}>
+      {pct0(v)}
+    </span>
+        ),
     };
 
     const theater_count = {
@@ -194,6 +182,19 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         render: (v, r) => r.week_number ?? '—',
     };
 
+    const screen_count = {
+        key: 'screen_count',
+        label: 'Shows',
+        sortable: true,
+        priority: 6,
+        widthPct: 8,
+        mobileWidthPct: 10,
+        headerAlign: 'center',
+        align: 'center',
+        value: (r) => (Number(r.screen_count) || -Infinity),
+        render: (v, r) => r.screen_count ?? '—',
+    };
+
     /** Export the catalog by key */
     const C = {
         title,
@@ -201,7 +202,7 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         change_percent,
         week_count,
         cumulatif_qc,
-        rev_per_screen, date, rank, revenue_qc_hist, change_percent_hist, theater_count, rev_per_theater, week_number,
+        rev_per_screen, date, rank, qc_usa, theater_count, rev_per_theater, week_number, screen_count
         // add more columns over time, all in one place
     };
 

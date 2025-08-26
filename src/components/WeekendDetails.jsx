@@ -152,7 +152,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       totalUS && totalUS > 0 ? ((totalQC ?? 0) / totalUS) * 100 / 2.29 * 100 : null;
 
   const columns = pickColumns(
-      ['title','revenue_qc','change_percent','week_number','cumulatif_qc','rev_per_screen'],
+      ['title','revenue_qc','change_percent','week_number','cumulatif_qc', 'screen_count', 'rev_per_screen', 'qc_usa'],
       {
         // Optional per-table tweaks/overrides:
         change_percent: {
