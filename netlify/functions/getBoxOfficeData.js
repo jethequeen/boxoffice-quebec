@@ -33,23 +33,25 @@ export const handler = async (event) => {
                 FROM weekends
                 WHERE id = ${weekendId}
                 LIMIT 1
-            ),
-                 ranked AS (
-                     SELECT
-                         r.film_id,
-                         r.weekend_id,
-                         r.rank,
-                         r.revenue_qc::float8           AS revenue_qc,
-                         r.revenue_us::float8           AS revenue_us,
-                         r.cumulatif_qc_to_date::float8 AS cumulatif_qc_to_date,
-                         r.cumulatif_us_to_date::float8 AS cumulatif_us_to_date,
-                         r.force_qc_usa::float8         AS force_qc_usa,
-                         r.week_count                   AS week_count,
-                         LAG(r.revenue_qc::float8)
-                         OVER (PARTITION BY r.film_id ORDER BY r.weekend_id) AS prev_qc
-                     FROM revenues r
-                     WHERE r.weekend_id <= ${weekendId}
-                 )
+                ),
+                ranked AS (
+            SELECT
+                r.film_id,
+                r.weekend_id,
+                r.rank,
+                r.revenue_qc::float8           AS revenue_qc,
+                r.revenue_us::float8           AS revenue_us,
+                r.cumulatif_qc_to_date::float8 AS cumulatif_qc_to_date,
+                r.cumulatif_us_to_date::float8 AS cumulatif_us_to_date,
+                r.force_qc_usa::float8         AS force_qc_usa,
+                r.week_count                   AS week_count,
+                r.average_showing_occupancy    AS occupancy,
+                r.showings_proportion          AS weight,
+                LAG(r.revenue_qc::float8)
+                OVER (PARTITION BY r.film_id ORDER BY r.weekend_id) AS prev_qc
+            FROM revenues r
+            WHERE r.weekend_id <= ${weekendId}
+                )
             SELECT
                 m.id,
                 m.title,
@@ -61,7 +63,10 @@ export const handler = async (event) => {
                 x.rank,
                 x.revenue_qc,
                 x.revenue_us,
-                sc.screen_count,   -- NEW field
+                sc.screen_count,
+                /* re-alias so the FE receives the exact keys it expects */
+                x.occupancy         AS average_showing_occupancy,
+                x.weight            AS showings_proportion,
                 x.cumulatif_qc_to_date AS cumulatif_qc,
                 x.cumulatif_us_to_date,
                 x.force_qc_usa,
@@ -81,14 +86,14 @@ export const handler = async (event) => {
                   AND sh.date BETWEEN
                     (CASE WHEN x.week_count = 1
                               THEN (w.start_date - INTERVAL '1 day')::date
-                          ELSE w.start_date
-                        END)
+            ELSE w.start_date
+       END)
                     AND w.end_date
-                ) sc ON TRUE
-
+                    ) sc ON TRUE
             WHERE x.weekend_id = ${weekendId}
             ORDER BY x.rank
-            LIMIT ${limitNum}
+                LIMIT ${limitNum}
+
         `;
 
 

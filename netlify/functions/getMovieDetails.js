@@ -62,6 +62,8 @@ export const handler = async (event) => {
                 r.cumulatif_qc_to_date,
                 r.cumulatif_us_to_date,
                 r.change_us,
+                r.average_showing_occupancy,
+                r.showings_proportion,
                 sc.screen_count
             FROM revenues r
                      JOIN weekends w ON w.id = r.weekend_id

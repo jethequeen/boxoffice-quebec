@@ -81,6 +81,8 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       studio_name: m.studio_name ?? 'Independent',
       screen_count,
       rev_per_screen,
+      average_showing_occupancy: toNum(m.average_showing_occupancy ?? m.occupancy),
+      showings_proportion:      toNum(m.showings_proportion      ?? m.weight),
     };
   };
 
@@ -160,7 +162,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       totalUS && totalUS > 0 ? ((totalQC ?? 0) / totalUS) * 100 / 2.29 * 100 : null;
 
   const columns = pickColumns(
-      ['title','revenue_qc','change_percent','week_number','cumulatif_qc','screen_count','rev_per_screen','qc_usa'],
+      ['title','revenue_qc','change_percent','week_number','cumulatif_qc','screen_count','rev_per_screen','qc_usa', 'occupancy', 'weight'],
       {
         change_percent: { mobileWidthPct: 12 },
         title: {

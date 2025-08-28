@@ -6,6 +6,14 @@
  * so column renderers stay pure & reusable.
  */
 export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
+
+    const asPct = (v) => {
+        const n = toNum(v);
+        if (n == null || Number.isNaN(n)) return null;
+        // if it's a ratio (0..1), scale to percent; if it's already 0..100, keep it
+        return Math.abs(n) <= 1 ? n * 100 : n;
+    };
+
     const title = {
         key: 'title',
         label: 'Film',
@@ -195,6 +203,45 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         render: (v, r) => r.screen_count ?? '—',
     };
 
+    const occupancy = {
+        key: 'occupancy',
+        label: 'Occupation',
+        sortable: true,
+        priority: 6,
+        widthPct: 8,
+        mobileWidthPct: 10,
+        headerAlign: 'center',
+        align: 'center',
+        // sort on percentage value
+        value: (r) => {
+            const p = asPct(r.average_showing_occupancy);
+            return p == null ? -Infinity : p;
+        },
+        render: (_v, r) => {
+            const p = asPct(r.average_showing_occupancy);
+            return p == null ? '—' : pct0(p);
+        },
+    };
+
+    const weight = {
+        key: 'weight',
+        label: 'Poids total',
+        sortable: true,
+        priority: 6,
+        widthPct: 8,
+        mobileWidthPct: 10,
+        headerAlign: 'center',
+        align: 'center',
+        value: (r) => {
+            const p = asPct(r.showings_proportion);
+            return p == null ? -Infinity : p;
+        },
+        render: (_v, r) => {
+            const p = asPct(r.showings_proportion);
+            return p == null ? '—' : pct0(p);
+        },
+    };
+
     /** Export the catalog by key */
     const C = {
         title,
@@ -202,7 +249,9 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         change_percent,
         week_count,
         cumulatif_qc,
-        rev_per_screen, date, rank, qc_usa, theater_count, rev_per_theater, week_number, screen_count
+        rev_per_screen, date, rank, qc_usa, theater_count, rev_per_theater, week_number, screen_count,
+        occupancy,
+        weight
         // add more columns over time, all in one place
     };
 
@@ -216,12 +265,3 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
 
     return { C, pickColumns };
 }
-
-export const presets = {
-    weekendInitialVisible: [
-        'title','revenue_qc','change_percent','week_count','cumulatif_qc','rev_per_screen',
-    ],
-    historyInitialVisible: [
-        'date','revenue_qc','change_percent','rank','theater_count','rev_per_theater','week_number',
-    ],
-};

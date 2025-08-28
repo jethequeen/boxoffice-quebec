@@ -279,7 +279,7 @@ function MovieDetails() {
             <MovieTable
                 rows={revRows}
                 columns={pickColumns(
-                    ['date','revenue_qc','change_percent','rank','screen_count','rev_per_screen','qc_usa','week_number'],
+                    ['date','revenue_qc','change_percent','rank','screen_count','rev_per_screen','qc_usa','week_number', 'occupancy', 'weight'],
                     {
                       date: {
                         // keep default value/sort from catalog; just change how it renders
