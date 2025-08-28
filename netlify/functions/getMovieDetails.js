@@ -50,11 +50,36 @@ export const handler = async (event) => {
 
         // Get revenue data
         const revenueQuery = `
-            SELECT weekend_id, revenue_qc, revenue_us, rank, theater_count
-            FROM revenues
-            WHERE film_id = $1
-            ORDER BY weekend_id;
+            SELECT
+                r.weekend_id,
+                r.revenue_qc::float8  AS revenue_qc,
+                r.revenue_us::float8  AS revenue_us,
+                r.rank,
+                r.theater_count,
+                r.week_count,
+                r.force_qc_usa,
+                r.change_qc,
+                r.cumulatif_qc_to_date,
+                r.cumulatif_us_to_date,
+                r.change_us,
+                sc.screen_count
+            FROM revenues r
+                     JOIN weekends w ON w.id = r.weekend_id
+                     LEFT JOIN LATERAL (
+                SELECT COALESCE(COUNT(*),0)::int AS screen_count
+                FROM showings s
+                WHERE s.movie_id = $1
+                  AND s.date BETWEEN
+                    (CASE WHEN r.week_count = 1
+                              THEN (w.start_date - INTERVAL '1 day')::date
+              ELSE w.start_date
+         END)
+                    AND w.end_date
+                    ) sc ON TRUE
+            WHERE r.film_id = $1
+            ORDER BY r.weekend_id;
         `;
+
         const revenueResult = await client.query(revenueQuery, [movieId]);
 
         // Get directors
@@ -99,9 +124,6 @@ export const handler = async (event) => {
         const bestWeekendQC = Math.max(...revenueResult.rows.map(row => parseFloat(row.revenue_qc) || 0));
         const bestRank = Math.min(...revenueResult.rows.map(row => parseInt(row.rank) || 999));
 
-        // Use cumulative revenues from movies table (total including weekdays)
-        const totalRevenueQC = parseFloat(movie.cumulatif_qc) || 0;
-        const totalRevenueUS = parseFloat(movie.cumulatif_us) || 0;
 
         await client.end();
 
@@ -120,8 +142,6 @@ export const handler = async (event) => {
                 genres: genresResult.rows,
                 cast: castResult.rows,
                 statistics: {
-                    total_revenue_qc: totalRevenueQC,
-                    total_revenue_us: totalRevenueUS,
                     weekend_revenue_qc: weekendRevenueQC,
                     weekend_revenue_us: weekendRevenueUS,
                     weeks_in_theaters: weeksInTheaters,

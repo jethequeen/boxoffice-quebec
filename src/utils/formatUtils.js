@@ -1,5 +1,5 @@
 ﻿export const formatCurrency = (amount) => {
-    if (!amount) return 'N/A'
+    if (!amount) return '-'
     return new Intl.NumberFormat('fr-CA', {
         style: 'currency',
         currency: 'CAD',

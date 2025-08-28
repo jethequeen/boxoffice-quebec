@@ -12,6 +12,8 @@ import './Dashboard.css';
 import './BoxOffice.css';
 import MovieTable from '../components/movieTable';
 import { createColumnsCatalog } from '../utils/catalog';
+import { useLocation } from 'react-router-dom';
+
 
 /* ---------------- UI helpers ---------------- */
 
@@ -31,6 +33,8 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   const { weekendId: paramWeekendId } = useParams();
   const navigate = useNavigate();
   const realWeekendId = propWeekendId || paramWeekendId || getCurrentWeekendId();
+  const location = useLocation();
+
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -45,6 +49,8 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   useEffect(() => {
     fetchData();
   }, [realWeekendId, showNavigation]);
+
+
 
   const handleWeekendChange = (newWeekendId) => {
     if (showNavigation) navigate(`/box-office/${newWeekendId}`);
@@ -100,6 +106,8 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
     }
   };
 
+
+
   /* ---------- sorting ---------- */
   const movies = useMemo(() => {
     const val = (m, key) => {
@@ -152,15 +160,34 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       totalUS && totalUS > 0 ? ((totalQC ?? 0) / totalUS) * 100 / 2.29 * 100 : null;
 
   const columns = pickColumns(
-      ['title','revenue_qc','change_percent','week_number','cumulatif_qc', 'screen_count', 'rev_per_screen', 'qc_usa'],
+      ['title','revenue_qc','change_percent','week_number','cumulatif_qc','screen_count','rev_per_screen','qc_usa'],
       {
-        // Optional per-table tweaks/overrides:
-        change_percent: {
-          // e.g., narrow on mobile for this table only
-          mobileWidthPct: 12,
+        change_percent: { mobileWidthPct: 12 },
+        title: {
+          render: (value, m) => (
+              <div id={`movie-${m.id}`} className="movie-title-wrap">
+                {C.title.render(value, m)}
+              </div>
+          ),
         },
       }
   );
+
+  useEffect(() => {
+    if (!movies.length) return;
+    const hash = location.hash?.slice(1); // e.g. "movie-123"
+    if (!hash) return;
+
+    const el = document.getElementById(hash);
+    if (!el) return;
+
+    // smooth center scroll + transient highlight
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('flash-highlight');
+    const t = setTimeout(() => el.classList.remove('flash-highlight'), 1500);
+    return () => clearTimeout(t);
+  }, [movies, location.hash]);
+
 
   if (loading)
     return (
@@ -250,7 +277,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                 rows={movies}
                 columns={columns}
                 initialSort={{ key: 'revenue_qc', dir: 'desc' }}
-                initialVisibleKeys={['title','revenue_qc','change_percent','week_number','cumulatif_qc','rev_per_screen']}
+                initialVisibleKeys={['title','revenue_qc','change_percent', 'screen_count','rev_per_screen', 'qc_usa', 'week_number']}
                 caps={{ mobile: 4, tablet: 6, desktop: Infinity }}
                 mobileMode="auto"
                 searchAccessors={[r=>r.fr_title, r=>r.title, r=>r.studio_name]}

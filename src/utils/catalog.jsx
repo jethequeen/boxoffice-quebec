@@ -50,10 +50,10 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         mobileWidthPct: 14,
         headerAlign: 'center',
         className: (m) =>
-            `change-cell ${toNum(m.change_percent) >= 0 ? 'positive' : 'negative'}`,
+            `change-cell ${toNum(m.change_percent) >= -40 ? 'positive' : 'negative'}`,
         value: (m) => m.change_percent || "-",
         render: (v, m) => (
-            <span className={toNum(m.change_percent) >= 0 ? 'positive' : 'negative'}>
+            <span className={toNum(m.change_percent) >= -40 ? 'positive' : 'negative'}>
         {pct0(v)}
       </span>
         ),
@@ -102,11 +102,11 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         label: 'Date',
         sortable: true,
         priority: 0,
-        widthPct: 16,
+        widthPct: 10,
         mobileWidthPct: 24,
         headerAlign: 'left',
         align: 'left',
-        value: (r) => (r.dateObj ? r.dateObj.getTime() : -Infinity), // numeric for sort
+        value: (r) => (r.dateObj ? r.dateObj.getTime() : -Infinity),
         render: (_, r) =>
             r.dateObj
                 ? r.dateObj.toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -136,7 +136,7 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         headerAlign: 'center',
         align: 'center',
         value: (m) => m.force_qc_usa || "-",
-        render: (v, m) => (
+        render: (v) => (
             <span className={toNum(v) >= 75 ? 'positive' : 'negative'}>
       {pct0(v)}
     </span>
@@ -174,7 +174,7 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         label: 'Week',
         sortable: true,
         priority: 6,
-        widthPct: 8,
+        widthPct: 7,
         mobileWidthPct: 10,
         headerAlign: 'center',
         align: 'center',

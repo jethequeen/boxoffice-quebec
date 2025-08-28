@@ -508,10 +508,28 @@
 .box-office-table td .th-inner,
 .box-office-table td > * { text-align: inherit; }
 
-/* --------- STATS: stop breaking every digit --------- */
-.stat-number {
-  white-space: nowrap;           /* keep the number on one line */
-  overflow-wrap: normal;
-  word-break: normal;
-  font-size: clamp(1rem, 6vw, 2rem);
+
+
+/* keep the offset for sticky headers */
+.movie-title-wrap { scroll-margin-top: 84px; }
+
+/* row-wide flash whenever a descendant has .flash-highlight */
+table tr:has(.flash-highlight) td,
+table tr:has(.flash-highlight) th,
+[role="row"]:has(.flash-highlight) [role="gridcell"],
+[role="row"]:has(.flash-highlight) [role="columnheader"] {
+  animation: boxoffice-flash 1.5s ease-in-out 1; /* <-- use existing keyframes name */
 }
+
+@keyframes boxoffice-flash {
+  0%   { background-color: rgba(255, 235, 130, 0.00); }
+  15%  { background-color: rgba(128, 150, 236, 0.85); }
+  60%  { background-color: rgba(29, 67, 230, 0.45); }
+  100% { background-color: rgba(255, 235, 130, 0.00); }
+}
+
+/* Optional: style the date link */
+.date-link { text-decoration: none; }
+.date-link:hover { text-decoration: underline; }
+
+

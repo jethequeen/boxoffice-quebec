@@ -3,8 +3,9 @@ import { useParams, Link } from 'react-router-dom';
 import { apiCall } from '../utils/api';
 import './MovieDetails.css';
 import { getFridayFromWeekendId } from '../utils/weekendUtils';
-import { createColumnsCatalog, presets } from '../utils/catalog';
+import { createColumnsCatalog } from '../utils/catalog';
 import MovieTable from '../components/movieTable';
+import { formatCurrency, toNum, pct0} from "../utils/formatUtils.js";
 
 
 function MovieDetails() {
@@ -12,7 +13,17 @@ function MovieDetails() {
   const [movieData, setMovieData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [sort, setSort] = useState({ key: 'date', dir: 'asc' });
+
+  const formatWeekendRange = (weekendId) => {
+    const fri = getFridayFromWeekendId(String(weekendId));
+    if (!fri) return '—';
+    const sun = new Date(fri);
+    sun.setDate(sun.getDate() + 2);
+    const dd = (d) => d.toLocaleString('fr-CA', { day: '2-digit' });
+    const month = sun.toLocaleString('fr-CA', { month: 'long' });
+    const year = sun.getFullYear();
+    return `Du ${dd(fri)} au ${dd(sun)} ${month} ${year}`;
+  };
 
   useEffect(() => { fetchMovieDetails(); }, [id]);
 
@@ -29,15 +40,7 @@ function MovieDetails() {
     }
   }
 
-  const formatCurrency = (n) =>
-      n == null
-          ? 'N/A'
-          : new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', minimumFractionDigits: 0 }).format(n);
-
-
-  const { pickColumns } = createColumnsCatalog({
-    Link, formatCurrency, pct0: (n)=> (n==null?'—':`${n>=0?'+':''}${Number(n).toFixed(0)}%`), toNum:(x)=> Number(x) || 0
-  });
+  const { pickColumns } = createColumnsCatalog({ Link, formatCurrency, pct0, toNum })
 
 
   if (loading) {
@@ -57,7 +60,6 @@ function MovieDetails() {
           <div className="error">
             <h2>Erreur</h2>
             <p>{error || 'Film non trouvé'}</p>
-            <Link to="/movies" className="back-link">← Retour aux films</Link>
           </div>
         </div>
     );
@@ -77,10 +79,19 @@ function MovieDetails() {
   const runtime = movie.runtime ? `${movie.runtime} min` : null;
 
   // --- KPI calculs ---
-  const sum = (arr, key) => arr.reduce((s, r) => s + (Number(r[key]) || 0), 0);
+  const maxOf = (arr, key) =>
+      arr.reduce((mx, r) => Math.max(mx, Number(r?.[key]) || 0), 0);
 
-  const totalQC = Number(statistics.total_revenue_qc) || sum(revenues, 'revenue_qc');
-  const totalUS = Number(statistics.total_revenue_us) || sum(revenues, 'revenue_us');
+// Prefer the real running totals; fall back to movie/statistics if needed.
+  const totalQC =
+      maxOf(revenues, 'cumulatif_qc_to_date') ||
+      Number(statistics.total_revenue_qc) ||
+      0;
+
+  const totalUS =
+      maxOf(revenues, 'cumulatif_us_to_date') ||
+      Number(statistics.total_revenue_us) ||
+      0;
 
   // Force QC/USA globale (référence ~2.29% de part de marché)
   const POP_RATIO = 0.0229; // 2.29%
@@ -114,23 +125,17 @@ function MovieDetails() {
   const TOP_CAST_COUNT = 9;
   const topCast = cast.slice(0, TOP_CAST_COUNT);
 
-  // ---------- helpers ----------
-  const formatInt = (n) =>
-      n == null ? '—' : Number(n).toLocaleString('fr-CA');
-  const pct0 = (n) =>
-      n == null ? '—' : `${n >= 0 ? '+' : ''}${Number(n).toFixed(0)}%`;
 
 // Build rows with the fields we need for sorting/formatting
   const revRows = revenues.map((r, i) => {
     const dateObj = r.start_date
         ? new Date(r.start_date)
-        : getFridayFromWeekendId(String(r.weekend_id)); // reliable Friday
+        : getFridayFromWeekendId(String(r.weekend_id));
     const revenue_qc_num = Number(r.revenue_qc) || 0;
     const prev = i > 0 ? Number(revenues[i - 1].revenue_qc) || 0 : null;
     const change_percent = prev ? ((revenue_qc_num - prev) / prev) * 100 : null;
-    const theater_count_num = Number(r.theater_count) || 0;
-    const rev_per_theater =
-        theater_count_num > 0 ? revenue_qc_num / theater_count_num : null;
+    const screen_count = Number(r.screen_count) || 0;
+    const rev_per_screen = screen_count > 0 ? revenue_qc_num / screen_count : null;
     const week_number = Number(r.week_count) || i + 1;
 
     return {
@@ -143,43 +148,16 @@ function MovieDetails() {
       rankNum: Number(r.rank) || 0,
       revenue_qc_num,
       change_percent,
-      theater_count_num,
-      rev_per_theater,
+      screen_count,
+      rev_per_screen,
       week_number,
     };
-  });
-
-// ---------- sorting like WeekendDetails ----------
-  const toggleSort = (key) =>
-      setSort((s) =>
-          s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'date' ? 'asc' : 'desc' }
-      );
-  const arrow = (key) => (sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '');
-
-  const sortVal = (row, key) => {
-    switch (key) {
-      case 'date': return row.dateObj ? row.dateObj.getTime() : -Infinity;
-      case 'rank': return row.rankNum;
-      case 'revenue_qc': return row.revenue_qc_num;
-      case 'change_percent': return row.change_percent ?? -Infinity;
-      case 'theater_count': return row.theater_count_num;
-      case 'rev_per_theater': return row.rev_per_theater ?? -Infinity;
-      case 'week_number': return row.week_number ?? -Infinity;
-      default: return 0;
-    }
-  };
-
-  const sortedRows = [...revRows].sort((a, b) => {
-    const va = sortVal(a, sort.key);
-    const vb = sortVal(b, sort.key);
-    return sort.dir === 'asc' ? va - vb : vb - va;
   });
 
 
   return (
       <div className="movie-details">
         <div className="movie-header compact">
-          <Link to="/movies" className="back-link">← Retour aux films</Link>
 
           <section className="tmdb-hero tmdb-hero--tight">
             {backdropUrl && (
@@ -300,13 +278,30 @@ function MovieDetails() {
         {revRows.length > 0 && (
             <MovieTable
                 rows={revRows}
-                columns={pickColumns(presets.historyInitialVisible)}
+                columns={pickColumns(
+                    ['date','revenue_qc','change_percent','rank','screen_count','rev_per_screen','qc_usa','week_number'],
+                    {
+                      date: {
+                        // keep default value/sort from catalog; just change how it renders
+                        render: (_, r) => (
+                            <Link
+                                to={`/box-office/${r.weekend_id}#movie-${movie.id}`}
+                                className="date-link"
+                                title="Voir le weekend"
+                            >
+                              {formatWeekendRange(r.weekend_id)}
+                            </Link>
+                        ),
+                      },
+                    }
+                )}
                 initialSort={{ key: 'date', dir: 'asc' }}
-                initialVisibleKeys={presets.historyInitialVisible}
+                initialVisibleKeys={['date','revenue_qc','change_percent','rank','screen_count','rev_per_screen','qc_usa']}
                 caps={{ mobile: 4, tablet: 7, desktop: Infinity }}
                 mobileMode="auto"
                 searchAccessors={[r => r.dateObj?.toISOString?.().slice(0,10), r => String(r.rank)]}
             />
+
         )}
       </div>
   );
