@@ -85,7 +85,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       setLoading(true);
       setError(null);
 
-      const res = await getBoxOfficeData(10, realWeekendId);
+      const res = await getBoxOfficeData(30, realWeekendId);
       if (res.weekend) setWeekendMeta(res.weekend); // optional meta if your API returns it
 
       const rows = res.data ?? res.movies ?? [];

@@ -9,7 +9,7 @@ export const handler = async (event) => {
         const { limit: rawLimit = 10, weekendId } = event.queryStringParameters || {};
         if (!weekendId) return jsonResponse(400, { error: 'weekendId is required' });
 
-        const limitNum = Math.max(1, Math.min(1000, Number(rawLimit) || 10));
+        const limitNum = Math.max(1, Math.min(1000, Number(rawLimit) || 30));
 
         // 1) Weekend meta (totals + % change)
         const [weekend] = await sql/*sql*/`

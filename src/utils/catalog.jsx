@@ -21,7 +21,7 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         render: (value, m) => (
             <div className="movie-title-wrap">
                 <Link to={`/movies/${m.id}`} className="movie-title-fr">{value}</Link>
-                {m.title && m.title !== m.fr_title && (
+                {m.title && (
                     <span className="movie-title-vo">{m.title}</span>
                 )}
             </div>
