@@ -107,15 +107,15 @@
     .header-search { order: 3; width: 100%; max-width: none; }
 }
 
-/* ---- Quick mobile fix: remove the 420px flex-basis ---- */
+
 @media (max-width: 768px) {
-    .header-content { gap: var(--spacing-sm); }       /* tighter spacing */
+    .header-content { gap: var(--spacing-sm); }
     .header-search {
         order: 3;
         width: 100%;
         max-width: none;
-        flex: 0 1 auto;   /* <- was 1 1 420px; this removes the big vertical space */
-        min-height: 0;    /* ensure no implicit height */
+        flex: 0 1 auto;
+        min-height: 0;
     }
-    .header { padding: 0.75rem 0; }                   /* optional: slightly shorter header */
+    .header { padding: 0.75rem 0; }
 }
