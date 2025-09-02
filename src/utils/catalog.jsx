@@ -14,6 +14,18 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         return Math.abs(n) <= 1 ? n * 100 : n;
     };
 
+    const fmtPct2 = (x) => {
+        if (x == null || !Number.isFinite(x)) return '—';
+        // round to 2 decimals first so 18.00001 doesn’t show ",01"
+        const v = Math.round(x * 100) / 100;
+        const isWhole = Math.abs(v - Math.trunc(v)) < 1e-12;
+        const nf = new Intl.NumberFormat('fr-CA', {
+            minimumFractionDigits: isWhole ? 0 : 2,
+            maximumFractionDigits: isWhole ? 0 : 2,
+        });
+        return nf.format(v) + '%';
+    };
+
     const title = {
         key: 'title',
         label: 'Film',
@@ -212,14 +224,13 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         mobileWidthPct: 10,
         headerAlign: 'center',
         align: 'center',
-        // sort on percentage value
         value: (r) => {
             const p = asPct(r.average_showing_occupancy);
-            return p == null ? -Infinity : p;
+            return p == null ? -Infinity : p; // numeric for sorting
         },
         render: (_v, r) => {
             const p = asPct(r.average_showing_occupancy);
-            return p == null ? '—' : pct0(p);
+            return p == null ? '—' : fmtPct2(p); // 2 decimals, comma, %
         },
     };
 
@@ -238,7 +249,7 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         },
         render: (_v, r) => {
             const p = asPct(r.showings_proportion);
-            return p == null ? '—' : pct0(p);
+            return p == null ? '—' : fmtPct2(p);
         },
     };
 

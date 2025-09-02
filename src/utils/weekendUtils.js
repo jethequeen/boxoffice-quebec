@@ -3,8 +3,8 @@
  */
 
 export const getCurrentWeekendId = () => {
-  const lastFriday = getLastFriday(new Date());
-  return weekendIdFromDate(lastFriday);
+  const friday = getWeekendFriday(new Date());
+  return weekendIdFromDate(friday);
 };
 
 const weekendIdFromDate = (date) => {
@@ -23,20 +23,23 @@ const getISOWeekParts = (date) => {
   return { isoYear, isoWeek };
 };
 
-/** Last Friday, with your “late weekend window” rule */
-const getLastFriday = (date) => {
-  const now = new Date(date);
-  const day = now.getDay(); // 0..6, Sun=0
-  const hour = now.getHours();
-
-  const base = new Date(now);
-  const daysToSubtract = day >= 5 ? day - 5 : day + 2; // back to Friday
-  base.setDate(now.getDate() - daysToSubtract);
-
-  const isLateWeekendWindow = (day === 5 || day === 6 || day === 0) || (day === 1 && hour < 15);
-  if (isLateWeekendWindow) base.setDate(base.getDate() - 7);
-
-  return base;
+/**
+ * Friday for the “current” weekend.
+ * - Fri → that same Friday
+ * - Sat → yesterday (Friday)
+ * - Sun → two days ago (Friday)
+ * - Mon–Thu → the previous Friday
+ */
+const getWeekendFriday = (now) => {
+  const day = now.getDay(); // 0=Sun..6=Sat
+  const delta =
+      day === 5 ? 0 :     // Fri
+          day === 6 ? 1 :     // Sat
+              day === 0 ? 2 :     // Sun
+                  day + 2;            // Mon(1)→3, Tue(2)→4, Wed(3)→5, Thu(4)→6
+  const fri = new Date(now);
+  fri.setDate(now.getDate() - delta);
+  return fri;
 };
 
 /** Format: "2025, Week 28" */

@@ -50,6 +50,15 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
     fetchData();
   }, [realWeekendId, showNavigation]);
 
+  // helper: normalize any shape to { weekend, movies }
+  const pickPayload = (res) => {
+    const payload = res?.data ?? res ?? {};
+    return {
+      weekend: payload?.weekend ?? null,
+      movies: Array.isArray(payload?.movies) ? payload.movies : [],
+    };
+  };
+
 
 
   const handleWeekendChange = (newWeekendId) => {
@@ -94,10 +103,17 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       setError(null);
 
       const res = await getBoxOfficeData(30, realWeekendId);
-      if (res.weekend) setWeekendMeta(res.weekend); // optional meta if your API returns it
+      const { weekend, movies } = pickPayload(res);
 
-      const rows = res.data ?? res.movies ?? [];
-      setRawMovies(rows.map(normalizeMovie));
+      setWeekendMeta(weekend);
+      setRawMovies(movies.map(normalizeMovie));
+
+      // optional diagnostics
+      console.log('[bo] weekend', realWeekendId, {
+        start: weekend?.start_date,
+        end: weekend?.end_date,
+        count: movies.length,
+      });
     } catch (e) {
       console.error(e);
       setError('Erreur lors du chargement des données du weekend');
@@ -107,6 +123,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       setLoading(false);
     }
   };
+
 
 
 
@@ -273,18 +290,21 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
             </div>
         )}
 
-        {/* Table */}
-        {movies.length > 0 && (
+        {/* Table or Empty */}
+        {movies.length > 0 ? (
             <MovieTable
                 rows={movies}
                 columns={columns}
                 initialSort={{ key: 'revenue_qc', dir: 'desc' }}
-                initialVisibleKeys={['title','revenue_qc','change_percent', 'screen_count','rev_per_screen', 'qc_usa', 'week_number']}
+                initialVisibleKeys={['title','revenue_qc','change_percent','screen_count','rev_per_screen','week_number', 'occupancy']}
                 caps={{ mobile: 4, tablet: 6, desktop: Infinity }}
                 mobileMode="auto"
-                searchAccessors={[r=>r.fr_title, r=>r.title, r=>r.studio_name]}
+                searchAccessors={[r => r.fr_title, r => r.title, r => r.studio_name]}
             />
-
+        ) : (
+            <div className="empty-state">
+              <p>Aucune donnée disponible pour ce weekend (pour l’instant).</p>
+            </div>
         )}
       </div>
   );
