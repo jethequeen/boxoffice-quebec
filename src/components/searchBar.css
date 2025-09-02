@@ -1,0 +1,121 @@
+﻿.searchbar {
+    position: relative;
+    width: 100%;
+}
+
+.search-input {
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 999px;
+    padding: 0.65rem 2.5rem 0.65rem 2.25rem;
+    background: rgba(255,255,255,0.95);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    font-size: 0.95rem;
+}
+
+.search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.7;
+}
+
+.search-spinner {
+    position: absolute;
+    right: 0.9rem;
+    top: 50%;
+    width: 16px; height: 16px;
+    transform: translateY(-50%);
+    border: 2px solid rgba(0,0,0,0.2);
+    border-top-color: rgba(0,0,0,0.55);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: translateY(-50%) rotate(360deg); } }
+
+.search-results {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+    padding: 0.5rem;
+    max-height: 70vh;
+    overflow: auto;
+}
+
+.sr-group { padding: 0.25rem 0 0.5rem; }
+.sr-group + .sr-group { border-top: 1px solid rgba(0,0,0,0.06); }
+
+.sr-group-title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-weight: 700;
+    color: #6b7280;
+    padding: 0.25rem 0.5rem;
+}
+
+.sr-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .5rem .6rem;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+.sr-item:hover, .sr-item.active { background: rgba(102,126,234,0.10); }
+
+.sr-item-main { display: flex; gap: .35rem; min-width: 0; }
+.sr-label { font-weight: 600; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-extra {
+    color: #6b7280;
+    font-size: 0.75rem;
+    font-style: italic;
+    opacity: .8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* tighter hit area overall (optional) */
+.sr-item { padding: 0.44rem 0.6rem; }
+
+/* align texts on baseline so the subtitle sits lower */
+.sr-item-main { display: flex; align-items: baseline; gap: .35rem; }
+
+.sr-pop { color: #6b7280; font-variant-numeric: tabular-nums; font-size: .8rem; }
+
+.sr-empty { padding: .75rem; color: #6b7280; text-align: center; }
+
+.header-search {
+    flex: 1 1 420px;
+    max-width: 560px;
+    min-width: 240px;
+}
+
+@media (max-width: 768px) {
+    .header-search { order: 3; width: 100%; max-width: none; }
+}
+
+/* ---- Quick mobile fix: remove the 420px flex-basis ---- */
+@media (max-width: 768px) {
+    .header-content { gap: var(--spacing-sm); }       /* tighter spacing */
+    .header-search {
+        order: 3;
+        width: 100%;
+        max-width: none;
+        flex: 0 1 auto;   /* <- was 1 1 420px; this removes the big vertical space */
+        min-height: 0;    /* ensure no implicit height */
+    }
+    .header { padding: 0.75rem 0; }                   /* optional: slightly shorter header */
+}
