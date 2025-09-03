@@ -79,7 +79,6 @@ export const getWeekendInfo = (weekendId) =>
 export const testDatabase = () =>
     apiCall('testDatabase');
 
-// If IDs can get long, prefer POST JSON to avoid long URLs.
 export const getPrincipalStudios = (movieIds = []) =>
     apiCall('getPrincipalStudios', { method: 'POST', body: { movieIds } });
 
@@ -94,3 +93,6 @@ export const getWeekCounts = (weekendId) =>
 
 export const getWeekendBoxOffice = (weekendId) =>
     apiCall('getWeekendBoxOffice', { query: { weekendId } });
+
+export const getYearSummary = (year, scope = 'all') =>
+    apiCall('getYearSummary', { query: { year, scope } });

@@ -74,7 +74,7 @@ export default function SearchBar() {
     const goto = (item) => {
         setOpen(false);
         if (item.type === 'movie') navigate(`/movies/${item.id}`);
-        else navigate(`/people/${item.id}`); // person
+        else navigate(`/crew/${item.id}`); // person
     };
 
     const onKeyDown = (e) => {
