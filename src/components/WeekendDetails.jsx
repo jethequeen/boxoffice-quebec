@@ -124,6 +124,19 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
     }
   };
 
+  const leadCol = {
+    key: 'lead',
+    label: '',
+    required: true,
+    sortable: false,
+    headerAlign: 'left',
+    align: 'left',
+    widthPct: 6,                 // any %; mobile will use CSS px
+    headerClassName: 'lead-sticky',
+    className: 'lead-sticky lead-cell',
+    // no value/render here; MovieTable renders LeadCell based on key === 'lead'
+  };
+
 
 
 
@@ -178,18 +191,30 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   const overallForceQcUsa =
       totalUS && totalUS > 0 ? ((totalQC ?? 0) / totalUS) * 100 / 2.29 * 100 : null;
 
-  const columns = pickColumns(
-      ['title','revenue_qc','change_percent','week_number','cumulatif_qc','screen_count','rev_per_screen','qc_usa', 'occupancy', 'weight'],
-      {
-        title: {
-          render: (value, m) => (
-              <div id={`movie-${m.id}`} className="movie-title-wrap">
-                {C.title.render(value, m)}
-              </div>
-          ),
-        },
-      }
-  );
+
+  const columns = [
+    leadCol,
+    ...pickColumns(
+        ['title','revenue_qc','change_percent','week_number','cumulatif_qc','screen_count','rev_per_screen','qc_usa','occupancy','weight'],
+        {
+          // text-only title render
+          title: {
+            render: (_value, m) => {
+              const hasVO = !!m.title && m.title !== m.fr_title;
+              return (
+                  <div id={`movie-${m.id}`} className={`title-text ${hasVO ? 'has-vo' : 'single'}`}>
+                    <Link to={`/movies/${m.id}`} className="movie-title-fr" title={m.fr_title || m.title || ''}>
+                      {m.fr_title || m.title || ''}
+                    </Link>
+                    {hasVO && <span className="movie-title-vo" title={m.title}>{m.title}</span>}
+                  </div>
+              );
+            },
+          },
+        }
+    ),
+  ];
+
 
   useEffect(() => {
     if (!movies.length) return;

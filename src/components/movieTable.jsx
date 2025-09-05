@@ -4,41 +4,31 @@ import { Link } from 'react-router-dom';
 const SortIcon = ({ dir }) => (dir === 'asc' ? '▲' : '▼');
 const alignClass = (a) => (a ? `align-${a}` : '');
 
-const tmdbPoster = (path, size = 'w92') =>
-    path ? `https://image.tmdb.org/t/p/${size}${path}` : null;
+const tmdbPoster = (p, size='w92') => (p ? `https://image.tmdb.org/t/p/${size}${p}` : null);
 
-function TitleCell({ row, shape = 'rounded', showRank = true }) {
+function LeadCell({ row, shape='rounded', showRank=true }) {
     const poster = tmdbPoster(row.poster_path, 'w92');
-    const hasVO = !!row.title && row.title !== row.fr_title;
-
     return (
-        <div className={`title-cell ${shape === 'circle' ? 'is-circle' : ''}`}>
-            <div className="title-fixed" aria-hidden="true">
-                {showRank && Number.isFinite(row.rank) && (
-                    <span className="rank-chip">{row.rank}</span>
-                )}
-                {poster ? (
-                    <img className={`poster-thumb ${shape}`} src={poster} alt="" loading="lazy" />
-                ) : (
-                    <div className={`poster-thumb ${shape} placeholder`} />
-                )}
-            </div>
-
-            {/* 👇 this part scrolls */}
-            <div className={`title-text ${hasVO ? 'has-vo' : 'single'}`}>
-                <Link
-                    to={`/movies/${row.id}`}
-                    className="movie-title-fr"
-                    title={row.fr_title || row.title || ''}
-                >
-                    {row.fr_title || row.title || ''}
-                </Link>
-                {hasVO && <span className="movie-title-vo" title={row.title}>{row.title}</span>}
-            </div>
+        <div className="lead-wrap">
+            {showRank && Number.isFinite(row.rank) && <span className="rank-chip">{row.rank}</span>}
+            {poster
+                ? <img className={`poster-thumb ${shape}`} src={poster} alt="" loading="lazy" />
+                : <div className={`poster-thumb ${shape} placeholder`} />}
         </div>
     );
 }
 
+function TitleTextCell({ row }) {
+    const hasVO = !!row.title && row.title !== row.fr_title;
+    return (
+        <div className={`title-text ${hasVO ? 'has-vo' : 'single'}`}>
+            <Link to={`/movies/${row.id}`} className="movie-title-fr" title={row.fr_title || row.title || ''}>
+                {row.fr_title || row.title || ''}
+            </Link>
+            {hasVO && <span className="movie-title-vo" title={row.title}>{row.title}</span>}
+        </div>
+    );
+}
 
 export default function MovieTable({
                                        rows,
@@ -210,9 +200,7 @@ export default function MovieTable({
                         {visibleColumns.map((col) => (
                             <th
                                 key={col.key}
-                                className={`${col.headerClassName ?? ''} ${alignClass(
-                                    col.headerAlign || col.align
-                                )} ${col.sortable ? 'sortable' : ''}`}
+                                className={`${col.headerClassName ?? ''} ${col.key === 'lead' ? 'lead-sticky' : ''} ${alignClass(col.headerAlign || col.align)} ${col.sortable ? 'sortable' : ''}`}
                                 onClick={col.sortable ? () => handleSort(col.key) : undefined}
                             >
                                 <div className="th-inner">
@@ -226,28 +214,25 @@ export default function MovieTable({
 
                     <tbody>
                     {sortedRows.map((row) => (
-                        <tr
-                            key={row.id}
-                            className={onRowClick ? 'row-clickable' : undefined}
-                            onClick={onRowClick ? () => onRowClick(row) : undefined}
-                        >
+                        <tr key={row.id} className={onRowClick ? 'row-clickable' : undefined}
+                            onClick={onRowClick ? () => onRowClick(row) : undefined}>
                             {visibleColumns.map((col) => {
                                 const v = col.value ? col.value(row) : row[col.key];
-                                const isTitle = col.isTitle || col.key === 'title' || col.key === 'film';
+                                const isLead = col.key === 'lead';
+                                const isTitleText = col.isTitle || col.key === 'title' || col.key === 'film';
+                                const extraHeader = col.key === 'lead' ? 'lead-sticky' : '';
+                                const extraCell   = isLead ? 'lead-sticky lead-cell' : '';
+
                                 return (
-                                    <td
-                                        key={col.key}
-                                        className={`${
-                                            typeof col.className === 'function' ? col.className(row) : col.className || ''
-                                        } ${alignClass(col.align)}`}
-                                    >
-                                        {isTitle ? (
-                                            <TitleCell row={row} shape="rounded" />
-                                        ) : col.render ? (
-                                            col.render(v, row)
-                                        ) : (
-                                            v ?? '—'
-                                        )}
+                                    <td key={col.key}
+                                        className={`${typeof col.className === 'function' ? col.className(row) : col.className || ''} ${alignClass(col.align)} ${extraCell}`}>
+                                        {isLead
+                                            ? <LeadCell row={row} />
+                                            : isTitleText
+                                                ? <TitleTextCell row={row} />
+                                                : col.render
+                                                    ? col.render(v, row)
+                                                    : (v ?? '—')}
                                     </td>
                                 );
                             })}

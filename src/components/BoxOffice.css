@@ -803,7 +803,7 @@ table tr:has(.flash-highlight) th,
 
   /* Title wider so FR wraps nicely */
   .box-office-table col.col-title {
-    width: 150px !important;
+    width: 85px !important;
   }
 
   /* Numbers: compact but readable (tweak to taste) */
@@ -884,7 +884,7 @@ table tr:has(.flash-highlight) th,
 /* === Mobile font scaling (one place, wins cascade) === */
 @media (max-width:680px) {
   /* 1) Base size for the whole table on mobile */
-  .box-office-table { font-size: .55rem !important; }  /* tweak this number */
+  .box-office-table { font-size: .6rem !important; }  /* tweak this number */
 
   /* 2) Everyone inherits that base (beats earlier fixed sizes) */
   .box-office-table thead th,
@@ -932,79 +932,38 @@ table tr:has(.flash-highlight) th,
   .rank-chip { font-size: .7em; width: 8px; }
 }
 
-/* --- Sticky first column (rank + poster) --- */
-/* Sticky works more reliably with separate borders */
-.box-office-table {
-  border-collapse: separate !important;
-  border-spacing: 0;
-}
+/* Sticky lead column */
+.box-office-table { border-collapse: separate; border-spacing: 0; }
 
-/* Header cell of the first column */
-.box-office-table thead th:first-child {
-  position: sticky;
-  left: 0;
-  z-index: 4;                       /* above body cells */
-  background: #f8fafc;              /* same as your header bg */
-  border-right: 1px solid #eef2f7;  /* subtle separator */
-}
-
-/* Body cells of the first column */
-.box-office-table tbody td:first-child {
+.box-office-table thead th.lead-sticky,
+.box-office-table tbody td.lead-sticky {
   position: sticky;
   left: 0;
   z-index: 3;
-  background: #fff;                 /* avoid text showing through under it */
-  border-right: 1px solid #eef2f7;
-}
-
-/* Optional: add a soft edge when there *is* horizontal scroll */
-.table-container.is-scrolling-x,
-.box-office-table thead th:first-child,
-.table-container.is-scrolling-x,
-.box-office-table tbody td:first-child {
-  box-shadow: 8px 0 10px -8px rgba(15, 23, 42, .25);
-}
-
-/* Make sure the first column has a guaranteed width */
-.box-office-table td.movie-cell,
-.box-office-table thead th:first-child { min-width: 170px; }
-
-@media (max-width:680px){
-  .box-office-table td.movie-cell,
-  .box-office-table thead th:first-child { min-width: 150px; }
-}
-
-
-/* Only poster+rank stick; the first column itself is NOT sticky */
-.box-office-table thead th:first-child,
-.box-office-table tbody td:first-child {
-  position: static !important;
-  left: auto !important;
-  z-index: auto !important;
-  box-shadow: none !important;
-  background: transparent !important;   /* or your normal bg */
-  border-right: none !important;
-}
-
-/* this stays – it’s the only sticky thing */
-.title-fixed{
-  position: sticky;
-  left: 0;
-  top: 0;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-right: 8px;
   background: #fff;
-  border-right: 1px solid #eef2f7;
+
 }
 
-/* optional little shadow only when scrolled */
-.table-container.is-scrolling-x .title-fixed{
 
+.table-container.is-scrolling-x .lead-sticky {
   box-shadow: 8px 0 10px -8px rgba(15,23,42,.22);
 }
+
+/* Contents inside lead cell */
+.lead-wrap { display: flex; align-items: center; gap: 6px; width: var(--lead-w, 72px); }
+.lead-cell { overflow: visible; }
+
+@media (max-width:680px){
+  :root { --lead-w: 62px; }
+  .box-office-table col.col-lead { width: var(--lead-w) !important; }
+  .box-office-table th, .box-office-table td { padding: .35rem .45rem; }
+  .poster-thumb { width: 28px; height: 38px; border-radius: 6px; }
+  .rank-chip { font-size: .7em; width: 10px; }
+}
+
+/* Ensure horizontal overflow exists on small viewports */
+.table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
 
 
 
