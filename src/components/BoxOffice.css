@@ -803,70 +803,70 @@ table tr:has(.flash-highlight) th,
 
   /* Title wider so FR wraps nicely */
   .box-office-table col.col-title {
-    width: 85px !important;
+    width: 150px !important;
   }
 
   /* Numbers: compact but readable (tweak to taste) */
   .box-office-table col.col-revenue_qc {
-    width: 70px !important;
+    width: 80px !important;
   }
 
   /* Recettes */
   .box-office-table col.col-change_percent {
-    width: 40px !important;
+    width: 50px !important;
   }
 
   /* Delta */
   .box-office-table col.col-week_number {
-    width: 40px !important;
+    width: 50px !important;
   }
 
   /* Week */
   .box-office-table col.col-cumulatif_qc {
-    width: 65px !important;
+    width: 75px !important;
   }
 
   /* Cumulatif */
   .box-office-table col.col-screen_count {
-    width: 40px !important;
+    width: 50px !important;
   }
 
   /* Shows */
   .box-office-table col.col-rev_per_screen {
-    width: 50px !important;
+    width: 60px !important;
   }
 
   /* $/Shows */
   .box-office-table col.col-qc_usa {
-    width: 40px !important;
+    width: 50px !important;
   }
 
   /* QC/USA */
   .box-office-table col.col-occupancy {
-    width: 50px !important;
+    width: 60px !important;
   }
 
   /* Occupation */
   .box-office-table col.col-weight {
-    width: 55px !important;
+    width: 65px !important;
   }
 
   /* Poids total */
   /* If you sometimes use these, size them too */
   .box-office-table col.col-rank {
-    width: 50px !important;
+    width: 60px !important;
   }
 
   .box-office-table col.col-theater_count {
-    width: 70px !important;
+    width: 80px !important;
   }
 
   .box-office-table col.col-rev_per_theater {
-    width: 130px !important;
+    width: 140px !important;
   }
 
   .box-office-table col.col-date {
-    width: 100px !important;
+    width: 200px !important;
   }
 
   /* Tout le monde hérite de la base (on bat les règles plus spécifiques ci-dessus) */
@@ -884,7 +884,7 @@ table tr:has(.flash-highlight) th,
 /* === Mobile font scaling (one place, wins cascade) === */
 @media (max-width:680px) {
   /* 1) Base size for the whole table on mobile */
-  .box-office-table { font-size: .6rem !important; }  /* tweak this number */
+  .box-office-table { font-size: .8rem !important; }  /* tweak this number */
 
   /* 2) Everyone inherits that base (beats earlier fixed sizes) */
   .box-office-table thead th,
@@ -956,7 +956,7 @@ table tr:has(.flash-highlight) th,
 @media (max-width:680px){
   :root { --lead-w: 62px; }
   .box-office-table col.col-lead { width: var(--lead-w) !important; }
-  .box-office-table th, .box-office-table td { padding: .35rem .45rem; }
+  .box-office-table th, .box-office-table td { padding: .35rem .9rem; }
   .poster-thumb { width: 28px; height: 38px; border-radius: 6px; }
   .rank-chip { font-size: .7em; width: 10px; }
 }
@@ -968,3 +968,71 @@ table tr:has(.flash-highlight) th,
 
 
 
+/* === Comfortable mobile preset (bigger text + rows) === */
+@media (max-width:680px) {
+
+
+  /* 3) Poster a bit taller; row height follows */
+  .title-cell {
+    --poster-h: 46px;
+    gap: 8px;
+  }
+
+  /* row ≈ poster height */
+  .poster-thumb {
+    width: 40px;
+    height: var(--poster-h);
+    border-radius: 8px;
+  }
+
+  /* 4) Text sizing/leading for readability */
+  .movie-title-fr {
+    font-size: 1.2em;
+    line-height: 1.1;
+  }
+
+  .movie-title-vo {
+    font-size: .92em;
+    line-height: 1.5;
+    margin-top: 5px;
+  }
+
+  /* 5) Rank stays readable but discreet */
+  .rank-chip {
+    font-size: .82em;
+    width: 12px;
+    line-height: 1;
+  }
+
+  /* 6) Keep sticky lead column wide enough for poster+rank */
+  :root {
+    --lead-w: 74px;
+  }
+
+  .box-office-table col.col-lead {
+    width: var(--lead-w) !important;
+  }
+
+
+  /* === Zero-gap stack for FR/VO titles === */
+  .box-office-table .title-cell .title-text {
+    min-height: 0 !important; /* kill the extra height */
+    justify-content: flex-start !important;
+  }
+
+  .box-office-table .movie-title-fr {
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1.02 !important; /* very tight */
+    /* If the clamp adds spacing, you can keep it; else un-comment next line: */
+    /* -webkit-line-clamp: unset !important; -webkit-box-orient: unset !important; display: inline !important; */
+  }
+
+  .box-office-table .movie-title-vo {
+    margin: 0 !important;
+    padding: 0 !important;
+    /* Tuck it even closer if your font still shows a hairline gap: */
+    margin-top: -3px !important; /* tweak -1 to -3px to taste */
+  }
+
+}
