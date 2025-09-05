@@ -61,6 +61,7 @@ export const handler = async (event) => {
                 s.name AS studio_name,
                 x.weekend_id,
                 x.rank,
+                m.poster_path,
                 x.revenue_qc,
                 x.revenue_us,
                 sc.screen_count,

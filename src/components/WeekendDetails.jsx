@@ -83,7 +83,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       ...m,
       revenue_qc,
       revenue_us: toNum(m.revenue_us) ?? 0,
-      change_percent: toNum(m.change_percent ?? m.change_qc),
+      change_percent: m.change_percent,
       force_qc_usa: toNum(m.force_qc_usa),
       cumulatif_qc: toNum(m.cumulatif_qc) ?? revenue_qc,
       week_number: m.week_count ?? 1,
@@ -181,7 +181,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   const columns = pickColumns(
       ['title','revenue_qc','change_percent','week_number','cumulatif_qc','screen_count','rev_per_screen','qc_usa', 'occupancy', 'weight'],
       {
-        change_percent: { mobileWidthPct: 12 },
         title: {
           render: (value, m) => (
               <div id={`movie-${m.id}`} className="movie-title-wrap">
@@ -260,8 +259,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
         )}
 
 
-
-
         {/* Stat Cards */}
         {(totalQC != null || changeQC != null || overallForceQcUsa != null) && (
             <div className="stats-grid">
@@ -297,8 +294,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                 columns={columns}
                 initialSort={{ key: 'revenue_qc', dir: 'desc' }}
                 initialVisibleKeys={['title','revenue_qc','change_percent','screen_count','rev_per_screen','week_number', 'occupancy']}
-                caps={{ mobile: 4, tablet: 6, desktop: Infinity }}
-                mobileMode="auto"
                 searchAccessors={[r => r.fr_title, r => r.title, r => r.studio_name]}
             />
         ) : (

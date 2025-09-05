@@ -297,7 +297,7 @@ function MovieDetails() {
                 )}
                 initialSort={{ key: 'date', dir: 'asc' }}
                 initialVisibleKeys={['date','revenue_qc','change_percent','rank','screen_count','rev_per_screen','qc_usa']}
-                caps={{ mobile: 4, tablet: 7, desktop: Infinity }}
+                caps={{ mobile: Infinity, tablet: Infinity, desktop: Infinity }}
                 mobileMode="auto"
                 searchAccessors={[r => r.dateObj?.toISOString?.().slice(0,10), r => String(r.rank)]}
             />

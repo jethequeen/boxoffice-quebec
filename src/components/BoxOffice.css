@@ -20,7 +20,6 @@
 /* ===== Table ===== */
 .box-office-table {
   width: 100%;
-  border-collapse: collapse;
   table-layout: fixed;         /* lock widths so ellipsis works */
 }
 
@@ -30,7 +29,6 @@
   border-bottom: 1px solid #eef2f7;
   vertical-align: middle;
   white-space: normal;
-  overflow-wrap: anywhere;
 }
 
 /* Sortable headers */
@@ -72,7 +70,6 @@
   text-decoration: none;
   margin-bottom: 0;
 }
-.movie-title-fr:hover { text-decoration: underline; }
 
 .movie-title-vo {
   color: #6b7280;
@@ -179,11 +176,7 @@
 .picker-item.disabled { opacity: .55; cursor: not-allowed; }
 .picker-item.disabled input { pointer-events: none; }
 
-/* Mobile tightening */
-@media (max-width: 680px) {
-  .box-office-table th, .box-office-table td { padding: .5rem .55rem; }
-  .movie-title-vo { display: none; } /* optional: hide subtitle on mobile */
-}
+
 
 .box-office-header {
   background:#fff;
@@ -258,11 +251,7 @@
 }
 .nav-arrow.disabled { opacity: .35; cursor: not-allowed; }
 
-/* Optional: tighter on small screens */
-@media (max-width: 680px) {
-  .weekend-title { font-size: 1.6rem; }
-  .nav-arrow { width: 38px; height: 38px; }
-}
+
 
 .table-toolbar {
   display:flex; gap:.75rem; align-items:center; justify-content:space-between;
@@ -324,19 +313,9 @@
     align-items: stretch;
     gap: .5rem;
   }
-  .table-filter-input { width: 100%; }
-
-  .box-office-table th,
-  .box-office-table td {
-    padding: .5rem .55rem;
-    font-size: .92rem;
-  }
-
-  /* Hide VO subtitle on small screens to save space (optional) */
-  .movie-title-vo { display: none; }
 
   /* Let the title column be a bit wider */
-  .box-office-table col.col-title { width: 44% !important; }
+  .box-office-table col.col-title { width: 35% !important; }
 }
 
 /* Stats grid becomes fluid and numbers wrap gracefully */
@@ -346,12 +325,7 @@
   gap: 16px;
 }
 
-@media (max-width: 900px) {
-  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 680px) {
-  .stats-grid { grid-template-columns: 1fr; }
-}
+
 
 /* Prevent long numbers from overflowing; allow breaks even with NBSPs */
 .stat-number {
@@ -384,51 +358,16 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-/* Mobile cards */
-@media (max-width: 680px) {
-  .mobile-filter { display:flex; justify-content: space-between; gap:.5rem; margin:.5rem 0 1rem; }
-  .mobile-card-list { display: grid; gap: 10px; }
-  .mobile-card {
-    background:#fff; border:1px solid #e5e7eb; border-radius:12px;
-    padding:12px 14px; box-shadow:0 2px 8px rgba(0,0,0,.05);
-  }
-  .mobile-card-title { margin-bottom: 6px; }
-  .mobile-card .movie-title-vo { display:none; } /* optional: save space */
-  .mobile-card-grid {
-    display:grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px 12px;
-  }
-  .mobile-kv dt { font-size:.78rem; color:#64748b; }
-  .mobile-kv dd { margin:0; text-align:right; font-weight:600; }
-  .table-filter-input { width:100%; }
-}
 
 /* Column picker (shared) */
 .columns-popover { position:relative; }
-.columns-button {
-  list-style:none; display:inline-flex; align-items:center; gap:.5rem;
-  border:1px solid #e5e7eb; border-radius:10px; padding:.4rem .6rem; background:#fff; cursor:pointer;
-  font-weight:600; color:#0f172a;
-}
 .columns-button::-webkit-details-marker{display:none}
-.columns-badge {
-  min-width:1.35rem; height:1.2rem; padding:0 .35rem; border-radius:999px;
-  background:#eef2ff; color:#4338ca; display:inline-flex; align-items:center; justify-content:center;
-  font-size:.78rem; font-weight:700;
-}
-.columns-panel {
-  position:absolute; right:0; margin-top:.35rem; background:#fff; border:1px solid #e5e7eb; border-radius:12px;
-  box-shadow:0 12px 30px rgba(0,0,0,.08); padding:.6rem .7rem; z-index:10; min-width: 240px;
-}
 .columns-grid { display:grid; grid-template-columns:1fr 1fr; gap:.35rem .75rem; }
 .picker-item.disabled{opacity:.5; cursor:not-allowed}
 .picker-item.disabled input{pointer-events:none}
 
 /* Stats responsive */
 .stats-grid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:16px; }
-@media (max-width: 900px){ .stats-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
-@media (max-width: 680px){ .stats-grid{ grid-template-columns: 1fr; } }
 .stat-card{ background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
 .stat-number{ font-size: clamp(1.2rem, 5vw, 2rem); white-space: normal; overflow-wrap: anywhere; }
 
@@ -447,62 +386,7 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* --------- MOBILE STACKED TABLE --------- */
-@media (max-width: 680px) {
-  /* Hide header on small screens */
-  .box-office-table thead { display: none; }
 
-  /* Each row becomes a block “card” */
-  .box-office-table tbody tr {
-    display: block;
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.05);
-    margin: 10px 0;
-    padding: 10px 12px;
-  }
-
-  /* Title cell sits on top, full width */
-  .box-office-table td.movie-cell {
-    display: block;
-    border-bottom: 1px solid #eef2f7;
-    padding: 4px 0 10px;
-    margin: 0 0 6px 0;
-    text-align: left; /* force left for the title */
-  }
-  .box-office-table td.movie-cell::before { content: none; } /* No label in title row */
-  .box-office-table .movie-title-fr { display:block; font-size:1.05rem; font-weight:800; line-height:1.2; }
-  .box-office-table .movie-title-vo { display:block; margin-top:2px; font-size:.85rem; color:#94a3b8; }
-
-  /* Other cells: label on the left, value on the right */
-  .box-office-table tbody td:not(.movie-cell) {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid #eef2f7;
-    white-space: normal;         /* allow wrapping if needed */
-    overflow: visible;
-  }
-  .box-office-table tbody td:not(.movie-cell):last-child { border-bottom: 0; }
-
-  /* Print the column label from data-label */
-  .box-office-table tbody td:not(.movie-cell)::before {
-    content: attr(data-label);
-    flex: 1 1 auto;
-    color: #64748b;
-    font-weight: 600;
-    text-align: left;
-    min-width: 40%;
-    max-width: 60%;
-  }
-
-  /* Value side aligns as requested */
-  .box-office-table tbody td.align-right { text-align: right; }
-  .box-office-table tbody td.align-center { text-align: right; } /* right reads cleaner on mobile */
-}
 
 /* Make sure alignment propagates into nested elements (currency spans, etc.) */
 .box-office-table td .th-inner,
@@ -531,5 +415,597 @@ table tr:has(.flash-highlight) th,
 /* Optional: style the date link */
 .date-link { text-decoration: none; }
 .date-link:hover { text-decoration: underline; }
+
+/* Title cell layout */
+.title-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;            /* keeps rows tidy even without posters */
+}
+
+/* Poster bubble/rectangle */
+.poster-thumb {
+  width: 40px;                 /* ~2:3 ratio looks like a mini poster */
+  height: 54px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  border-radius: 8px;          /* rounded rectangle by default */
+  background: #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08);
+}
+.poster-thumb.circle {          /* use for mobile if you prefer an avatar look */
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+}
+.poster-thumb.placeholder {
+  background: linear-gradient(180deg,#f3f4f6,#e5e7eb);
+}
+
+/* Text next to poster */
+.title-text { display: flex; flex-direction: column; min-width: 0; }
+.movie-title-fr {
+  font-weight: 600; color: #111827; text-decoration: none;
+}
+.movie-title-vo { font-size: .85rem; color: #6b7280; margin-top: 2px; }
+
+/* Subtle rank to the LEFT of the poster (not a table column) */
+.rank-chip {
+  margin-right: 2px;
+  width: 18px;                 /* narrow, doesn’t push layout */
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: .85rem;
+  color: #9ca3af;              /* discreet */
+  opacity: .9;
+}
+
+/* ---- Only the text block is vertically centered to the poster ---- */
+.title-cell { --poster-h: 48px; min-height: var(--poster-h); gap: 8px; }
+.poster-thumb { width: 35px; height: var(--poster-h); object-fit: cover; border-radius: 8px; }
+
+/* Film column stays LEFT-aligned horizontally */
+.box-office-table td.movie-cell { text-align: left; }
+.box-office-table td.movie-cell .title-cell { justify-content: flex-start; }
+.box-office-table td.movie-cell .title-text { align-items: flex-start; text-align: left; }
+
+/* The text block gets vertically centered against poster height */
+.title-text { display: flex; flex-direction: column; min-width: 0; }
+.title-text.single,
+.title-text.has-vo { min-height: var(--poster-h); justify-content: center; }
+
+/* ---- FR title WRAPS to fill the gap (2 lines max) ---- */
+.movie-title-fr {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;       /* wrap up to 2 lines, then ellipsis */
+  overflow: hidden;
+
+  white-space: normal;         /* allow wrapping */
+  text-overflow: ellipsis;     /* ellipsis only if it needs a 3rd line */
+
+  font-weight: 750;
+  font-size: 1rem;
+  line-height: 1.15;
+  color: #0f172a;
+  margin: 0;
+  text-decoration: none;
+}
+
+/* VO stays a single, muted line */
+.movie-title-vo {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+  font-size: .85rem;
+  line-height: 1.2;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Subtle, compact rank */
+.rank-chip { width: 10px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.8rem; color: #9ca3af; }
+
+/* (optional) slightly tighter row padding so the whole row is shorter */
+.box-office-table th, .box-office-table td { padding: .45rem .55rem; }
+
+
+/* tune once, reuse */
+.title-cell {
+  --poster-h: 48px;
+  --nudge-single: 2px;  /* single-line (FR only) vertical nudge */
+  --nudge-vo: 0px;      /* when FR+VO are shown */
+}
+
+/* keep items left; center only the text vs. poster */
+.title-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: var(--poster-h);
+  justify-content: center;
+  position: relative;           /* enables top/translate tweaks */
+}
+
+/* single-line case (FR==VO): push the text down a hair */
+.title-text.single { transform: translateY(var(--nudge-single)); }
+
+/* two-line case (FR + VO): usually already optically centered */
+.title-text.has-vo { transform: translateY(var(--nudge-vo)); }
+
+
+/* Horizontal scrolling when needed (desktop & mobile) */
+.table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+
+
+  /* (Optional) slightly smaller poster so rows stay tidy on phones */
+  .title-cell { --poster-h: 60px; gap: 8px; }
+  .poster-thumb { width: 40px; height: var(--poster-h); }
+
+
+/* Tighten spacing/fonts on mobile */
+@media (max-width: 680px) {
+  .table-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: .5rem;
+  }
+
+
+
+  /* Stats grid becomes fluid and numbers wrap gracefully */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+
+
+  /* Prevent long numbers from overflowing; allow breaks even with NBSPs */
+  .stat-number {
+    font-size: clamp(1.25rem, 5vw, 2rem);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+
+  /* Nice cards still */
+  .stat-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  }
+  .stat-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: linear-gradient(180deg,#818cf8,#6366f1);
+  }
+
+  /* Horizontal scroll fallback for real table */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .box-office-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+  .box-office-table th, .box-office-table td {
+    padding: .6rem .75rem; border-bottom: 1px solid #eef2f7; vertical-align: middle;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+
+  /* Column picker (shared) */
+  .columns-popover { position:relative; }
+  .columns-button {
+    list-style:none; display:inline-flex; align-items:center; gap:.5rem;
+    border:1px solid #e5e7eb; border-radius:10px; padding:.4rem .6rem; background:#fff; cursor:pointer;
+    font-weight:600; color:#0f172a;
+  }
+
+  .columns-grid { display:grid; grid-template-columns:1fr 1fr; gap:.35rem .75rem; }
+  .picker-item.disabled{opacity:.5; cursor:not-allowed}
+  .picker-item.disabled input{pointer-events:none}
+
+  /* Stats responsive */
+  .stats-grid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:16px; }
+  .stat-card{ background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+  .stat-number{ font-size: clamp(1rem, 1vw, 1rem); white-space: normal; overflow-wrap: anywhere; }
+
+  /* Alignment helpers */
+  .align-left{text-align:left} .align-center{text-align:center} .align-right{text-align:right}
+
+  /* Ensure inner elements inherit alignment in title cell */
+  .box-office-table td.movie-cell,
+  .box-office-table td.movie-cell .movie-title-wrap,
+  .box-office-table td.movie-cell .movie-title-fr,
+  .box-office-table td.movie-cell .movie-title-vo { text-align: inherit; --nudge-vo: 10px;  }
+
+  /* Default table remains the same on desktop/tablet */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+
+
+  /* Make sure alignment propagates into nested elements (currency spans, etc.) */
+  .box-office-table td .th-inner,
+  .box-office-table td > * { text-align: inherit; }
+
+
+
+  /* keep the offset for sticky headers */
+  .movie-title-wrap { scroll-margin-top: 84px; }
+
+  /* row-wide flash whenever a descendant has .flash-highlight */
+  table tr:has(.flash-highlight) td,
+  table tr:has(.flash-highlight) th,
+  [role="row"]:has(.flash-highlight) [role="gridcell"],
+  [role="row"]:has(.flash-highlight) [role="columnheader"] {
+    animation: boxoffice-flash 1.5s ease-in-out 1; /* <-- use existing keyframes name */
+  }
+
+  @keyframes boxoffice-flash {
+    0%   { background-color: rgba(255, 235, 130, 0.00); }
+    15%  { background-color: rgba(128, 150, 236, 0.85); }
+    60%  { background-color: rgba(29, 67, 230, 0.45); }
+    100% { background-color: rgba(255, 235, 130, 0.00); }
+  }
+
+  /* Optional: style the date link */
+  .date-link { text-decoration: none; }
+  .date-link:hover { text-decoration: underline; }
+
+  /* Title cell layout */
+  .title-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;            /* keeps rows tidy even without posters */
+  }
+
+  /* Poster bubble/rectangle */
+  .poster-thumb {
+    width: 40px;                 /* ~2:3 ratio looks like a mini poster */
+    height: 54px;
+    object-fit: cover;
+    flex: 0 0 auto;
+    border-radius: 8px;          /* rounded rectangle by default */
+    background: #e5e7eb;
+    box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  }
+  .poster-thumb.circle {          /* use for mobile if you prefer an avatar look */
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+  }
+  .poster-thumb.placeholder {
+    background: linear-gradient(180deg,#f3f4f6,#e5e7eb);
+  }
+
+  /* Text next to poster */
+  .title-text { display: flex; flex-direction: column; min-width: 0; }
+  .movie-title-fr {
+    font-weight: 600; color: #111827; text-decoration: none;
+  }
+  .movie-title-vo { font-size: .85rem; color: #6b7280; margin-top: 2px; }
+
+  /* Subtle rank to the LEFT of the poster (not a table column) */
+  .rank-chip {
+    margin-right: 2px;
+    width: 18px;                 /* narrow, doesn’t push layout */
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: .75rem;
+    color: #9ca3af;              /* discreet */
+    opacity: .9;
+  }
+
+  /* ---- Only the text block is vertically centered to the poster ---- */
+  .title-cell { --poster-h: 48px; min-height: var(--poster-h); gap: 8px; }
+  .poster-thumb { width: 35px; height: var(--poster-h); object-fit: cover; border-radius: 8px; }
+
+  /* Film column stays LEFT-aligned horizontally */
+  .box-office-table td.movie-cell { text-align: left; }
+  .box-office-table td.movie-cell .title-cell { justify-content: flex-start; }
+  .box-office-table td.movie-cell .title-text { align-items: flex-start; text-align: left; }
+
+  /* The text block gets vertically centered against poster height */
+  .title-text { display: flex; flex-direction: column; min-width: 0; }
+  .title-text.single,
+  .title-text.has-vo { min-height: var(--poster-h); justify-content: center; }
+
+  /* ---- FR title WRAPS to fill the gap (2 lines max) ---- */
+  .movie-title-fr {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;       /* wrap up to 2 lines, then ellipsis */
+    overflow: hidden;
+
+    white-space: normal;         /* allow wrapping */
+    text-overflow: ellipsis;     /* ellipsis only if it needs a 3rd line */
+
+    font-weight: 750;
+    font-size: 1rem;
+    line-height: 1.15;
+    color: #0f172a;
+    margin: 0;
+    text-decoration: none;
+  }
+
+  /* VO stays a single, muted line */
+  .movie-title-vo {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 0.1px;
+    font-size: .85rem;
+    line-height: 1.25;
+    color: #94a3b8;
+    font-style: italic;
+  }
+
+  /* Subtle, compact rank */
+  .rank-chip { width: 10px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.8rem; color: #9ca3af; }
+
+
+
+  /* tune once, reuse */
+  .title-cell {
+    --poster-h: 48px;
+    --nudge-single: 15px;  /* single-line (FR only) vertical nudge */
+    --nudge-vo: -0px;      /* when FR+VO are shown */
+  }
+
+  /* keep items left; center only the text vs. poster */
+  .title-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: var(--poster-h);
+    justify-content: center;
+    position: relative;           /* enables top/translate tweaks */
+  }
+
+  /* single-line case (FR==VO): push the text down a hair */
+  .title-text.single { transform: translateY(var(--nudge-single)); }
+
+  /* two-line case (FR + VO): usually already optically centered */
+  .title-text.has-vo { transform: translateY(var(--nudge-vo)); }
+
+
+  /* Horizontal scrolling when needed (desktop & mobile) */
+  .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+
+
+  /* (Optional) slightly smaller poster so rows stay tidy on phones */
+  .title-cell { --poster-h: 48px; gap: 5px; }
+  .poster-thumb { width: 32px; height: var(--poster-h); }
+
+
+  /* ===== Force column widths on small screens (scroll instead of squish) ===== */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .box-office-table {
+    table-layout: fixed;
+  }
+
+  /* Title wider so FR wraps nicely */
+  .box-office-table col.col-title {
+    width: 150px !important;
+  }
+
+  /* Numbers: compact but readable (tweak to taste) */
+  .box-office-table col.col-revenue_qc {
+    width: 70px !important;
+  }
+
+  /* Recettes */
+  .box-office-table col.col-change_percent {
+    width: 40px !important;
+  }
+
+  /* Delta */
+  .box-office-table col.col-week_number {
+    width: 40px !important;
+  }
+
+  /* Week */
+  .box-office-table col.col-cumulatif_qc {
+    width: 65px !important;
+  }
+
+  /* Cumulatif */
+  .box-office-table col.col-screen_count {
+    width: 40px !important;
+  }
+
+  /* Shows */
+  .box-office-table col.col-rev_per_screen {
+    width: 50px !important;
+  }
+
+  /* $/Shows */
+  .box-office-table col.col-qc_usa {
+    width: 40px !important;
+  }
+
+  /* QC/USA */
+  .box-office-table col.col-occupancy {
+    width: 50px !important;
+  }
+
+  /* Occupation */
+  .box-office-table col.col-weight {
+    width: 55px !important;
+  }
+
+  /* Poids total */
+  /* If you sometimes use these, size them too */
+  .box-office-table col.col-rank {
+    width: 50px !important;
+  }
+
+  .box-office-table col.col-theater_count {
+    width: 70px !important;
+  }
+
+  .box-office-table col.col-rev_per_theater {
+    width: 130px !important;
+  }
+
+  .box-office-table col.col-date {
+    width: 100px !important;
+  }
+
+  /* Tout le monde hérite de la base (on bat les règles plus spécifiques ci-dessus) */
+  .box-office-table thead th,
+  .box-office-table td,
+  .box-office-table td:not(:first-child):not(:last-child),
+  .box-office-table .movie-title-fr,
+  .box-office-table .movie-title-vo {
+    font-size: inherit !important;
+  }
+
+
+}
+
+/* === Mobile font scaling (one place, wins cascade) === */
+@media (max-width:680px) {
+  /* 1) Base size for the whole table on mobile */
+  .box-office-table { font-size: .55rem !important; }  /* tweak this number */
+
+  /* 2) Everyone inherits that base (beats earlier fixed sizes) */
+  .box-office-table thead th,
+  .box-office-table td,
+  .box-office-table td:not(:first-child):not(:last-child),
+  .box-office-table .movie-title-fr,
+  .box-office-table .movie-title-vo,
+  .box-office-table .rank-chip {
+    font-size: inherit !important;
+  }
+
+
+}
+
+
+
+
+/* === Compact rows on mobile (tighter vertical rhythm) === */
+@media (max-width:680px) {
+  /* less padding = shorter rows */
+  .box-office-table th,
+  .box-office-table td {
+    padding: .35rem .45rem;         /* was .6/.75 */
+  }
+
+  /* slightly smaller header */
+  .box-office-table thead th {
+    font-size: .85em;
+    padding-top: .4rem;
+    padding-bottom: .4rem;
+  }
+
+  /* smaller poster + tighter gaps */
+  .title-cell { --poster-h: 38px; gap: 6px; }
+  .poster-thumb { width: 28px; height: var(--poster-h); border-radius: 6px; }
+
+  /* keep the text block centered against the smaller poster */
+  .title-text { min-height: var(--poster-h); }
+
+  /* title/subtitle line-heights trimmed */
+  .movie-title-fr { line-height: 1.05; }
+  .movie-title-vo { margin-top: 0; line-height: 1.05; font-size: .8em; }
+
+  /* rank a bit smaller */
+  .rank-chip { font-size: .7em; width: 8px; }
+}
+
+/* --- Sticky first column (rank + poster) --- */
+/* Sticky works more reliably with separate borders */
+.box-office-table {
+  border-collapse: separate !important;
+  border-spacing: 0;
+}
+
+/* Header cell of the first column */
+.box-office-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 4;                       /* above body cells */
+  background: #f8fafc;              /* same as your header bg */
+  border-right: 1px solid #eef2f7;  /* subtle separator */
+}
+
+/* Body cells of the first column */
+.box-office-table tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #fff;                 /* avoid text showing through under it */
+  border-right: 1px solid #eef2f7;
+}
+
+/* Optional: add a soft edge when there *is* horizontal scroll */
+.table-container.is-scrolling-x,
+.box-office-table thead th:first-child,
+.table-container.is-scrolling-x,
+.box-office-table tbody td:first-child {
+  box-shadow: 8px 0 10px -8px rgba(15, 23, 42, .25);
+}
+
+/* Make sure the first column has a guaranteed width */
+.box-office-table td.movie-cell,
+.box-office-table thead th:first-child { min-width: 170px; }
+
+@media (max-width:680px){
+  .box-office-table td.movie-cell,
+  .box-office-table thead th:first-child { min-width: 150px; }
+}
+
+
+/* Only poster+rank stick; the first column itself is NOT sticky */
+.box-office-table thead th:first-child,
+.box-office-table tbody td:first-child {
+  position: static !important;
+  left: auto !important;
+  z-index: auto !important;
+  box-shadow: none !important;
+  background: transparent !important;   /* or your normal bg */
+  border-right: none !important;
+}
+
+/* this stays – it’s the only sticky thing */
+.title-fixed{
+  position: sticky;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+  background: #fff;
+  border-right: 1px solid #eef2f7;
+}
+
+/* optional little shadow only when scrolled */
+.table-container.is-scrolling-x .title-fixed{
+
+  box-shadow: 8px 0 10px -8px rgba(15,23,42,.22);
+}
+
+
 
 
