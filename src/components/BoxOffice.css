@@ -803,12 +803,12 @@ table tr:has(.flash-highlight) th,
 
   /* Title wider so FR wraps nicely */
   .box-office-table col.col-title {
-    width: 150px !important;
+    width: 160px !important;
   }
 
   /* Numbers: compact but readable (tweak to taste) */
   .box-office-table col.col-revenue_qc {
-    width: 80px !important;
+    width: 90px !important;
   }
 
   /* Recettes */
@@ -823,22 +823,22 @@ table tr:has(.flash-highlight) th,
 
   /* Week */
   .box-office-table col.col-cumulatif_qc {
-    width: 75px !important;
+    width: 90px !important;
   }
 
   /* Cumulatif */
   .box-office-table col.col-screen_count {
-    width: 50px !important;
+    width: 60px !important;
   }
 
   /* Shows */
   .box-office-table col.col-rev_per_screen {
-    width: 60px !important;
+    width: 70px !important;
   }
 
   /* $/Shows */
   .box-office-table col.col-qc_usa {
-    width: 50px !important;
+    width: 60px !important;
   }
 
   /* QC/USA */
