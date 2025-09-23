@@ -202,3 +202,85 @@
     font-size: 1.5rem;
   }
 }
+/* === Brand sizing variables (feel free to tweak) === */
+:root{
+  --brand-width: clamp(260px, 28vw, 420px);     /* visual space like “Box-Office Québec” */
+  --brand-font:  clamp(1.6rem, 3.4vw, 2.6rem);    /* wordmark size */
+  --logo-size:   calc(var(--brand-font) + 33px); /* logo height close to text height */
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 1rem 0;
+  box-shadow: 0 2px 10px rgba(0,0,0,.1);
+}
+
+/* 3-column layout: brand | search | nav */
+.header-content{
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-lg);
+  display: grid;
+  grid-template-columns: var(--brand-width) 1fr auto;
+  align-items: center;
+  gap: 25px;
+}
+
+/* Brand block (logo + wordmark) */
+.brand{
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  inline-size: var(--brand-width);
+  text-decoration: none;
+  color: #fff;
+}
+.brand-logo{
+  display: block;
+  height: var(--logo-size);
+  width: auto;
+  object-fit: contain;     /* PNG without text */
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.15)); /* subtle depth */
+}
+.brand-name{
+  font-weight: 800;
+  font-size: var(--brand-font);
+  line-height: 1;
+  letter-spacing: .2px;
+  text-rendering: optimizeLegibility;
+}
+
+/* Search & nav (unchanged from your base except grid container above) */
+.nav{
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+/* Responsive tweaks */
+@media (max-width: 900px){
+  :root{
+    --brand-width: clamp(220px, 40vw, 320px);
+    --brand-font:  clamp(1.8rem, 3.4vw, 2.1rem);
+    --logo-size:   calc(var(--brand-font) + 30px);
+  }
+}
+@media (max-width: 600px){
+  .header-content{
+    grid-template-columns: 1fr; /* stack */
+    text-align: center;
+  }
+  .brand{
+    justify-content: center;
+    inline-size: 100%;
+  }
+  .nav{
+    justify-content: center;
+  }
+}
+
+/* Keep your existing .nav-link, .main-content, .footer styles as-is */
+
+

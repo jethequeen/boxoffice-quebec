@@ -66,6 +66,7 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         key: 'change_percent',
         label: 'Delta',
         sortable: true,
+        align: 'center',
         widthPct: 6,
         headerAlign: 'center',
         value: (m) => m.change_percent || "-",

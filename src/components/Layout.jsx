@@ -1,11 +1,11 @@
 ﻿import { Link, useLocation } from 'react-router-dom';
 import SearchBar from './searchbar.jsx';
 import './Layout.css';
+import logo from '../assets/cineStatsTextLessLogo.png'; // << PNG without text
 
 function Layout({ children }) {
     const location = useLocation();
     const navItems = [
-        { path: '/', label: 'Accueil' },
         { path: '/box-office', label: 'Box Office' },
         { path: '/movies', label: 'Films' },
     ];
@@ -14,10 +14,11 @@ function Layout({ children }) {
         <div className="layout">
             <header className="header">
                 <div className="header-content">
-                    <h1 className="site-title">
-                        <span className="title-icon"></span>
-                        Box-Office Québec
-                    </h1>
+                    {/* Brand: logo + wordmark (same presence as old title) */}
+                    <Link to="/" className="brand" aria-label="Ciné Stats – Accueil">
+                        <img src={logo} alt="" className="brand-logo" />
+                        <span className="brand-name">Ciné&nbsp;Stats</span>
+                    </Link>
 
                     <div className="header-search">
                         <SearchBar />
@@ -30,7 +31,6 @@ function Layout({ children }) {
                                 to={item.path}
                                 className={`nav-link ${location.pathname === item.path ? 'active' : ''}`}
                             >
-                                <span className="nav-icon">{item.icon}</span>
                                 {item.label}
                             </Link>
                         ))}
@@ -42,7 +42,7 @@ function Layout({ children }) {
 
             <footer className="footer">
                 <div className="footer-content">
-                    <p>&copy; 2025 The Black Box - Données et analyses du cinéma québécois</p>
+                    <p>&copy; 2025 Cine Stats - Données et analyses du cinéma québécois</p>
                 </div>
             </footer>
         </div>
