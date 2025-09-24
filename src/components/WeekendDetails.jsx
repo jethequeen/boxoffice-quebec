@@ -44,7 +44,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
 
   const [weekendMeta, setWeekendMeta] = useState(null);
   const [rawMovies, setRawMovies] = useState([]);
-  const { C, pickColumns } = createColumnsCatalog({ Link, formatCurrency, pct0, toNum });
+  const { pickColumns } = createColumnsCatalog({ Link, formatCurrency, pct0, toNum });
 
   useEffect(() => {
     fetchData();
