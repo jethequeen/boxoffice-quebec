@@ -59,6 +59,10 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
     };
   };
 
+  const [nextExists, setNextExists] = useState(false);
+  const nextWeekendId = useMemo(() => getNextWeekendId(realWeekendId), [realWeekendId]);
+
+
 
 
   const handleWeekendChange = (newWeekendId) => {
@@ -66,9 +70,8 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   };
   const navigateToPrevious = () => handleWeekendChange(getPreviousWeekendId(realWeekendId));
   const navigateToNext = () => {
-    const current = getCurrentWeekendId();
-    if (realWeekendId >= current) return;
-    handleWeekendChange(getNextWeekendId(realWeekendId));
+    if (!nextExists) return;
+    handleWeekendChange(nextWeekendId);
   };
 
   const normalizeMovie = (m) => {
@@ -108,6 +111,14 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       setWeekendMeta(weekend);
       setRawMovies(movies.map(normalizeMovie));
 
+      try {
+        const resNext = await getBoxOfficeData(1, nextWeekendId);
+        const { weekend: nextW } = pickPayload(resNext);
+        setNextExists(!!nextW); // true only if backend knows this weekend
+      } catch {
+        setNextExists(false);
+      }
+
       // optional diagnostics
       console.log('[bo] weekend', realWeekendId, {
         start: weekend?.start_date,
@@ -119,6 +130,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       setError('Erreur lors du chargement des données du weekend');
       setRawMovies([]);
       setWeekendMeta(null);
+      setNextExists(false);
     } finally {
       setLoading(false);
     }
@@ -180,7 +192,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   }, [rawMovies, sort]);
 
   /* ---------- header + cards data ---------- */
-  const canGoNext = realWeekendId < getCurrentWeekendId();
+  const canGoNext = nextExists;
 
   const sum = (arr, key) => arr.reduce((s, m) => s + (toNum(m[key]) || 0), 0);
   const totalQC =
