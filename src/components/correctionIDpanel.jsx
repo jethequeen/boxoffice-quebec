@@ -1,12 +1,8 @@
 ﻿import { useState } from "react";
 import { apiCall } from "../utils/api";
+import { getMovieDetails, correctMovieID } from '../utils/api';
 
-/**
- * UI pour corriger un ID temporaire.
- * Hypothèse backend: POST /correctMovieId  body: { tempId, newId }
- * - Valide que newId est numérique et différent
- * - Prévisualise (facultatif) le film ciblé via GET /getMovieDetails?movieId=newId
- */
+
 export default function CorrectionIdPanel({ tempId, onSuccess }) {
     const [newId, setNewId] = useState("");
     const [loading, setLoading] = useState(false);
@@ -21,7 +17,7 @@ export default function CorrectionIdPanel({ tempId, onSuccess }) {
         if (String(newId) === String(tempId)) { setError("L’ID doit être différent de l’actuel."); return; }
         try {
             setLoading(true);
-            const data = await apiCall(`getMovieDetails?movieId=${newId}`);
+            const data = await getMovieDetails(newId);
             setPreview({
                 id: newId,
                 title: data?.movie?.fr_title || data?.movie?.title || "(titre inconnu)",
@@ -40,18 +36,16 @@ export default function CorrectionIdPanel({ tempId, onSuccess }) {
         if (!numeric(newId)) { setError("L’ID doit être numérique."); return; }
         try {
             setLoading(true);
-            await apiCall("correctMovieId", {
-                method: "POST",
-                body: JSON.stringify({ tempId: Number(tempId), newId: Number(newId) }),
-                headers: { "Content-Type": "application/json" }
-            });
-            onSuccess?.(Number(newId));
+            const res = await apiCall("correctMovieID", { method: "POST", body: { tempId: Number(tempId), newId: Number(newId) }});
+            // Feedback rapide + redirection
+            onSuccess?.(Number(res?.newId || newId));
         } catch (e) {
             setError("La correction a échoué. Vérifie l’ID ou réessaie.");
         } finally {
             setLoading(false);
         }
     }
+
 
     return (
         <div className="idfix">

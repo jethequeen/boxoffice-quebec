@@ -1,6 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { apiCall } from '../utils/api';
 import './MovieDetails.css';
 import { getFridayFromWeekendId } from '../utils/weekendUtils';
 import { createColumnsCatalog } from '../utils/catalog';
@@ -9,15 +8,54 @@ import { formatCurrency, toNum, pct0} from "../utils/formatUtils.js";
 import { useNavigate } from "react-router-dom";
 import Tabs from "../components/Tabs";
 import CorrectionIdPanel from "../components/CorrectionIdPanel";
+import { getMovieDetails } from '../utils/api';
 
 function useIsMobile(breakpoint = 768) {
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia(`(max-width:${breakpoint}px)`).matches);
+  const getMatch = () => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+
+    const mqWidth  = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const mqCoarse = window.matchMedia(`(pointer: coarse)`); // phones/tablets
+
+    // Mobile if either: small width OR coarse pointer (covers “Desktop site” on phones)
+    return mqWidth.matches || mqCoarse.matches;
+  };
+
+  const [isMobile, setIsMobile] = useState(getMatch);
+
   useEffect(() => {
-    const mq = window.matchMedia(`(max-width:${breakpoint}px)`);
-    const onChange = e => setIsMobile(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+
+    const mqWidth  = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const mqCoarse = window.matchMedia(`(pointer: coarse)`);
+
+    const update = () => setIsMobile(mqWidth.matches || mqCoarse.matches);
+
+    // Chromium: 'change'; Safari older: addListener/removeListener fallback
+    if (mqWidth.addEventListener) {
+      mqWidth.addEventListener("change", update);
+      mqCoarse.addEventListener("change", update);
+    } else {
+      mqWidth.addListener(update);
+      mqCoarse.addListener(update);
+    }
+
+    // Also listen to resize to catch odd cases
+    window.addEventListener("resize", update);
+    update();
+
+    return () => {
+      if (mqWidth.removeEventListener) {
+        mqWidth.removeEventListener("change", update);
+        mqCoarse.removeEventListener("change", update);
+      } else {
+        mqWidth.removeListener(update);
+        mqCoarse.removeListener(update);
+      }
+      window.removeEventListener("resize", update);
+    };
   }, [breakpoint]);
+
   return isMobile;
 }
 
@@ -47,7 +85,7 @@ function MovieDetails() {
   async function fetchMovieDetails() {
     try {
       setLoading(true);
-      const result = await apiCall(`getMovieDetails?movieId=${id}`);
+      const result = await getMovieDetails(id);
       setMovieData(result);
     } catch (err) {
       console.error('Error fetching movie details:', err);
@@ -58,7 +96,7 @@ function MovieDetails() {
   }
 
   function handleIdCorrected(newId) {
-    navigate(`/movie/${newId}`, { replace: true });
+    navigate(`/box-office`, { replace: true });
     // on pourrait aussi refetch ici si tu veux rester sur place
   }
 
@@ -385,7 +423,6 @@ function MovieDetails() {
       <CorrectionIdPanel tempId={id} onSuccess={handleIdCorrected} />
   );
 
-  // Header minimal pour mobile (poster/banner, titres, recettes QC, réal)
   const MobileHeader = (
       <section className="tmdb-hero tmdb-hero--compact">
         {backdropUrl && (
@@ -446,6 +483,7 @@ function MovieDetails() {
   const desktopTabs = [
     { key: "box", label: "Box Office", content: tabBoxOffice },
     { key: "stats", label: "Stats", content: tabStats },
+    ...(isTempId ? [{ key: "fix", label: "Correction de l’ID", content: tabCorrection }] : [])
   ];
 
   // --- Rendu ---

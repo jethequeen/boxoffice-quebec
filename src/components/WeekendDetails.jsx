@@ -105,7 +105,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       setLoading(true);
       setError(null);
 
-      const res = await getBoxOfficeData(50, realWeekendId);
+      const res = await getBoxOfficeData(75, realWeekendId);
       const { weekend, movies } = pickPayload(res);
 
       setWeekendMeta(weekend);

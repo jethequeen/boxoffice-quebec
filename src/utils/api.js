@@ -96,3 +96,9 @@ export const getWeekendBoxOffice = (weekendId) =>
 
 export const getYearSummary = (year, scope = 'all') =>
     apiCall('getYearSummary', { query: { year, scope } });
+
+export const correctMovieID = (tempId, newId) =>
+    apiCall('correctMovieID', {
+      method: 'POST',
+      body: { tempId: Number(tempId), newId: Number(newId) },
+    });
