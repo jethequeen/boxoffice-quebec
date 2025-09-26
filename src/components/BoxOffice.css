@@ -20,7 +20,7 @@
 /* ===== Table ===== */
 .box-office-table {
   width: 100%;
-  table-layout: fixed;         /* lock widths so ellipsis works */
+  table-layout: fixed;
 }
 
 .box-office-table th,
@@ -45,8 +45,6 @@
 }
 
 
-
-/* Numeric cells compact + aligned */
 .gross-cell,
 .cumulative-cell,
 .rev-per-theater-cell { white-space: nowrap; }
@@ -56,7 +54,7 @@
   color: #334155;
 }
 
-/* Film title block (no overlap, clamp to 2 lines) */
+
 .movie-title-wrap { display: flex; flex-direction: column; min-width: 0; max-width: 100%; }
 .movie-title-fr {
   font-weight: 800;
@@ -95,11 +93,10 @@
 @keyframes spin { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.8} }
 
-/* force a tight vertical stack */
 .box-office-table .movie-cell .movie-title-wrap{
   display:flex;
   flex-direction:column;
-  gap:0;               /* no extra flex gap */
+  gap:0;
   line-height:1.1;
 }
 
@@ -240,15 +237,7 @@
   color: #0f172a;
 }
 
-/* Arrow buttons (same look you liked) */
-.nav-arrow {
-  width: 42px; height: 42px;
-  border: 0; border-radius: 10px;
-  background: linear-gradient(180deg,#818cf8,#6366f1);
-  color: #fff; font-weight: 700; font-size: 1.15rem;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-}
+
 .nav-arrow.disabled { opacity: .35; cursor: not-allowed; }
 
 
@@ -739,7 +728,7 @@ table tr:has(.flash-highlight) th,
     text-decoration: none;
   }
 
-  /* VO stays a single, muted line */
+
   .movie-title-vo {
     display: block;
     white-space: nowrap;
@@ -949,7 +938,7 @@ table tr:has(.flash-highlight) th,
   box-shadow: 8px 0 10px -8px rgba(15,23,42,.22);
 }
 
-/* Contents inside lead cell */
+
 .lead-wrap { display: flex; align-items: center; gap: 6px; width: var(--lead-w, 72px); }
 .lead-cell { overflow: visible; }
 
@@ -961,31 +950,22 @@ table tr:has(.flash-highlight) th,
   .rank-chip { font-size: .7em; width: 10px; }
 }
 
-/* Ensure horizontal overflow exists on small viewports */
+
 .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-
-
-
-
-/* === Comfortable mobile preset (bigger text + rows) === */
 @media (max-width:680px) {
 
-
-  /* 3) Poster a bit taller; row height follows */
   .title-cell {
     --poster-h: 46px;
     gap: 8px;
   }
 
-  /* row ≈ poster height */
   .poster-thumb {
     width: 40px;
     height: var(--poster-h);
     border-radius: 8px;
   }
 
-  /* 4) Text sizing/leading for readability */
   .movie-title-fr {
     font-size: 1.2em;
     line-height: 1.1;
@@ -997,14 +977,12 @@ table tr:has(.flash-highlight) th,
     margin-top: 5px;
   }
 
-  /* 5) Rank stays readable but discreet */
   .rank-chip {
     font-size: .82em;
     width: 12px;
     line-height: 1;
   }
 
-  /* 6) Keep sticky lead column wide enough for poster+rank */
   :root {
     --lead-w: 74px;
   }
@@ -1014,25 +992,29 @@ table tr:has(.flash-highlight) th,
   }
 
 
-  /* === Zero-gap stack for FR/VO titles === */
   .box-office-table .title-cell .title-text {
-    min-height: 0 !important; /* kill the extra height */
+    min-height: 0 !important;
     justify-content: flex-start !important;
   }
 
   .box-office-table .movie-title-fr {
     margin: 0 !important;
     padding: 0 !important;
-    line-height: 1.02 !important; /* very tight */
-    /* If the clamp adds spacing, you can keep it; else un-comment next line: */
-    /* -webkit-line-clamp: unset !important; -webkit-box-orient: unset !important; display: inline !important; */
+    line-height: 1.02 !important;
   }
 
   .box-office-table .movie-title-vo {
     margin: 0 !important;
     padding: 0 !important;
-    /* Tuck it even closer if your font still shows a hairline gap: */
-    margin-top: -3px !important; /* tweak -1 to -3px to taste */
+    margin-top: -3px !important;
   }
 
+}
+@media (max-width:680px){
+  .table-section { --section-pad-x: 1.25rem; }
+  .table-section {
+    margin-left: calc(var(--section-pad-x) * -1) !important;
+    margin-right: calc(var(--section-pad-x) * -1) !important;
+    -webkit-overflow-scrolling: touch;
+  }
 }
