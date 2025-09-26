@@ -62,6 +62,7 @@ function useIsMobile(breakpoint = 768) {
 
 function MovieDetails() {
   const { id } = useParams();
+
   const [movieData, setMovieData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -101,6 +102,13 @@ function MovieDetails() {
   }
 
   const { pickColumns } = createColumnsCatalog({ Link, formatCurrency, pct0, toNum })
+
+
+
+// Vite dev flag + localhost check (covers netlify dev on 8888)
+  const isDev =
+      import.meta.env.DEV ||
+      /^(localhost|127\.0\.0\.1|::1)$/.test(window.location.hostname);
 
 
   if (loading) {
@@ -472,18 +480,18 @@ function MovieDetails() {
       </section>
   );
 
-  // Construction des onglets selon la plateforme
+// Tabs: only add the correction tab when isDev && isTempId
   const mobileTabs = [
     { key: "box", label: "Box Office", content: tabBoxOffice },
     { key: "info", label: "Info", content: tabInfo },
     { key: "stats", label: "Stats", content: tabStats },
-    ...(isTempId ? [{ key: "fix", label: "Correction de l’ID", content: tabCorrection }] : []),
+    ...(isDev && isTempId ? [{ key: "fix", label: "Correction de l’ID", content: tabCorrection }] : []),
   ];
 
   const desktopTabs = [
     { key: "box", label: "Box Office", content: tabBoxOffice },
     { key: "stats", label: "Stats", content: tabStats },
-    ...(isTempId ? [{ key: "fix", label: "Correction de l’ID", content: tabCorrection }] : [])
+    ...(isDev && isTempId ? [{ key: "fix", label: "Correction de l’ID", content: tabCorrection }] : []),
   ];
 
   // --- Rendu ---
