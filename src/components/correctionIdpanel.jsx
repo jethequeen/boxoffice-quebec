@@ -3,7 +3,7 @@ import { apiCall } from "../utils/api";
 import { getMovieDetails, correctMovieID } from '../utils/api';
 
 
-export default function CorrectionIdPanel({ tempId, onSuccess }) {
+export default function CorrectionIdpanel({ tempId, onSuccess }) {
     const [newId, setNewId] = useState("");
     const [loading, setLoading] = useState(false);
     const [preview, setPreview] = useState(null);

@@ -7,7 +7,7 @@ import MovieTable from '../components/movieTable';
 import { formatCurrency, toNum, pct0} from "../utils/formatUtils.js";
 import { useNavigate } from "react-router-dom";
 import Tabs from "../components/Tabs";
-import CorrectionIdPanel from "../components/CorrectionIdPanel";
+import CorrectionIdpanel from "./correctionIdpanel.jsx";
 import { getMovieDetails } from '../utils/api';
 
 function useIsMobile(breakpoint = 768) {
@@ -420,7 +420,7 @@ function MovieDetails() {
   );
 
   const tabCorrection = (
-      <CorrectionIdPanel tempId={id} onSuccess={handleIdCorrected} />
+      <CorrectionIdpanel tempId={id} onSuccess={handleIdCorrected} />
   );
 
   const MobileHeader = (
