@@ -348,6 +348,7 @@
 }
 
 
+
 /* Column picker (shared) */
 .columns-popover { position:relative; }
 .columns-button::-webkit-details-marker{display:none}
@@ -1016,5 +1017,23 @@ table tr:has(.flash-highlight) th,
     margin-left: calc(var(--section-pad-x) * -1) !important;
     margin-right: calc(var(--section-pad-x) * -1) !important;
     -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ===== Mobile: lock the table width so columns don't resize when toggled ===== */
+@media (max-width:680px){
+  /* choose a width that matches your fixed col sizes sum (+ a little buffer) */
+  :root { --mobile-table-w: 1px; } /* tweak to taste: 900–1100px */
+
+  .table-container{
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .box-office-table{
+    table-layout: fixed !important;
+    width: var(--mobile-table-w) !important;
+    min-width: var(--mobile-table-w) !important;  /* prevents reflow */
+    max-width: var(--mobile-table-w) !important;
   }
 }
