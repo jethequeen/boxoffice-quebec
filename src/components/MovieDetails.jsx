@@ -67,7 +67,7 @@ function MovieDetails() {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const isTempId = Number(id) >= 10_000_000; // Temporaire
+  const isTempId = true;
 
   const formatWeekendRange = (weekendId) => {
     const fri = getFridayFromWeekendId(String(weekendId));

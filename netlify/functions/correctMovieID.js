@@ -35,65 +35,37 @@ async function enrichFromTmdb(movieId) {
 
     await sql/*sql*/`BEGIN`;
     try {
-        // Upsert du film (sans écraser tes valeurs si elles existent déjà)
         await sql/*sql*/`
             INSERT INTO movies (id, title, fr_title, release_date, popularity, poster_path, backdrop_path, budget, runtime)
             VALUES (${movieId}, ${details.title ?? null}, NULL, ${release}, ${popularity}, ${poster}, ${backdrop}, ${budget}, ${runtime})
                 ON CONFLICT (id) DO UPDATE
-                                        SET
-                                            title         = COALESCE(movies.title,         EXCLUDED.title),
+                                        SET title         = COALESCE(movies.title,         EXCLUDED.title),
                                         fr_title      = COALESCE(movies.fr_title,      EXCLUDED.fr_title),
                                         release_date  = COALESCE(movies.release_date,  EXCLUDED.release_date),
                                         poster_path   = COALESCE(movies.poster_path,   EXCLUDED.poster_path),
                                         backdrop_path = COALESCE(movies.backdrop_path, EXCLUDED.backdrop_path),
                                         budget        = CASE WHEN movies.budget  IS NULL OR movies.budget  = 0
                                         THEN COALESCE(EXCLUDED.budget,  movies.budget)  ELSE movies.budget  END,
-        runtime       = CASE WHEN movies.runtime IS NULL OR movies.runtime = 0
-                       THEN COALESCE(EXCLUDED.runtime, movies.runtime) ELSE movies.runtime END,
-        popularity    = COALESCE(EXCLUDED.popularity, movies.popularity)
+            runtime       = CASE WHEN movies.runtime IS NULL OR movies.runtime = 0
+                                 THEN COALESCE(EXCLUDED.runtime, movies.runtime) ELSE movies.runtime END,
+            popularity    = COALESCE(EXCLUDED.popularity, movies.popularity)
         `;
 
-        // Genres + liens
         for (const g of details.genres || []) {
-            await sql/*sql*/`
-                INSERT INTO genres (id, name) VALUES (${g.id}, ${g.name})
-                    ON CONFLICT (id) DO NOTHING
-            `;
-            await sql/*sql*/`
-                INSERT INTO movie_genres (movie_id, genre_id)
-                VALUES (${movieId}, ${g.id})
-                    ON CONFLICT DO NOTHING
-            `;
+            await sql/*sql*/`INSERT INTO genres (id, name) VALUES (${g.id}, ${g.name}) ON CONFLICT (id) DO NOTHING`;
+            await sql/*sql*/`INSERT INTO movie_genres (movie_id, genre_id) VALUES (${movieId}, ${g.id}) ON CONFLICT DO NOTHING`;
         }
 
-        // Pays + liens
         for (const c of details.production_countries || []) {
-            await sql/*sql*/`
-                INSERT INTO countries (code, fr_name) VALUES (${c.iso_3166_1}, ${c.name})
-                    ON CONFLICT (code) DO NOTHING
-            `;
-            await sql/*sql*/`
-                INSERT INTO movie_countries (movie_id, country_code)
-                VALUES (${movieId}, ${c.iso_3166_1})
-                    ON CONFLICT DO NOTHING
-            `;
+            await sql/*sql*/`INSERT INTO countries (code, fr_name) VALUES (${c.iso_3166_1}, ${c.name}) ON CONFLICT (code) DO NOTHING`;
+            await sql/*sql*/`INSERT INTO movie_countries (movie_id, country_code) VALUES (${movieId}, ${c.iso_3166_1}) ON CONFLICT DO NOTHING`;
         }
 
-        // Studios + liens
         for (const s of details.production_companies || []) {
-            await sql/*sql*/`
-                INSERT INTO studios (id, name, popularity)
-                VALUES (${s.id}, ${s.name}, NULL)
-                    ON CONFLICT (id) DO NOTHING
-            `;
-            await sql/*sql*/`
-                INSERT INTO movie_studio (movie_id, studio_id)
-                VALUES (${movieId}, ${s.id})
-                    ON CONFLICT DO NOTHING
-            `;
+            await sql/*sql*/`INSERT INTO studios (id, name, popularity) VALUES (${s.id}, ${s.name}, NULL) ON CONFLICT (id) DO NOTHING`;
+            await sql/*sql*/`INSERT INTO movie_studio (movie_id, studio_id) VALUES (${movieId}, ${s.id}) ON CONFLICT DO NOTHING`;
         }
 
-        // Réals
         const directors = (credits.crew || []).filter(p => p.job === 'Director');
         for (const d of directors) {
             await sql/*sql*/`
@@ -101,25 +73,16 @@ async function enrichFromTmdb(movieId) {
                 VALUES (${d.id}, ${d.name}, ${d.known_for_department}, ${d.popularity}, ${d.gender}, ${d.profile_path})
                     ON CONFLICT (id) DO NOTHING
             `;
-            await sql/*sql*/`
-                INSERT INTO movie_crew (movie_id, crew_id, job)
-                VALUES (${movieId}, ${d.id}, ${d.job})
-                    ON CONFLICT DO NOTHING
-            `;
+            await sql/*sql*/`INSERT INTO movie_crew (movie_id, crew_id, job) VALUES (${movieId}, ${d.id}, ${d.job}) ON CONFLICT DO NOTHING`;
         }
 
-        // Acteurs (top 9)
         for (const a of (credits.cast || []).slice(0, 9)) {
             await sql/*sql*/`
                 INSERT INTO actors (id, name, popularity, gender, profile_path, known_for_department)
                 VALUES (${a.id}, ${a.name}, ${a.popularity}, ${a.gender}, ${a.profile_path}, ${a.known_for_department})
                     ON CONFLICT (id) DO NOTHING
             `;
-            await sql/*sql*/`
-                INSERT INTO movie_actors (movie_id, actor_id, "order")
-                VALUES (${movieId}, ${a.id}, ${a.order})
-                    ON CONFLICT DO NOTHING
-            `;
+            await sql/*sql*/`INSERT INTO movie_actors (movie_id, actor_id, "order") VALUES (${movieId}, ${a.id}, ${a.order}) ON CONFLICT DO NOTHING`;
         }
 
         await sql/*sql*/`COMMIT`;
@@ -137,58 +100,58 @@ export const handler = async (event) => {
     try {
         const { tempId, newId } = JSON.parse(event.body || '{}');
         const t = Number(tempId), n = Number(newId);
-        const [{ old_title, old_fr_title } = {}] = await sql/*sql*/`
-          SELECT title AS old_title, fr_title AS old_fr_title
-          FROM movies
-          WHERE id = ${t}
-          LIMIT 1
-        `;
 
-        if (!Number.isInteger(t) || !Number.isInteger(n))
+        // 1) validations minimales
+        if (!Number.isInteger(t) || !Number.isInteger(n)) {
             return jsonResponse(400, { error: 'tempId and newId must be integers' });
-        if (t === n)
-            return jsonResponse(400, { error: 'tempId and newId must be different' });
-
-        // Garde-fou : tempId doit être un ID temporaire, newId un ID TMDb plausible
-        if (!(t >= 10_000_000) || !(n > 0 && n < 10_000_000)) {
+        }
+        // newId doit être un ID TMDb plausible
+        if (!(n > 0 && n < 10_000_000)) {
             return jsonResponse(400, {
                 error: 'Bad ID roles',
-                hint: 'tempId >= 10000000 (temporaire). newId = ID TMDb (< 10000000).',
+                hint: 'newId = ID TMDb (< 10000000). tempId peut être n’importe quel entier ≠ newId.',
                 got: { tempId: t, newId: n },
             });
         }
 
-        // --- Étape 0: garantir que la ligne parent (newId) existe AVANT les FKs
-        await sql/*sql*/`
-            INSERT INTO movies (id) VALUES (${n})
-                ON CONFLICT (id) DO NOTHING
-        `;
+        const [{ old_title, old_fr_title } = {}] = await sql/*sql*/`
+      SELECT title AS old_title, fr_title AS old_fr_title
+      FROM movies
+      WHERE id = ${t}
+      LIMIT 1
+    `;
 
-        // --- Étape 1: migration FK + bascule de la PK
+        // 2) s’assurer que newId existe (idempotent)
+        await sql/*sql*/`INSERT INTO movies (id) VALUES (${n}) ON CONFLICT (id) DO NOTHING`;
+
+        // --- Étape 1: RESET temp’s wrong attachments, KEEP facts (revenues, showings), then drop temp
         await sql/*sql*/`BEGIN`;
         try {
-            // Sanity: temp doit exister
             const [{ exists: tempExists } = { exists: false }] = await sql/*sql*/`
-        SELECT EXISTS(SELECT 1 FROM movies WHERE id = ${t}) AS exists
-      `;
+    SELECT EXISTS(SELECT 1 FROM movies WHERE id = ${t}) AS exists
+  `;
             if (!tempExists) {
                 await sql/*sql*/`ROLLBACK`;
                 return jsonResponse(404, { error: `Temp movie ${t} not found` });
             }
 
-            // Enfants → newId (le parent newId existe déjà)
-            await sql/*sql*/`UPDATE movie_genres     SET movie_id = ${n} WHERE movie_id = ${t};`;
-            await sql/*sql*/`UPDATE movie_countries  SET movie_id = ${n} WHERE movie_id = ${t};`;
-            await sql/*sql*/`UPDATE movie_studio     SET movie_id = ${n} WHERE movie_id = ${t};`;
-            await sql/*sql*/`UPDATE movie_crew       SET movie_id = ${n} WHERE movie_id = ${t};`;
-            await sql/*sql*/`UPDATE movie_actors     SET movie_id = ${n} WHERE movie_id = ${t};`;
+            // lock both ids (single statement)
+            await sql/*sql*/`SELECT id FROM movies WHERE id IN (${t}, ${n}) FOR UPDATE`;
 
-            await sql/*sql*/`UPDATE revenues         SET film_id = ${n} WHERE film_id = ${t};`;
-            await sql/*sql*/`UPDATE daily_revenues   SET film_id = ${n} WHERE film_id = ${t};`;
-            await sql/*sql*/`UPDATE showings         SET movie_id = ${n} WHERE movie_id = ${t};`;
+            // 1) Wipe attachments on the temp movie — ONE STATEMENT PER CALL
+            await sql/*sql*/`DELETE FROM movie_genres    WHERE movie_id = ${t}`;
+            await sql/*sql*/`DELETE FROM movie_countries WHERE movie_id = ${t}`;
+            await sql/*sql*/`DELETE FROM movie_studio    WHERE movie_id = ${t}`;
+            await sql/*sql*/`DELETE FROM movie_crew      WHERE movie_id = ${t}`;
+            await sql/*sql*/`DELETE FROM movie_actors    WHERE movie_id = ${t}`;
+            await sql/*sql*/`DELETE FROM daily_revenues  WHERE film_id  = ${t}`;
 
-            // Supprimer la ligne temporaire (elle n’est plus référencée)
-            await sql/*sql*/`DELETE FROM movies WHERE id = ${t};`;
+            // 2) Keep facts: move to the new ID — also split
+            await sql/*sql*/`UPDATE revenues SET film_id = ${n} WHERE film_id = ${t}`;
+            await sql/*sql*/`UPDATE showings  SET movie_id = ${n} WHERE movie_id = ${t}`;
+
+            // 3) Drop temp parent
+            await sql/*sql*/`DELETE FROM movies WHERE id = ${t}`;
 
             await sql/*sql*/`COMMIT`;
         } catch (e) {
@@ -196,20 +159,23 @@ export const handler = async (event) => {
             throw e;
         }
 
-        // --- Étape 2: enrichissement TMDb (film + liens)
+        // 4) enrichissement TMDb du newId puis backfill fr_title
         await enrichFromTmdb(n);
         await sql/*sql*/`
-          UPDATE movies
-             SET fr_title = COALESCE(fr_title, ${old_fr_title ?? null}, ${old_title ?? null})
-           WHERE id = ${n}
+            UPDATE movies
+            SET fr_title = COALESCE(fr_title, ${old_fr_title ?? null}, ${old_title ?? null})
+            WHERE id = ${n}
         `;
 
         return jsonResponse(200, { ok: true, newId: n, redirect: `/movie/${n}` });
     } catch (err) {
+        // expose plus d’infos en dev
         console.error('correctMovieId error:', err);
         return jsonResponse(500, {
             error: 'Failed to correct movie id',
-            details: err.message,
+            details: err?.detail || err?.message || String(err),
+            constraint: err?.constraint,
+            code: err?.code,
             function: 'correctMovieId',
             timestamp: new Date().toISOString(),
         });
