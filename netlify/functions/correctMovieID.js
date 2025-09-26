@@ -10,8 +10,9 @@ async function fetchJson(url) {
 
 // Insère/Met à jour le film + TOUS les liens (genres, pays, studios, crew, actors)
 async function enrichFromTmdb(movieId) {
-    const key = process.env.TMDB_API_KEY;
+    const key = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY;
     if (!key) throw new Error('TMDB_API_KEY missing');
+
 
     const [details, credits, images] = await Promise.all([
         fetchJson(`https://api.themoviedb.org/3/movie/${movieId}?api_key=${key}&language=en-US`),
@@ -159,13 +160,19 @@ export const handler = async (event) => {
             throw e;
         }
 
-        // 4) enrichissement TMDb du newId puis backfill fr_title
-        await enrichFromTmdb(n);
+// 4) enrichissement TMDb du newId puis backfill fr_title
+        try {
+            await enrichFromTmdb(n);
+        } catch (e) {
+            console.warn('enrichFromTmdb failed; continuing without enrichment:', e?.message || e);
+        }
+
         await sql/*sql*/`
-            UPDATE movies
-            SET fr_title = COALESCE(fr_title, ${old_fr_title ?? null}, ${old_title ?? null})
-            WHERE id = ${n}
-        `;
+  UPDATE movies
+     SET fr_title = COALESCE(fr_title, ${old_fr_title ?? null}, ${old_title ?? null})
+   WHERE id = ${n}
+`;
+
 
         return jsonResponse(200, { ok: true, newId: n, redirect: `/movie/${n}` });
     } catch (err) {
