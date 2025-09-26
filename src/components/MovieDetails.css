@@ -318,3 +318,234 @@
   backdrop-filter: blur(6px);
 }
 @media (max-width: 680px){ .hero-toggle{ display: inline-flex; } }
+
+/* --- Tabs --- */
+.tabs { margin-top: 12px; }
+.tabs__list {
+  display: flex; gap: .5rem; overflow-x: auto; padding-bottom: .25rem;
+  border-bottom: 1px solid rgba(0,0,0,.08);
+}
+.tabs__tab {
+  appearance:none; border:1px solid rgba(0,0,0,.08);
+  background:#fff; border-radius:999px; padding:.45rem .9rem; font-weight:700;
+  cursor:pointer; white-space:nowrap;
+}
+.tabs__tab.is-active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color:#fff; border-color: transparent;
+}
+.tabs__panel { padding: .75rem 0; }
+
+/* --- Correction ID --- */
+.idfix__row { display:flex; gap:.5rem; margin:.5rem 0; }
+.idfix__input {
+  flex:1; padding:.55rem .7rem; border-radius:10px; border:1px solid #d1d5db;
+}
+.btn { padding:.55rem .8rem; border-radius:10px; border:1px solid #d1d5db; background:#fff; font-weight:700; cursor:pointer; }
+.btn--primary { background:#111827; color:#fff; border-color:#111827; }
+.idfix__error { color:#e11d48; font-weight:700; margin:.25rem 0; }
+.idfix__preview { display:flex; gap:.75rem; align-items:center; padding:.5rem; border:1px solid #e5e7eb; border-radius:12px; }
+.idfix__preview img { width:60px; height:90px; border-radius:8px; object-fit:cover; }
+.idfix__title { font-weight:800; }
+.idfix__subtitle { color:#6b7280; font-size:.9rem; }
+.idfix__notes { margin:.5rem 1rem; color:#6b7280; font-size:.9rem; }
+
+/* Ancienne règle qui empilait en 1 colonne : à retirer
+@container hero (max-width: 560px){
+  .tmdb-hero__content{ grid-template-columns:1fr; text-align:center; }
+  .tmdb-hero__poster{ order:-1; margin:0 auto var(--space-3); }
+  .metrics{ grid-template-columns:1fr; }
+  .people-list{ justify-content:center; }
+}
+*/
+
+/* Nouvelle règle : toujours 2 colonnes même en mobile,
+   poster petit à gauche, texte à droite */
+@container hero (max-width: 560px){
+  .tmdb-hero__content{
+    grid-template-columns: 90px 1fr;
+    align-items: center;
+    text-align: left;
+    gap: var(--space-3);
+  }
+  .tmdb-hero__poster img, .poster-placeholder{
+    width: 84px;
+    height: 120px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,.35);
+  }
+  .metrics{ grid-template-columns: 1fr; }
+  .people-list{ justify-content: flex-start; }
+}
+
+/* --- FINAL MOBILE OVERRIDES (paste at the very end) --- */
+@container hero (max-width: 560px){
+  /* force two columns for BOTH regular and --compact variants */
+  .tmdb-hero__content,
+  .tmdb-hero--compact .tmdb-hero__content{
+    grid-template-columns: 90px 1fr !important;
+    align-items: center !important;
+    text-align: left !important;
+    gap: var(--space-3) !important;
+  }
+
+  /* poster stays on the left (undo any order:-1) */
+  .tmdb-hero__poster,
+  .tmdb-hero--compact .tmdb-hero__poster{
+    order: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* smaller poster on mobile */
+  .tmdb-hero__poster img,
+  .tmdb-hero--compact .tmdb-hero__poster img,
+  .poster-placeholder{
+    width: 84px !important;
+    height: 120px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,.35) !important;
+  }
+
+  /* single-column KPIs; keep people left-aligned */
+  .metrics{ grid-template-columns: 1fr !important; }
+  .people-list{ justify-content: flex-start !important; }
+}
+
+/* --- Tabs readability --- */
+.tabs { margin-top: 12px; }
+.tabs__list{
+  display:flex; gap:.5rem; overflow-x:auto; padding:.4rem;
+  background:#fff; border-radius:999px;
+  box-shadow:0 2px 12px rgba(0,0,0,.08);
+  border:1px solid rgba(0,0,0,.06);
+}
+.tabs__tab{
+  appearance:none; border:none; background:transparent;
+  color:#334155;                                    /* readable on white */
+  font-weight:700; padding:.5rem .9rem; border-radius:999px;
+  cursor:pointer; white-space:nowrap;
+}
+.tabs__tab:is(:hover,:focus-visible){ background:rgba(79,70,229,.08); }
+.tabs__tab.is-active{
+  background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+  color:#fff;
+}
+
+/* --- Info panel --- */
+.info-panel{ padding:.5rem 0; color:var(--fg-1); }
+.info-row{ margin-bottom:.75rem; }
+.info-h3{ margin:0 0 .25rem; font-size:1rem; color:#e5e7eb; }
+.info-text{ margin:0; color:#f1f5f9; line-height:1.35; }
+.info-panel .chips{ display:flex; flex-wrap:wrap; gap:.5rem; }
+.info-panel .kpis .metric__label{ color:#d1d5db; }
+
+/* --- Info Card (clean, readable) --- */
+.info-card{
+  background:#fff;
+  border:1px solid rgba(0,0,0,.06);
+  border-radius:16px;
+  box-shadow:0 10px 24px rgba(0,0,0,.06);
+  padding:12px 14px;
+  color:#111827;            /* force dark text for content area */
+}
+
+.info-row{ margin-bottom:12px; }
+.info-row:last-child{ margin-bottom:0; }
+
+/* Tiny section headings */
+.info-h3{
+  margin:0 0 6px;
+  font-size:1rem;
+  font-weight:800;
+  color:#111827;
+}
+
+/* Subtle label (e.g., "Genres") */
+.info-subtle{
+  font-size:.85rem;
+  font-weight:700;
+  color:#6b7280;
+  margin:0 0 6px;
+}
+
+/* Meta line at top (date + runtime) */
+.info-meta{ display:flex; gap:.5rem; flex-wrap:wrap; }
+
+/* Chips area */
+.info-chips{ display:flex; gap:.45rem; flex-wrap:wrap; }
+
+/* KPIs row (Countries + Budget) */
+.info-kpis{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:10px;
+}
+@container hero (max-width:560px){
+  .info-kpis{ grid-template-columns:1fr; }
+}
+.info-kpi{
+  background:#f8fafc;
+  border:1px solid #eef2f7;
+  border-radius:12px;
+  padding:10px 12px;
+}
+.info-kpi__label{
+  font-size:.75rem;
+  color:#64748b;
+  font-weight:700;
+  margin-bottom:4px;
+}
+.info-kpi__value{
+  font-weight:800;
+  color:#111827;
+}
+.info-kpi__value .chip{ /* country chips inside kpi */
+  background:#eef2ff;
+  border-color:#e0e7ff;
+  color:#3730a3;
+}
+
+/* Synopsis */
+.info-text{
+  margin:0;
+  color:#111827;
+  line-height:1.4;
+}
+
+/* Cast list */
+.info-cast{
+  list-style:none; margin:0; padding:0;
+  display:grid; gap:10px;
+}
+.info-cast__item{
+  display:flex; align-items:center; gap:10px;
+}
+.avatar--md{ width:40px; height:40px; border-radius:999px; overflow:hidden; background:#e5e7eb; }
+.avatar--md img{ width:100%; height:100%; object-fit:cover; display:block; }
+.info-cast__name{
+  font-weight:700; text-decoration:none; color:#111827;
+}
+.info-cast__name:hover{ text-decoration:underline; }
+
+/* White chips in the desktop hero */
+.tmdb-hero__chips .chip--meta{
+  color:#fff;
+  background:rgba(255,255,255,.14);
+  border-color:rgba(255,255,255,.22);
+}
+
+/* Black chips in the mobile Info card */
+.info-card .chip--meta{
+  color:#111827;                  /* black text */
+  background:#eef2ff;             /* light indigo BG */
+  border-color:#e0e7ff;           /* soft border */
+}
+
+/* If you want to be explicit by viewport too (optional): */
+@media (min-width: 769px){
+  .info-card .chip--meta{
+    color:#fff;
+    background:rgba(255,255,255,.14);
+    border-color:rgba(255,255,255,.22);
+  }
+}
