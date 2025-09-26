@@ -17,3 +17,6 @@ status = 200
 from = "/*"
 to   = "/index.html"
 status = 200
+
+[functions.environment]
+TMDB_API_KEY = "3d086ca0452b6022e9f3469f336ddbf9"
