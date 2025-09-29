@@ -14,6 +14,9 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         return Math.abs(n) <= 1 ? n * 100 : n;
     };
 
+    const EPS = 1e-9;
+    const approx = (a, b) => Math.abs(a - b) < EPS;
+
     const fmtPct2 = (x) => {
         if (x == null || !Number.isFinite(x)) return '—';
         // round to 2 decimals first so 18.00001 doesn’t show ",01"
@@ -69,13 +72,36 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         align: 'center',
         widthPct: 6,
         headerAlign: 'center',
-        value: (m) => m.change_percent || "-",
-        render: (v, m) => (
-            <span className={toNum(m.change_percent) >= -40 ? 'positive' : 'negative'}>
-        {pct0(v)}
-      </span>
-        ),
+
+        // numeric value for sorting/CSV
+        value: (m) => {
+            const x = toNum(m.change_percent);
+            if (!Number.isFinite(x)) return "-";
+            // mask for 0%, +100%, -100%
+            if (approx(x, 0) || approx(Math.abs(x), 100)) return "-";
+            return x;
+        },
+
+        // ensure numeric sort even when UI shows "–"
+        sortValue: (m) => {
+            const x = toNum(m.change_percent);
+            if (!Number.isFinite(x) || approx(x, 0) || approx(Math.abs(x), 100)) {
+                return Number.NEGATIVE_INFINITY;
+            }
+            return x;
+        },
+
+        render: (_v, m) => {
+            const x = toNum(m.change_percent);
+            if (!Number.isFinite(x) || approx(x, 0) || approx(Math.abs(x), 100)) {
+                return <span className="muted">-</span>;
+            }
+            const cls = x < -40 ? 'negative' : 'positive';
+            return <span className={cls}>{pct0(x)}</span>;
+        },
     };
+
+
 
     const week_count = {
         key: 'week_number',
