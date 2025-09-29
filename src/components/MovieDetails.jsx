@@ -427,6 +427,15 @@ function MovieDetails() {
       <div style={{padding:"12px 0"}}>Statistiques à venir.</div>
   );
 
+  const tabHoraire = (
+      <div style={{padding:"12px 0"}}>Horaires et représentations à venir.</div>
+  );
+
+  const tabComparateur = (
+      <div style={{padding:"12px 0"}}>Comparateur et analytiques avancées à venir.</div>
+  );
+
+
   const tabCorrection = (
       <CorrectionIdpanel tempId={id} onSuccess={handleIdCorrected} />
   );
@@ -485,12 +494,16 @@ function MovieDetails() {
     { key: "box", label: "Box Office", content: tabBoxOffice },
     { key: "info", label: "Info", content: tabInfo },
     { key: "stats", label: "Stats", content: tabStats },
+    { key: "showings", label: "Horaire", content: tabHoraire },
+    { key: "comparing", label: "Comparateur", content: tabComparateur },
     ...(isDev && isTempId ? [{ key: "fix", label: "Correction de l’ID", content: tabCorrection }] : []),
   ];
 
   const desktopTabs = [
     { key: "box", label: "Box Office", content: tabBoxOffice },
     { key: "stats", label: "Stats", content: tabStats },
+    { key: "showings", label: "Horaire", content: tabHoraire },
+    { key: "comparing", label: "Comparateur", content: tabComparateur },
     ...(isDev && isTempId ? [{ key: "fix", label: "Correction de l’ID", content: tabCorrection }] : []),
   ];
 
