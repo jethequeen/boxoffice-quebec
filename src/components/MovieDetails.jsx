@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import './MovieDetails.css';
 import { getFridayFromWeekendId } from '../utils/weekendUtils';
@@ -7,6 +7,7 @@ import MovieTable from '../components/movieTable';
 import { formatCurrency, toNum, pct0} from "../utils/formatUtils.js";
 import { useNavigate } from "react-router-dom";
 import Tabs from "../components/Tabs";
+import './BoxOffice.css';
 import CorrectionIdpanel from "./correctionIdpanel.jsx";
 import { getMovieDetails } from '../utils/api';
 
@@ -150,11 +151,24 @@ function BarChart({ data, width = 960, height = 420, margin = { top: 20, right: 
 
 function Comparateur({ movieId }) {
   const [prompt, setPrompt] = useState(
-      'Compare ce film par budget avec des films similaires (au moins 1 genre en commun).'
+      'Revenues similaires 10%'
   );
   const [loading, setLoading] = useState(false);
-  const [resp, setResp] = useState(null);
-  const [error, setError] = useState(null);
+  const [resp,   setResp]   = useState(null);
+  const [error,  setError]  = useState(null);
+
+  // lead column identical to WeekendDetails
+  const leadCol = {
+    key: 'lead',
+    label: '',
+    required: true,
+    sortable: false,
+    headerAlign: 'left',
+    align: 'left',
+    widthPct: 6,
+    headerClassName: 'lead-sticky',
+    className: 'lead-sticky lead-cell',
+  };
 
   async function run() {
     setLoading(true); setError(null);
@@ -165,9 +179,27 @@ function Comparateur({ movieId }) {
         body: JSON.stringify({ prompt, movieId: Number(movieId) }),
       });
       const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Query failed');
 
       const rows = Array.isArray(j.data) ? j.data : (j.data?.rows ?? []);
-      setResp({ ...j, data: rows });
+
+      // minimal dedupe by id/title
+      const seen = new Set();
+      const deduped = rows.filter(row => {
+        const key = row?.id ?? row?.movie_id ?? row?.title;
+        if (key == null) return true;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      // ensure target at top if missing
+      const ensureTarget =
+          movieId && !deduped.some(r => Number(r.id) === Number(movieId))
+              ? [{ id: Number(movieId), title: `#${movieId}` }, ...deduped]
+              : deduped;
+
+      setResp({ ...j, data: ensureTarget });
     } catch (e) {
       setError(String(e.message || e));
     } finally {
@@ -175,15 +207,90 @@ function Comparateur({ movieId }) {
     }
   }
 
-  // Build chart data
-  const chartData = (resp?.data || [])
-      .map(r => ({
-        title: r.fr_title || r.title || '—',
-        budget: Number(r.budget),
-      }))
-      .filter(d => isFinite(d.budget))
-      .sort((a, b) => b.budget - a.budget)
-      .slice(0, 20); // top 20
+  // normalize rows to what MovieTable expects (Comparateur)
+// -> no weekend fields; keep only what we need (id, titles, poster, budget, studio, a bit of meta)
+  const tableRows = useMemo(() => {
+    const rows = resp?.data || [];
+    return rows.map((m, i) => {
+      const posterUrl = m?.poster_path
+          ? `https://image.tmdb.org/t/p/w92${m.poster_path}`
+          : undefined;
+
+      const studioName = m?.studio_name ?? m?.studio ?? undefined;
+      const studioId   = m?.studio_id ?? m?.principal_studio_id ?? undefined;
+
+      const year =
+          m?.year ??
+          (m?.release_date ? new Date(m.release_date).getFullYear() : undefined);
+
+      return {
+        id: m?.id ?? m?.movie_id ?? i,
+
+        // titles
+        title: m?.fr_title || m?.title || '—',
+        fr_title: m?.fr_title,
+        vo_title: m?.vo_title,
+
+        // poster for lead cell
+        poster_path: m?.poster_path,
+        poster_url: posterUrl,
+
+        // what we actually compare/show
+        budget: Number(m?.budget) || undefined,
+
+        // studio (keep both keys for compatibility with your catalog)
+        studio_id: studioId,
+        studio_name: studioName,
+        studio: studioName,
+
+        // light metadata (handy for tooltips / future columns)
+        year,
+        release_date: m?.release_date ?? undefined,
+        runtime: m?.runtime != null ? Number(m.runtime) : undefined,
+
+        // ✅ Recettes (QC) — what your columns call "revenue_qc"
+        revenue_qc:
+            m?.revenue_qc != null
+                ? Number(m.revenue_qc)
+                : (m?.total_revenue_qc != null ? Number(m.total_revenue_qc) : undefined),
+
+        // (optional alias if some renderers look for cumulatif_qc)
+        cumulatif_qc:
+            m?.cumulatif_qc != null
+                ? Number(m.cumulatif_qc)
+                : (m?.total_revenue_qc != null ? Number(m.total_revenue_qc) : undefined),
+
+        // optional US total if you ever show it
+        total_revenue_us: m?.total_revenue_us != null ? Number(m.total_revenue_us) : undefined,
+      };
+    });
+  }, [resp?.data]);
+
+
+  // columns: same pattern as WeekendDetails, only the set differs
+  const { pickColumns } = createColumnsCatalog({ Link, formatCurrency, pct0, toNum });
+  const columns = useMemo(() => ([
+    leadCol,
+    ...pickColumns(
+        ['title','revenue_qc', 'budget', 'studio', 'year'],
+        {
+          // same FR/VO title renderer as WeekendDetails
+          title: {
+            render: (_value, m) => {
+              const hasVO = !!m.title && m.title !== m.fr_title;
+              return (
+                  <div id={`movie-${m.id}`} className={`title-text ${hasVO ? 'has-vo' : 'single'}`}>
+                    <Link to={`/movies/${m.id}`} className="movie-title-fr" title={m.fr_title || m.title || ''}>
+                      {m.fr_title || m.title || ''}
+                    </Link>
+                    {hasVO && <span className="movie-title-vo" title={m.title}>{m.title}</span>}
+                  </div>
+              );
+            },
+          },
+        }
+    ),
+  ]), []); // columns static; renderers already read row values dynamically
 
   return (
       <section className="compare-card">
@@ -202,33 +309,31 @@ function Comparateur({ movieId }) {
 
         {error && <div className="error">Erreur: {error}</div>}
 
-        {resp && (
-            <>
-              {resp.highlights?.length > 0 && (
-                  <ul className="bullets">
-                    {resp.highlights.map((h, i) => <li key={i}>{h}</li>)}
-                  </ul>
-              )}
-
-              {chartData.length === 0 ? (
-                  <div className="empty">
-                    Aucun résultat pour ce prompt.
-                    {import.meta.env.DEV && resp?.query ? (
-                        <pre className="sql-preview"><code>{resp.query}</code></pre>
-                    ) : null}
-                  </div>
-              ) : (
-                  <BarChart data={chartData} />
-              )}
-
-              {import.meta.env.DEV && resp?.query && (
-                  <pre className="sql-preview"><code>{resp.query}</code></pre>
-              )}
-            </>
-        )}
+        {resp ? (
+            tableRows.length > 0 ? (
+                <div className="dashboard table-context compare-table">
+                  <MovieTable
+                      rows={tableRows}
+                      columns={columns}
+                      initialSort={{ key: 'revenue_qc', dir: 'desc' }}
+                      initialVisibleKeys={['title','revenue_qc', 'budget', 'studio', 'year']}
+                      searchAccessors={[r => r.fr_title, r => r.title, r => r.studio_name]}
+                  />
+                </div>
+            ) : (
+                <div className="empty-state">
+                  <p>Aucun résultat pour ce prompt.</p>
+                  {import.meta.env.DEV && resp?.query ? (
+                      <pre className="sql-preview"><code>{resp.query}</code></pre>
+                  ) : null}
+                </div>
+            )
+        ) : null}
       </section>
   );
 }
+
+
 
 
 
@@ -268,7 +373,7 @@ function MovieDetails() {
     }
   }
 
-  function handleIdCorrected() {
+  function handleIdCorrected(newId) {
     navigate(`/box-office`, { replace: true });
     // on pourrait aussi refetch ici si tu veux rester sur place
   }

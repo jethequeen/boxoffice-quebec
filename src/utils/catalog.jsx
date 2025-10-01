@@ -160,6 +160,33 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         render: (v, r) => `#${Number(r.rank) || 0}`,
     };
 
+    const budget = {
+        key: 'bugdet',
+        label: 'Budget',
+        sortable: true,
+        priority: 1,
+        widthPct: 7,
+        mobileWidthPct: 18,
+        align: 'center',
+        minPx: 100,
+        headerAlign: 'center',
+        value: (m) => m.budget,
+        render: (v) => formatCurrency(v),
+    };
+
+    const studio = {
+        key: 'studio',
+        label: 'Studio',
+        sortable: true,
+        priority: 1,
+        widthPct: 7,
+        mobileWidthPct: 18,
+        align: 'center',
+        minPx: 100,
+        headerAlign: 'center',
+        value: (m) => m.studio,
+    };
+
     const qc_usa = {
         key: 'qc_usa',
         label: 'QC/USA',
@@ -200,6 +227,19 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         align: 'center',
         value: (r) => (Number(r.screen_count) || -Infinity),
         render: (v, r) => r.screen_count ?? '—',
+    };
+
+    const year = {
+        key: 'year',
+        label: 'Année',
+        sortable: true,
+        priority: 6,
+        widthPct: 8,
+        mobileWidthPct: 10,
+        headerAlign: 'center',
+        align: 'center',
+        value: (r) => (Number(r.year) || -Infinity),
+        render: (v, r) => r.year ?? '—',
     };
 
     const occupancy = {
@@ -249,8 +289,10 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         cumulatif_qc,
         rev_per_screen, date, rank, qc_usa, week_number, screen_count,
         occupancy,
-        weight
-        // add more columns over time, all in one place
+        weight,
+        budget,
+        studio,
+        year
     };
 
     /**
