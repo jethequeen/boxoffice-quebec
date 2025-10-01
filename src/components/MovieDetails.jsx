@@ -59,6 +59,178 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
+const fmtMoney = (n) =>
+    typeof n === 'number' && isFinite(n)
+        ? n.toLocaleString('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 })
+        : '—';
+
+function BarChart({ data, width = 960, height = 420, margin = { top: 20, right: 16, bottom: 120, left: 80 } }) {
+  // data: [{ title, budget }]
+  const W = width, H = height;
+  const innerW = W - margin.left - margin.right;
+  const innerH = H - margin.top - margin.bottom;
+
+  const clean = (data || []).filter(d => d && typeof d.budget === 'number' && isFinite(d.budget));
+  const maxY = clean.reduce((m, d) => Math.max(m, d.budget), 0) || 1;
+
+  // scales
+  const xStep = innerW / Math.max(clean.length, 1);
+  const y = (v) => innerH - (v / maxY) * innerH;
+
+  return (
+      <div style={{ overflowX: 'auto', paddingBottom: 8 }}>
+        <svg width={Math.max(W, margin.left + margin.right + xStep * clean.length)} height={H}>
+          {/* axes */}
+          <g transform={`translate(${margin.left},${margin.top})`}>
+            {/* y axis ticks */}
+            {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+              const yPos = y(t * maxY);
+              return (
+                  <g key={i} transform={`translate(0,${yPos})`}>
+                    <line x1={0} x2={innerW} stroke="#eee" />
+                    <text x={-12} y={0} dominantBaseline="middle" textAnchor="end" fontSize="12">
+                      {fmtMoney(t * maxY)}
+                    </text>
+                  </g>
+              );
+            })}
+
+            {/* bars */}
+            {clean.map((d, i) => {
+              const barW = Math.max(12, Math.min(40, xStep * 0.8));
+              const barX = i * xStep + (xStep - barW) / 2;
+              const barY = y(d.budget);
+              const barH = innerH - barY;
+              return (
+                  <g key={i} transform={`translate(${barX},${barY})`}>
+                    <title>{`${d.title}\n${fmtMoney(d.budget)}`}</title>
+                    <rect width={barW} height={barH} fill="#6a67f5" rx="4" />
+                  </g>
+              );
+            })}
+
+            {/* x labels */}
+            {clean.map((d, i) => {
+              const barX = i * xStep + xStep / 2;
+              return (
+                  <g key={i} transform={`translate(${barX},${innerH + 8})`}>
+                    <text
+                        transform="rotate(-60)"
+                        textAnchor="end"
+                        fontSize="12"
+                        x={0}
+                        y={12}
+                        style={{ fill: '#444' }}
+                    >
+                      {d.title}
+                    </text>
+                  </g>
+              );
+            })}
+          </g>
+
+          {/* axis titles */}
+          <text x={margin.left + innerW / 2} y={H - 6} textAnchor="middle" fontSize="12" fill="#666">
+            Films
+          </text>
+          <text
+              x={16}
+              y={margin.top + innerH / 2}
+              textAnchor="middle"
+              fontSize="12"
+              fill="#666"
+              transform={`rotate(-90, 16, ${margin.top + innerH / 2})`}
+          >
+            Budget (CAD)
+          </text>
+        </svg>
+      </div>
+  );
+}
+
+function Comparateur({ movieId }) {
+  const [prompt, setPrompt] = useState(
+      'Compare ce film par budget avec des films similaires (au moins 1 genre en commun).'
+  );
+  const [loading, setLoading] = useState(false);
+  const [resp, setResp] = useState(null);
+  const [error, setError] = useState(null);
+
+  async function run() {
+    setLoading(true); setError(null);
+    try {
+      const r = await fetch('/.netlify/functions/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, movieId: Number(movieId) }),
+      });
+      const j = await r.json();
+
+      const rows = Array.isArray(j.data) ? j.data : (j.data?.rows ?? []);
+      setResp({ ...j, data: rows });
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Build chart data
+  const chartData = (resp?.data || [])
+      .map(r => ({
+        title: r.fr_title || r.title || '—',
+        budget: Number(r.budget),
+      }))
+      .filter(d => isFinite(d.budget))
+      .sort((a, b) => b.budget - a.budget)
+      .slice(0, 20); // top 20
+
+  return (
+      <section className="compare-card">
+        <div className="compare-row">
+        <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            className="compare-input"
+            rows={3}
+            placeholder="Ex.: Compare ce film par budget vs films du même genre"
+        />
+          <button className="btn" onClick={run} disabled={loading}>
+            {loading ? 'Analyse…' : 'Lancer'}
+          </button>
+        </div>
+
+        {error && <div className="error">Erreur: {error}</div>}
+
+        {resp && (
+            <>
+              {resp.highlights?.length > 0 && (
+                  <ul className="bullets">
+                    {resp.highlights.map((h, i) => <li key={i}>{h}</li>)}
+                  </ul>
+              )}
+
+              {chartData.length === 0 ? (
+                  <div className="empty">
+                    Aucun résultat pour ce prompt.
+                    {import.meta.env.DEV && resp?.query ? (
+                        <pre className="sql-preview"><code>{resp.query}</code></pre>
+                    ) : null}
+                  </div>
+              ) : (
+                  <BarChart data={chartData} />
+              )}
+
+              {import.meta.env.DEV && resp?.query && (
+                  <pre className="sql-preview"><code>{resp.query}</code></pre>
+              )}
+            </>
+        )}
+      </section>
+  );
+}
+
+
 
 function MovieDetails() {
   const { id } = useParams();
@@ -96,7 +268,7 @@ function MovieDetails() {
     }
   }
 
-  function handleIdCorrected(newId) {
+  function handleIdCorrected() {
     navigate(`/box-office`, { replace: true });
     // on pourrait aussi refetch ici si tu veux rester sur place
   }
@@ -432,7 +604,9 @@ function MovieDetails() {
   );
 
   const tabComparateur = (
-      <div style={{padding:"12px 0"}}>Comparateur et analytiques avancées à venir.</div>
+      <div style={{ padding: '12px 0' }}>
+        <Comparateur movieId={movie?.id} />
+      </div>
   );
 
 
