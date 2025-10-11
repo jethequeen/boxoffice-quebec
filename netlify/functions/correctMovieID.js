@@ -13,7 +13,6 @@ async function enrichFromTmdb(movieId) {
     const key = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY;
     if (!key) throw new Error('TMDB_API_KEY missing');
 
-
     const [details, credits, images] = await Promise.all([
         fetchJson(`https://api.themoviedb.org/3/movie/${movieId}?api_key=${key}&language=en-US`),
         fetchJson(`https://api.themoviedb.org/3/movie/${movieId}/credits?api_key=${key}`),
@@ -39,17 +38,17 @@ async function enrichFromTmdb(movieId) {
         await sql/*sql*/`
             INSERT INTO movies (id, title, fr_title, release_date, popularity, poster_path, backdrop_path, budget, runtime)
             VALUES (${movieId}, ${details.title ?? null}, NULL, ${release}, ${popularity}, ${poster}, ${backdrop}, ${budget}, ${runtime})
-                ON CONFLICT (id) DO UPDATE
-                                        SET title         = COALESCE(movies.title,         EXCLUDED.title),
+                ON CONFLICT (id) DO UPDATE SET
+                title         = COALESCE(movies.title,         EXCLUDED.title),
                                         fr_title      = COALESCE(movies.fr_title,      EXCLUDED.fr_title),
                                         release_date  = COALESCE(movies.release_date,  EXCLUDED.release_date),
                                         poster_path   = COALESCE(movies.poster_path,   EXCLUDED.poster_path),
                                         backdrop_path = COALESCE(movies.backdrop_path, EXCLUDED.backdrop_path),
                                         budget        = CASE WHEN movies.budget  IS NULL OR movies.budget  = 0
                                         THEN COALESCE(EXCLUDED.budget,  movies.budget)  ELSE movies.budget  END,
-            runtime       = CASE WHEN movies.runtime IS NULL OR movies.runtime = 0
-                                 THEN COALESCE(EXCLUDED.runtime, movies.runtime) ELSE movies.runtime END,
-            popularity    = COALESCE(EXCLUDED.popularity, movies.popularity)
+        runtime       = CASE WHEN movies.runtime IS NULL OR movies.runtime = 0
+                             THEN COALESCE(EXCLUDED.runtime, movies.runtime) ELSE movies.runtime END,
+        popularity    = COALESCE(EXCLUDED.popularity, movies.popularity)
         `;
 
         for (const g of details.genres || []) {
@@ -116,42 +115,77 @@ export const handler = async (event) => {
         }
 
         const [{ old_title, old_fr_title } = {}] = await sql/*sql*/`
-      SELECT title AS old_title, fr_title AS old_fr_title
-      FROM movies
-      WHERE id = ${t}
-      LIMIT 1
-    `;
+            SELECT title AS old_title, fr_title AS old_fr_title
+            FROM movies
+            WHERE id = ${t}
+                LIMIT 1
+        `;
 
         // 2) s’assurer que newId existe (idempotent)
         await sql/*sql*/`INSERT INTO movies (id) VALUES (${n}) ON CONFLICT (id) DO NOTHING`;
 
-        // --- Étape 1: RESET temp’s wrong attachments, KEEP facts (revenues, showings), then drop temp
+        // --- Étape 1: DÉPLACER les faits d'abord (merge-safe), PUIS nettoyer les attachements, PUIS supprimer le film temporaire
         await sql/*sql*/`BEGIN`;
         try {
             const [{ exists: tempExists } = { exists: false }] = await sql/*sql*/`
-    SELECT EXISTS(SELECT 1 FROM movies WHERE id = ${t}) AS exists
-  `;
+        SELECT EXISTS(SELECT 1 FROM movies WHERE id = ${t}) AS exists
+      `;
             if (!tempExists) {
                 await sql/*sql*/`ROLLBACK`;
                 return jsonResponse(404, { error: `Temp movie ${t} not found` });
             }
 
-            // lock both ids (single statement)
+            // Empêche deux corrections de s’entrelacer
             await sql/*sql*/`SELECT id FROM movies WHERE id IN (${t}, ${n}) FOR UPDATE`;
 
-            // 1) Wipe attachments on the temp movie — ONE STATEMENT PER CALL
+            /* 1) FACTS FIRST — pas de delete avant la fusion */
+
+            // Revenues: on fusionne vers n, puis on efface les restes de t
+            // Hypothèse d’unicité: (weekend_id, film_id). Adapte ON CONFLICT si différent.
+            await sql/*sql*/`
+        INSERT INTO revenues (weekend_id, film_id, amount, source)
+        SELECT weekend_id, ${n} AS film_id, amount, source
+        FROM revenues
+        WHERE film_id = ${t}
+        ON CONFLICT (weekend_id, film_id) DO UPDATE
+          SET amount = EXCLUDED.amount,
+              source = COALESCE(EXCLUDED.source, revenues.source)
+      `;
+            await sql/*sql*/`DELETE FROM revenues WHERE film_id = ${t}`;
+
+            // Showings: si la PK est (id) et qu’il n’y a pas collision, un UPDATE suffit.
+            await sql/*sql*/`UPDATE showings SET movie_id = ${n} WHERE movie_id = ${t}`;
+
+            // Si tu as un unique composite qui peut entrer en collision, utilise plutôt ce pattern:
+            // await sql/*sql*/`
+            //   INSERT INTO showings (id, movie_id, theatre_id, start_time, auditorium, provider, ext_id, attrs)
+            //   SELECT id, ${n}, theatre_id, start_time, auditorium, provider, ext_id, attrs
+            //   FROM showings
+            //   WHERE movie_id = ${t}
+            //   ON CONFLICT (id) DO UPDATE
+            //     SET movie_id = EXCLUDED.movie_id
+            // `;
+            // await sql/*sql*/`DELETE FROM showings WHERE movie_id = ${t}`;
+
+            // (Optionnel) daily_revenues : seulement si tu l’utilises encore.
+            // await sql/*sql*/`
+            //   INSERT INTO daily_revenues (date, film_id, amount, source)
+            //   SELECT date, ${n}, amount, source
+            //   FROM daily_revenues
+            //   WHERE film_id = ${t}
+            //   ON CONFLICT (date, film_id) DO UPDATE
+            //     SET amount = EXCLUDED.amount
+            // `;
+            // await sql/*sql*/`DELETE FROM daily_revenues WHERE film_id = ${t}`;
+
+            /* 2) Nettoyer les attachements liés à t */
             await sql/*sql*/`DELETE FROM movie_genres    WHERE movie_id = ${t}`;
             await sql/*sql*/`DELETE FROM movie_countries WHERE movie_id = ${t}`;
             await sql/*sql*/`DELETE FROM movie_studio    WHERE movie_id = ${t}`;
             await sql/*sql*/`DELETE FROM movie_crew      WHERE movie_id = ${t}`;
             await sql/*sql*/`DELETE FROM movie_actors    WHERE movie_id = ${t}`;
-            await sql/*sql*/`DELETE FROM daily_revenues  WHERE film_id  = ${t}`;
 
-            // 2) Keep facts: move to the new ID — also split
-            await sql/*sql*/`UPDATE revenues SET film_id = ${n} WHERE film_id = ${t}`;
-            await sql/*sql*/`UPDATE showings  SET movie_id = ${n} WHERE movie_id = ${t}`;
-
-            // 3) Drop temp parent
+            /* 3) Enfin, supprimer le parent temporaire */
             await sql/*sql*/`DELETE FROM movies WHERE id = ${t}`;
 
             await sql/*sql*/`COMMIT`;
@@ -160,7 +194,7 @@ export const handler = async (event) => {
             throw e;
         }
 
-// 4) enrichissement TMDb du newId puis backfill fr_title
+        // 4) enrichissement TMDb du newId puis backfill fr_title
         try {
             await enrichFromTmdb(n);
         } catch (e) {
@@ -168,13 +202,21 @@ export const handler = async (event) => {
         }
 
         await sql/*sql*/`
-  UPDATE movies
-     SET fr_title = COALESCE(fr_title, ${old_fr_title ?? null}, ${old_title ?? null})
-   WHERE id = ${n}
-`;
+            UPDATE movies
+            SET fr_title = COALESCE(fr_title, ${old_fr_title ?? null}, ${old_title ?? null})
+            WHERE id = ${n}
+        `;
 
+        // (optionnel) petite télémétrie de vérif
+        const [{ cnt_rev_n }] = await sql/*sql*/`SELECT COUNT(*)::int AS cnt_rev_n FROM revenues WHERE film_id = ${n}`;
+        const [{ cnt_shw_n }] = await sql/*sql*/`SELECT COUNT(*)::int AS cnt_shw_n FROM showings WHERE movie_id = ${n}`;
 
-        return jsonResponse(200, { ok: true, newId: n, redirect: `/movie/${n}` });
+        return jsonResponse(200, {
+            ok: true,
+            newId: n,
+            moved: { revenues: cnt_rev_n, showings: cnt_shw_n },
+            redirect: `/movie/${n}`,
+        });
     } catch (err) {
         // expose plus d’infos en dev
         console.error('correctMovieId error:', err);

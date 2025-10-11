@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import WeekendDetails from './WeekendDetails';
 import { getCurrentWeekendId } from '../utils/weekendUtils';
 import { getBoxOfficeData, getYearSummary } from '../utils/api';
-import { useNavigate } from 'react-router-dom';
+import {Navigate, useNavigate} from 'react-router-dom';
 
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -177,56 +177,12 @@ export default function Home() {
   if (err) return <div className="error">{err}</div>;
   if (!currentSummary) return null;
 
-  return (
-      <div className="container year-dashboard">
-        <header className="dashboard-header">
-          <h1>Box-office {year}</h1>
-        </header>
+    return (
+        <Navigate
+            to={`/weekend/${currentWeekendId}`}
+            replace
+            state={{ from: 'home-auto' }}
+        />
+    );
 
-        <section className="grid">
-          {/* Top-10 card */}
-          <div className="card compact">
-            <div className="top10-header">
-              <h3>
-                {scope === 'canadian'
-                    ? `Top 10 films québécois`
-                    : `Top 10 films `}
-              </h3>
-
-
-
-              <div className="kpi-row">
-                <div className="kpi-chip">
-                  <span className="label">Total cumulatif (QC)</span>
-                  <span className="val">{fmtMoneyShortFR(currentSummary?.kpis?.total_gross)}</span>
-                </div>
-                <div className="kpi-chip">
-                  <span className="label">Nombre de films</span>
-                  <span className="val">{(currentSummary?.kpis?.movie_count ?? 0).toLocaleString('fr-CA')}</span>
-                </div>
-                <div className="kpi-chip">
-                  <span className="label">Weekend moyen</span>
-                  <span className="val">{fmtMoneyShortFR(currentSummary?.kpis?.avg_weekend)}</span>
-                </div>
-              </div>
-
-              <div className="scope-toggle" role="tablist" aria-label="Filtre top 10">
-                <button role="tab" className={scope === 'all' ? 'active' : ''} aria-selected={scope === 'all'}
-                        onClick={() => setScope('all')}>Global</button>
-                <button role="tab" className={scope === 'canadian' ? 'active' : ''} aria-selected={scope === 'canadian'}
-                        onClick={() => setScope('canadian')}>Québécois</button>
-              </div>
-            </div>
-
-            <PosterBars data={topFilms} />
-          </div>
-
-
-
-
-
-
-        </section>
-      </div>
-  );
 }
