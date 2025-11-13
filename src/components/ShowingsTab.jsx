@@ -204,6 +204,8 @@ function ShowingsTab({ movieId }) {
   const [proximityDistance, setProximityDistance] = useState(30);
   const [locationRequested, setLocationRequested] = useState(false);
   const [locationReady, setLocationReady] = useState(false);
+  const [viewMode, setViewMode] = useState('sales'); // 'horaire' or 'sales'
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
   const datePickerRef = useRef(null);
 
   useEffect(() => {
@@ -451,6 +453,15 @@ function ShowingsTab({ movieId }) {
     const isCollapsed = collapsedTheaters.has(theatreData.theatre_id);
     const cols = theatreData.availableColumns;
 
+    // Filter showings based on view mode
+    // In sales view, only show showings with seats_sold data
+    const showingsToRender = viewMode === 'sales'
+      ? theatreData.showings.filter(s => s.seats_sold != null)
+      : theatreData.showings;
+
+    // If no showings after filtering, don't render this theater
+    if (showingsToRender.length === 0) return null;
+
     return (
       <div
         key={theatreKey}
@@ -530,45 +541,46 @@ function ShowingsTab({ movieId }) {
               <table style={{
                 width: '100%',
                 borderCollapse: 'collapse',
-                fontSize: isCompact ? '13px' : '14px',
-                minWidth: isMobile ? (isCompact ? '400px' : '600px') : 'auto'
+                fontSize: isMobile && isCompact ? '12px' : (isCompact ? '13px' : '14px'),
+                minWidth: isMobile ? (isCompact ? '300px' : '500px') : 'auto',
+                fontVariantNumeric: 'tabular-nums'
               }}>
                 <thead>
                   <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                    <th style={{ padding: isCompact ? '8px 6px' : '10px 8px', textAlign: 'left', fontWeight: '600', color: '#475569' }}>Date</th>
-                    <th style={{ padding: isCompact ? '8px 6px' : '10px 8px', textAlign: 'left', fontWeight: '600', color: '#475569' }}>Heure</th>
-                    {(cols.hasAuditorium || !isCompact) && (
-                      <th style={{ padding: isCompact ? '8px 6px' : '10px 8px', textAlign: 'left', fontWeight: '600', color: '#475569' }}>Salle</th>
+                    <th style={{ padding: isCompact ? '6px 4px' : '10px 8px', textAlign: 'left', fontWeight: '600', color: '#475569', minWidth: isMobile ? '70px' : 'auto', fontSize: isMobile && isCompact ? '11px' : 'inherit' }}>Date</th>
+                    <th style={{ padding: isCompact ? '6px 4px' : '10px 8px', textAlign: 'left', fontWeight: '600', color: '#475569', minWidth: isMobile ? '50px' : 'auto', fontSize: isMobile && isCompact ? '11px' : 'inherit' }}>Heure</th>
+                    {viewMode === 'sales' && (cols.hasAuditorium || !isCompact) && (
+                      <th style={{ padding: isCompact ? '6px 4px' : '10px 8px', textAlign: 'left', fontWeight: '600', color: '#475569', minWidth: isMobile ? '50px' : 'auto', fontSize: isMobile && isCompact ? '11px' : 'inherit' }}>Salle</th>
                     )}
-                    {cols.hasLanguage && (
-                      <th style={{ padding: isCompact ? '8px 6px' : '10px 8px', textAlign: 'left', fontWeight: '600', color: '#475569' }}>Langue</th>
+                    {viewMode === 'sales' && cols.hasLanguage && (
+                      <th style={{ padding: isCompact ? '6px 4px' : '10px 8px', textAlign: 'left', fontWeight: '600', color: '#475569', minWidth: isMobile ? '50px' : 'auto', fontSize: isMobile && isCompact ? '11px' : 'inherit' }}>Langue</th>
                     )}
-                    {cols.hasSeats && (
-                      <th style={{ padding: isCompact ? '8px 6px' : '10px 8px', textAlign: 'right', fontWeight: '600', color: '#475569' }}>Sièges</th>
+                    {viewMode === 'sales' && cols.hasSeats && (
+                      <th style={{ padding: isCompact ? '6px 4px' : '10px 8px', textAlign: 'right', fontWeight: '600', color: '#475569', minWidth: isMobile ? '55px' : 'auto', fontSize: isMobile && isCompact ? '11px' : 'inherit' }}>Sièges</th>
                     )}
-                    {cols.hasSeatsSold && (
-                      <th style={{ padding: isCompact ? '8px 6px' : '10px 8px', textAlign: 'right', fontWeight: '600', color: '#475569' }}>Vendus</th>
+                    {viewMode === 'sales' && cols.hasSeatsSold && (
+                      <th style={{ padding: isCompact ? '6px 4px' : '10px 8px', textAlign: 'right', fontWeight: '600', color: '#475569', minWidth: isMobile ? '55px' : 'auto', fontSize: isMobile && isCompact ? '11px' : 'inherit' }}>Vendus</th>
                     )}
-                    {cols.hasSeatsSold && cols.hasSeats && (
-                      <th style={{ padding: isCompact ? '8px 6px' : '10px 8px', textAlign: 'right', fontWeight: '600', color: '#475569' }}>Occ.</th>
+                    {viewMode === 'sales' && cols.hasSeatsSold && cols.hasSeats && (
+                      <th style={{ padding: isCompact ? '6px 4px' : '10px 8px', textAlign: 'right', fontWeight: '600', color: '#475569', minWidth: isMobile ? '45px' : 'auto', fontSize: isMobile && isCompact ? '11px' : 'inherit' }}>Occ.</th>
                     )}
-                    {cols.hasSeatsSold && (
-                      <th style={{ padding: isCompact ? '8px 6px' : '10px 8px', textAlign: 'right', fontWeight: '600', color: '#475569' }}>Recettes</th>
+                    {viewMode === 'sales' && cols.hasSeatsSold && (
+                      <th style={{ padding: isCompact ? '6px 4px' : '10px 8px', textAlign: 'right', fontWeight: '600', color: '#475569', minWidth: isMobile ? '60px' : 'auto', fontSize: isMobile && isCompact ? '11px' : 'inherit' }}>Recettes</th>
                     )}
                   </tr>
                 </thead>
                 <tbody>
-                  {theatreData.showings.map((showing) => {
+                  {showingsToRender.map((showing) => {
                     const occupancy = calculateOccupancy(showing.seats_sold, showing.total_seats);
                     const revenue = calculateRevenue(showing.seats_sold);
                     const showingUrl = getShowingUrl(showing);
 
-                    const cellPadding = isCompact ? '8px 6px' : '10px 8px';
+                    const cellPadding = isCompact ? '6px 4px' : '10px 8px';
 
                     return (
                       <tr key={showing.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: cellPadding, color: '#64748b' }}>{formatDate(showing.date)}</td>
-                        <td style={{ padding: cellPadding }}>
+                        <td style={{ padding: cellPadding, color: '#64748b', fontSize: isMobile && isCompact ? '12px' : 'inherit' }}>{formatDate(showing.date)}</td>
+                        <td style={{ padding: cellPadding, fontSize: isMobile && isCompact ? '12px' : 'inherit' }}>
                           {showingUrl ? (
                             <a
                               href={showingUrl}
@@ -584,26 +596,26 @@ function ShowingsTab({ movieId }) {
                             <span style={{ color: '#0f172a', fontWeight: '500' }}>{formatTime(showing.start_at)}</span>
                           )}
                         </td>
-                        {(cols.hasAuditorium || !isCompact) && (
-                          <td style={{ padding: cellPadding, color: '#64748b' }}>{showing.auditorium || '—'}</td>
+                        {viewMode === 'sales' && (cols.hasAuditorium || !isCompact) && (
+                          <td style={{ padding: cellPadding, color: '#64748b', fontSize: isMobile && isCompact ? '12px' : 'inherit' }}>{showing.auditorium || '—'}</td>
                         )}
-                        {cols.hasLanguage && (
-                          <td style={{ padding: cellPadding, color: '#64748b' }}>
+                        {viewMode === 'sales' && cols.hasLanguage && (
+                          <td style={{ padding: cellPadding, color: '#64748b', fontSize: isMobile && isCompact ? '12px' : 'inherit' }}>
                             {showing.language || '—'}
                           </td>
                         )}
-                        {cols.hasSeats && (
-                          <td style={{ padding: cellPadding, textAlign: 'right', color: '#64748b' }}>
+                        {viewMode === 'sales' && cols.hasSeats && (
+                          <td style={{ padding: cellPadding, textAlign: 'right', color: '#64748b', fontSize: isMobile && isCompact ? '12px' : 'inherit' }}>
                             {showing.total_seats?.toLocaleString('fr-CA') || '—'}
                           </td>
                         )}
-                        {cols.hasSeatsSold && (
-                          <td style={{ padding: cellPadding, textAlign: 'right', color: '#0f172a', fontWeight: '500' }}>
+                        {viewMode === 'sales' && cols.hasSeatsSold && (
+                          <td style={{ padding: cellPadding, textAlign: 'right', color: '#0f172a', fontWeight: '500', fontSize: isMobile && isCompact ? '12px' : 'inherit' }}>
                             {showing.seats_sold != null ? showing.seats_sold.toLocaleString('fr-CA') : '—'}
                           </td>
                         )}
-                        {cols.hasSeatsSold && cols.hasSeats && (
-                          <td style={{ padding: cellPadding, textAlign: 'right' }}>
+                        {viewMode === 'sales' && cols.hasSeatsSold && cols.hasSeats && (
+                          <td style={{ padding: cellPadding, textAlign: 'right', fontSize: isMobile && isCompact ? '12px' : 'inherit' }}>
                             {occupancy != null ? (
                               <span style={{
                                 color: occupancy < 3 ? '#dc2626' : occupancy < 10 ? '#64748b' : '#16a34a',
@@ -614,9 +626,9 @@ function ShowingsTab({ movieId }) {
                             ) : '—'}
                           </td>
                         )}
-                        {cols.hasSeatsSold && (
-                          <td style={{ padding: cellPadding, textAlign: 'right', fontWeight: '600', color: '#0f172a' }}>
-                            {revenue != null ? formatCurrency(revenue) : '—'}
+                        {viewMode === 'sales' && cols.hasSeatsSold && (
+                          <td style={{ padding: cellPadding, textAlign: 'right', fontWeight: '600', color: '#0f172a', fontSize: isMobile && isCompact ? '12px' : 'inherit' }}>
+                            {showing.seats_sold != null ? formatCurrency(revenue) : '—'}
                           </td>
                         )}
                       </tr>
@@ -642,7 +654,94 @@ function ShowingsTab({ movieId }) {
 
   return (
     <div className="showings-tab" style={{ padding: '0' }}>
-      {/* Filters */}
+      {/* Quick Settings */}
+      <div style={{
+        background: '#fff',
+        borderRadius: '12px',
+        boxShadow: '0 1px 3px rgba(0,0,0,.08)',
+        padding: '16px 20px',
+        marginBottom: '16px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+          {/* Proximity Toggle */}
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '500',
+            color: proximityEnabled ? '#10b981' : '#64748b',
+            minWidth: isMobile ? '100%' : 'auto',
+            order: isMobile ? 2 : 1
+          }}>
+            <input
+              type="checkbox"
+              checked={proximityEnabled}
+              onChange={(e) => handleProximityToggle(e.target.checked)}
+              style={{
+                width: '18px',
+                height: '18px',
+                cursor: 'pointer',
+                accentColor: '#10b981'
+              }}
+            />
+            <span>📍 Cinémas proches</span>
+            {proximityEnabled && !userLocation && (
+              <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '400' }}>
+                (localisation...)
+              </span>
+            )}
+          </label>
+
+          {/* View Mode Toggle */}
+          <div style={{
+            display: 'inline-flex',
+            background: '#f1f5f9',
+            borderRadius: '10px',
+            padding: '4px',
+            gap: '4px',
+            order: isMobile ? 1 : 2
+          }}>
+            <button
+              onClick={() => setViewMode('horaire')}
+              style={{
+                padding: '8px 20px',
+                border: 'none',
+                borderRadius: '8px',
+                background: viewMode === 'horaire' ? 'linear-gradient(180deg, #818cf8, #6366f1)' : 'transparent',
+                color: viewMode === 'horaire' ? '#fff' : '#64748b',
+                fontWeight: '600',
+                fontSize: '14px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                boxShadow: viewMode === 'horaire' ? '0 1px 2px rgba(0,0,0,.1)' : 'none'
+              }}
+            >
+              📅 Horaire
+            </button>
+            <button
+              onClick={() => setViewMode('sales')}
+              style={{
+                padding: '8px 20px',
+                border: 'none',
+                borderRadius: '8px',
+                background: viewMode === 'sales' ? 'linear-gradient(180deg, #818cf8, #6366f1)' : 'transparent',
+                color: viewMode === 'sales' ? '#fff' : '#64748b',
+                fontWeight: '600',
+                fontSize: '14px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                boxShadow: viewMode === 'sales' ? '0 1px 2px rgba(0,0,0,.1)' : 'none'
+              }}
+            >
+              💰 Ventes
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Advanced Search */}
       <div style={{
         background: '#fff',
         borderRadius: '12px',
@@ -650,12 +749,35 @@ function ShowingsTab({ movieId }) {
         padding: '16px 20px',
         marginBottom: '20px'
       }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: '12px',
-          marginBottom: '12px'
-        }}>
+        <div
+          onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            marginBottom: showAdvancedSearch ? '16px' : '0'
+          }}
+        >
+          <div style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>Recherche avancée</div>
+          <div style={{
+            fontSize: '18px',
+            color: '#94a3b8',
+            transform: showAdvancedSearch ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s'
+          }}>
+            ▼
+          </div>
+        </div>
+
+        {showAdvancedSearch && (
+          <>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '12px',
+              marginBottom: '12px'
+            }}>
           <div style={{ position: 'relative' }} ref={datePickerRef}>
             <label style={{ fontSize: '13px', fontWeight: '500', color: '#475569', display: 'block', marginBottom: '6px' }}>
               Période
@@ -803,94 +925,56 @@ function ShowingsTab({ movieId }) {
               }}
             />
           </div>
-        </div>
+            </div>
 
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          padding: '12px 0 0 0',
-          borderTop: '1px solid #e5e7eb',
-          marginTop: '12px'
-        }}>
-          <label style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '500',
-            color: proximityEnabled ? '#10b981' : '#64748b'
-          }}>
-            <input
-              type="checkbox"
-              checked={proximityEnabled}
-              onChange={(e) => handleProximityToggle(e.target.checked)}
-              style={{
-                width: '18px',
-                height: '18px',
-                cursor: 'pointer',
-                accentColor: '#10b981'
-              }}
-            />
-            <span>📍 Afficher les cinémas proches de moi</span>
-            {proximityEnabled && userLocation && (
-              <span style={{ fontSize: '12px', color: '#10b981', fontWeight: '400' }}>
-              </span>
-            )}
-            {proximityEnabled && !userLocation && (
-              <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '400' }}>
-                (en attente de localisation...)
-              </span>
-            )}
-          </label>
-        </div>
-
-        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '12px' }}>
-          <button
-            onClick={() => {
-              const today = getTodayDate();
-              setDateFrom(today);
-              setDateTo(today);
-              setSelectedTheatre('');
-              setTheatreSearchTerm('');
-              setSelectedCompany('');
-              setCompanySearchTerm('');
-              setSelectedTimeRange('');
-              setProximityEnabled(true);
-              setProximityDistance(30);
-              if (!userLocation) requestLocation();
-            }}
-            style={{
-              padding: '8px 16px',
-              background: '#f1f5f9',
-              color: '#475569',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-          >
-            Réinitialiser
-          </button>
-          <button
-            onClick={fetchShowings}
-            style={{
-              padding: '8px 16px',
-              background: 'linear-gradient(180deg, #818cf8, #6366f1)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              boxShadow: '0 1px 2px rgba(0,0,0,.1)'
-            }}
-          >
-            Actualiser
-          </button>
-        </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <button
+                onClick={() => {
+                  const today = getTodayDate();
+                  setDateFrom(today);
+                  setDateTo(today);
+                  setSelectedTheatre('');
+                  setTheatreSearchTerm('');
+                  setSelectedCompany('');
+                  setCompanySearchTerm('');
+                  setSelectedTimeRange('');
+                  setProximityEnabled(true);
+                  setProximityDistance(30);
+                  setViewMode('sales');
+                  if (!userLocation) requestLocation();
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                Réinitialiser
+              </button>
+              <button
+                onClick={fetchShowings}
+                style={{
+                  padding: '8px 16px',
+                  background: 'linear-gradient(180deg, #818cf8, #6366f1)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  boxShadow: '0 1px 2px rgba(0,0,0,.1)'
+                }}
+              >
+                Actualiser
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {error && (
@@ -903,40 +987,66 @@ function ShowingsTab({ movieId }) {
       {showingsData && (
         <div style={{ marginBottom: '16px', fontSize: '14px', color: '#64748b' }}>
           {showingsData.count} représentation{showingsData.count !== 1 ? 's' : ''} trouvée{showingsData.count !== 1 ? 's' : ''}
+          {viewMode === 'sales' && Object.keys(groupedShowings.withData).length > 0 && (
+            <span style={{ fontWeight: '500', color: '#6366f1' }}>
+              {' '}(affichage ventes)
+            </span>
+          )}
+          {viewMode === 'horaire' && (
+            <span style={{ fontWeight: '500', color: '#6366f1' }}>
+              {' '}(affichage horaires)
+            </span>
+          )}
           {proximityEnabled && userLocation && <span style={{ fontWeight: '500', color: '#10b981' }}> </span>}
         </div>
       )}
 
       {/* Showings grouped by theater - with data first */}
-      {(Object.keys(groupedShowings.withData).length > 0 || Object.keys(groupedShowings.withoutData).length > 0) ? (
+      {(Object.keys(groupedShowings.withData).length > 0 || (viewMode !== 'sales' && Object.keys(groupedShowings.withoutData).length > 0)) ? (
         <>
-          {Object.keys(groupedShowings.withData).length > 0 && (
+          {viewMode === 'horaire' ? (
+            // Horaire mode: All theaters in compact grid
             <div style={{
               display: 'grid',
-              gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
-              gap: '16px',
-              marginBottom: '24px'
+              gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))',
+              gap: '12px'
             }}>
-              {Object.entries(groupedShowings.withData).map(([key, data]) =>
-                renderTheaterGroup(key, data, false)
+              {[...Object.entries(groupedShowings.withData), ...Object.entries(groupedShowings.withoutData)].map(([key, data]) =>
+                renderTheaterGroup(key, data, true)
               )}
             </div>
-          )}
-
-          {Object.keys(groupedShowings.withoutData).length > 0 && (
+          ) : (
+            // Sales mode: Two-column layout for theaters with data
             <>
-              <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#64748b', marginBottom: '12px', marginTop: '24px' }}>
-                Horaires seulement (sans données de vente)
-              </h3>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))',
-                gap: '12px'
-              }}>
-                {Object.entries(groupedShowings.withoutData).map(([key, data]) =>
-                  renderTheaterGroup(key, data, true)
-                )}
-              </div>
+              {Object.keys(groupedShowings.withData).length > 0 && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
+                  gap: '16px',
+                  marginBottom: '24px'
+                }}>
+                  {Object.entries(groupedShowings.withData).map(([key, data]) =>
+                    renderTheaterGroup(key, data, false)
+                  )}
+                </div>
+              )}
+
+              {viewMode !== 'sales' && Object.keys(groupedShowings.withoutData).length > 0 && (
+                <>
+                  <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#64748b', marginBottom: '12px', marginTop: '24px' }}>
+                    Horaires seulement
+                  </h3>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))',
+                    gap: '12px'
+                  }}>
+                    {Object.entries(groupedShowings.withoutData).map(([key, data]) =>
+                      renderTheaterGroup(key, data, true)
+                    )}
+                  </div>
+                </>
+              )}
             </>
           )}
         </>
@@ -949,7 +1059,7 @@ function ShowingsTab({ movieId }) {
           borderRadius: '12px',
           background: '#fafbfc'
         }}>
-          {loading ? 'Chargement...' : 'Aucune représentation trouvée pour cette période'}
+          {loading ? 'Chargement...' : viewMode === 'sales' ? 'Aucune représentation avec données de vente pour cette période' : 'Aucune représentation trouvée pour cette période'}
         </div>
       )}
     </div>
