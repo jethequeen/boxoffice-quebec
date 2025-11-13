@@ -103,5 +103,5 @@ export const correctMovieID = (tempId, newId) =>
       body: { tempId: Number(tempId), newId: Number(newId) },
     });
 
-export const getMovieShowings = (movieId, date, theatreId, timeRange, company, lat, lon, limit) =>
-    apiCall('getMovieShowings', { query: { movieId, date, theatreId, timeRange, company, lat, lon, limit } });
+export const getMovieShowings = (movieId, dateFrom, dateTo, theatreId, timeRange, company, lat, lon, limit) =>
+    apiCall('getMovieShowings', { query: { movieId, dateFrom, dateTo, theatreId, timeRange, company, lat, lon, limit } });

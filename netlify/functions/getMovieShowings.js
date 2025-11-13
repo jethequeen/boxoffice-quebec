@@ -18,7 +18,7 @@ export const handler = async (event) => {
 
     let client;
     try {
-        const { movieId, date, theatreId, timeRange, company, lat, lon, limit } = event.queryStringParameters || {};
+        const { movieId, dateFrom, dateTo, theatreId, timeRange, company, lat, lon, limit } = event.queryStringParameters || {};
 
         if (!movieId) {
             return {
@@ -46,9 +46,15 @@ export const handler = async (event) => {
         let companyFilter = '';
         let nearbyFilter = '';
 
-        if (date) {
-            queryParams.push(date);
-            dateFilter = `AND s.date = $${queryParams.length}`;
+        if (dateFrom && dateTo) {
+            queryParams.push(dateFrom, dateTo);
+            dateFilter = `AND s.date BETWEEN $${queryParams.length - 1} AND $${queryParams.length}`;
+        } else if (dateFrom) {
+            queryParams.push(dateFrom);
+            dateFilter = `AND s.date >= $${queryParams.length}`;
+        } else if (dateTo) {
+            queryParams.push(dateTo);
+            dateFilter = `AND s.date <= $${queryParams.length}`;
         }
 
         if (theatreId) {
@@ -62,26 +68,20 @@ export const handler = async (event) => {
         }
 
         if (company) {
-            queryParams.push(company);
-            companyFilter = `AND t.company = $${queryParams.length}`;
+            queryParams.push(`%${company}%`);
+            companyFilter = `AND t.company ILIKE $${queryParams.length}`;
         }
 
-        // Note: Geolocation features (lat/lon) are temporarily disabled
-        // They require PostGIS extension which may not be available on all databases
-        // TODO: Enable PostGIS on production and uncomment the geolocation code below
-
-        /*
         // If geolocation provided, filter to nearby theaters
         if (lat && lon) {
             const maxDistance = limit || 50; // km
             nearbyFilter = `AND ST_DWithin(
-                ST_SetSRID(ST_MakePoint(t.longitude, t.latitude), 4326)::geography,
+                t.location::geography,
                 ST_SetSRID(ST_MakePoint($${queryParams.length + 1}, $${queryParams.length + 2}), 4326)::geography,
                 ${maxDistance * 1000}
             )`;
             queryParams.push(parseFloat(lon), parseFloat(lat));
         }
-        */
 
         // Query to get showings with theater info
         const showingsQuery = `
@@ -92,12 +92,17 @@ export const handler = async (event) => {
                 s.date,
                 s.start_at,
                 s.screen_id,
+                s.language,
                 sc.seat_count as total_seats,
                 s.seats_sold,
                 t.name as theatre_name,
                 t.company as theatre_company,
                 t.showings_url as theatre_website,
                 sc.name as auditorium
+                ${lat && lon ? `, ST_Distance(
+                    t.location::geography,
+                    ST_SetSRID(ST_MakePoint($${queryParams.length - 1}, $${queryParams.length}), 4326)::geography
+                ) / 1000 as distance_km` : ''}
             FROM showings s
             JOIN theaters t ON t.id = s.theater_id
             LEFT JOIN screens sc ON sc.id = s.screen_id
@@ -107,7 +112,7 @@ export const handler = async (event) => {
             ${timeRangeFilter}
             ${companyFilter}
             ${nearbyFilter}
-            ORDER BY s.date DESC, t.name, sc.name, s.start_at;
+            ORDER BY ${lat && lon ? 'distance_km ASC,' : ''} s.date DESC, t.name, sc.name, s.start_at;
         `;
 
         const showingsResult = await client.query(showingsQuery, queryParams);
