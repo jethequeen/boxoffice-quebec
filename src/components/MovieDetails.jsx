@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 import Tabs from "../components/Tabs";
 import './BoxOffice.css';
 import CorrectionIdpanel from "./correctionIdpanel.jsx";
-import { getMovieDetails } from '../utils/api';
+import { getMovieDetails, getMovieShowings } from '../utils/api';
 
 function useIsMobile(breakpoint = 768) {
   const getMatch = () => {
@@ -333,9 +333,287 @@ function Comparateur({ movieId }) {
   );
 }
 
+function ShowingsTab({ movieId }) {
+  const TICKET_PRICE = 13; // $13 per ticket
 
+  // Get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
 
+  const [selectedDate, setSelectedDate] = useState(getTodayDate());
+  const [selectedTheatre, setSelectedTheatre] = useState('');
+  const [showingsData, setShowingsData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
+  useEffect(() => {
+    fetchShowings();
+  }, [movieId, selectedDate, selectedTheatre]);
+
+  async function fetchShowings() {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await getMovieShowings(
+        movieId,
+        selectedDate || undefined,
+        selectedTheatre || undefined
+      );
+      setShowingsData(result);
+    } catch (err) {
+      console.error('Error fetching showings:', err);
+      setError('Erreur lors du chargement des représentations');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Group showings by theater and auditorium
+  const groupedShowings = useMemo(() => {
+    if (!showingsData?.showings) return {};
+
+    const groups = {};
+    showingsData.showings.forEach((showing) => {
+      const theatreKey = `${showing.theater_id}-${showing.theatre_name}`;
+      if (!groups[theatreKey]) {
+        groups[theatreKey] = {
+          theatre_id: showing.theater_id,
+          theatre_name: showing.theatre_name,
+          theatre_company: showing.theatre_city,
+          auditoriums: {}
+        };
+      }
+
+      const auditorium = showing.auditorium || 'N/A';
+      if (!groups[theatreKey].auditoriums[auditorium]) {
+        groups[theatreKey].auditoriums[auditorium] = [];
+      }
+
+      groups[theatreKey].auditoriums[auditorium].push(showing);
+    });
+
+    return groups;
+  }, [showingsData]);
+
+  const handleDateChange = (e) => {
+    setSelectedDate(e.target.value);
+  };
+
+  const handleTheatreChange = (e) => {
+    setSelectedTheatre(e.target.value);
+  };
+
+  const formatTime = (timeStr) => {
+    if (!timeStr) return '—';
+    // Handle timestamp with timezone format
+    const date = new Date(timeStr);
+    return date.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  const calculateOccupancy = (seatsSold, totalSeats) => {
+    if (!totalSeats || totalSeats === 0) return 0;
+    return (seatsSold / totalSeats) * 100;
+  };
+
+  const calculateRevenue = (seatsSold) => {
+    return seatsSold * TICKET_PRICE;
+  };
+
+  if (loading && !showingsData) {
+    return (
+      <div style={{ padding: '24px', textAlign: 'center' }}>
+        <div className="loading-spinner" />
+        <p>Chargement des représentations...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="showings-tab" style={{ padding: '12px 0' }}>
+      {/* Filters */}
+      <div className="showings-filters" style={{
+        display: 'flex',
+        gap: '12px',
+        marginBottom: '20px',
+        flexWrap: 'wrap',
+        alignItems: 'flex-end'
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <label htmlFor="date-filter" style={{ fontSize: '14px', fontWeight: '500' }}>
+            Date
+          </label>
+          <input
+            id="date-filter"
+            type="date"
+            value={selectedDate}
+            onChange={handleDateChange}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              fontSize: '14px'
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '200px' }}>
+          <label htmlFor="theatre-filter" style={{ fontSize: '14px', fontWeight: '500' }}>
+            Cinéma
+          </label>
+          <select
+            id="theatre-filter"
+            value={selectedTheatre}
+            onChange={handleTheatreChange}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              fontSize: '14px'
+            }}
+          >
+            <option value="">Tous les cinémas</option>
+            {showingsData?.theaters?.map((theatre) => (
+              <option key={theatre.id} value={theatre.id}>
+                {theatre.name} {theatre.company ? `(${theatre.company})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          onClick={fetchShowings}
+          style={{
+            padding: '8px 16px',
+            background: '#6a67f5',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '500'
+          }}
+        >
+          Actualiser
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ padding: '12px', background: '#fee', borderRadius: '4px', marginBottom: '12px' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Results count */}
+      {showingsData && (
+        <div style={{ marginBottom: '12px', fontSize: '14px', color: '#666' }}>
+          {showingsData.count} représentation{showingsData.count !== 1 ? 's' : ''} trouvée{showingsData.count !== 1 ? 's' : ''}
+        </div>
+      )}
+
+      {/* Showings grouped by theater and auditorium */}
+      {Object.keys(groupedShowings).length > 0 ? (
+        <div className="showings-list" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {Object.entries(groupedShowings).map(([theatreKey, theatreData]) => (
+            <div key={theatreKey} className="theatre-group" style={{
+              border: '1px solid #e0e0e0',
+              borderRadius: '8px',
+              overflow: 'hidden'
+            }}>
+              {/* Theater header */}
+              <div style={{
+                background: '#f5f5f5',
+                padding: '12px 16px',
+                borderBottom: '1px solid #e0e0e0'
+              }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
+                  {theatreData.theatre_name}
+                  {theatreData.theatre_company && (
+                    <span style={{ fontWeight: '400', color: '#666', marginLeft: '8px' }}>
+                      ({theatreData.theatre_company})
+                    </span>
+                  )}
+                </h3>
+              </div>
+
+              {/* Auditoriums */}
+              {Object.entries(theatreData.auditoriums).map(([auditorium, showings]) => (
+                <div key={auditorium} style={{ padding: '16px' }}>
+                  <h4 style={{
+                    margin: '0 0 12px 0',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: '#333'
+                  }}>
+                    {auditorium}
+                  </h4>
+
+                  {/* Showings table */}
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{
+                      width: '100%',
+                      borderCollapse: 'collapse',
+                      fontSize: '14px'
+                    }}>
+                      <thead>
+                        <tr style={{ background: '#fafafa', borderBottom: '2px solid #e0e0e0' }}>
+                          <th style={{ padding: '8px', textAlign: 'left', fontWeight: '600' }}>Heure</th>
+                          <th style={{ padding: '8px', textAlign: 'right', fontWeight: '600' }}>Sièges totaux</th>
+                          <th style={{ padding: '8px', textAlign: 'right', fontWeight: '600' }}>Sièges vendus</th>
+                          <th style={{ padding: '8px', textAlign: 'right', fontWeight: '600' }}>Occupation</th>
+                          <th style={{ padding: '8px', textAlign: 'right', fontWeight: '600' }}>Recettes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {showings.map((showing) => {
+                          const occupancy = calculateOccupancy(showing.seats_sold, showing.total_seats);
+                          const revenue = calculateRevenue(showing.seats_sold);
+
+                          return (
+                            <tr key={showing.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                              <td style={{ padding: '8px' }}>{formatTime(showing.start_at)}</td>
+                              <td style={{ padding: '8px', textAlign: 'right' }}>
+                                {showing.total_seats?.toLocaleString('fr-CA') || '—'}
+                              </td>
+                              <td style={{ padding: '8px', textAlign: 'right' }}>
+                                {showing.seats_sold?.toLocaleString('fr-CA') || '0'}
+                              </td>
+                              <td style={{ padding: '8px', textAlign: 'right' }}>
+                                <span style={{
+                                  color: occupancy >= 80 ? '#0a0' : occupancy >= 50 ? '#fa0' : '#666'
+                                }}>
+                                  {occupancy.toFixed(1)}%
+                                </span>
+                              </td>
+                              <td style={{ padding: '8px', textAlign: 'right', fontWeight: '500' }}>
+                                {formatCurrency(revenue)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{
+          padding: '40px',
+          textAlign: 'center',
+          color: '#999',
+          border: '1px dashed #ddd',
+          borderRadius: '8px'
+        }}>
+          {loading ? 'Chargement...' : 'Aucune représentation trouvée pour cette date'}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function MovieDetails() {
   const { id } = useParams();
@@ -704,9 +982,7 @@ function MovieDetails() {
       <div style={{padding:"12px 0"}}>Statistiques à venir.</div>
   );
 
-  const tabHoraire = (
-      <div style={{padding:"12px 0"}}>Horaires et représentations à venir.</div>
-  );
+  const tabHoraire = <ShowingsTab movieId={movie?.id} />;
 
   const tabComparateur = (
       <div style={{ padding: '12px 0' }}>
@@ -797,7 +1073,7 @@ function MovieDetails() {
               </>
           ) : (
               <>
-                {DesktopHeader}                                   {/* <-- remet le vrai header */}
+                {DesktopHeader}
                 <Tabs tabs={desktopTabs} initialKey="box" />
               </>
           )}

@@ -1,0 +1,1263 @@
+﻿-- we don't know how to generate root <with-no-name> (class Root) :(
+
+comment on database postgres is 'default administrative connection database';
+
+create sequence performances_id_seq;
+
+alter sequence performances_id_seq owner to neondb_owner;
+
+-- Unknown how to generate base type type
+
+alter type gtrgm owner to cloud_admin;
+
+create table weekends
+(
+    start_date        date,
+    end_date          date,
+    total_revenues_qc bigint,
+    change_qc         numeric(6, 2),
+    total_revenues_us bigint,
+    change_us         numeric(6, 2),
+    id                integer not null
+        constraint pk_weekends_id
+            primary key
+);
+
+alter table weekends
+    owner to neondb_owner;
+
+create table actors
+(
+    id                   integer not null
+        primary key,
+    name                 text,
+    gender               integer,
+    profile_path         text,
+    popularity           real,
+    known_for_department text
+);
+
+alter table actors
+    owner to neondb_owner;
+
+create table crew
+(
+    id                   integer not null
+        primary key,
+    name                 text,
+    popularity           real,
+    known_for_department text,
+    image_path           text,
+    gender               integer
+);
+
+alter table crew
+    owner to neondb_owner;
+
+create table countries
+(
+    code    varchar(5) not null
+        primary key,
+    name    text,
+    fr_name text
+);
+
+alter table countries
+    owner to neondb_owner;
+
+create table genres
+(
+    id   integer not null
+        primary key,
+    name text    not null
+);
+
+alter table genres
+    owner to neondb_owner;
+
+create table studios
+(
+    id         integer not null
+        primary key,
+    name       text    not null,
+    popularity real
+);
+
+alter table studios
+    owner to neondb_owner;
+
+create table movies
+(
+    id                  integer not null
+        primary key,
+    title               text,
+    fr_title            text,
+    release_date        date,
+    popularity          real,
+    cumulatif_qc        bigint,
+    cumulatif_us        bigint,
+    budget              bigint,
+    poster_path         text,
+    backdrop_path       text,
+    runtime             integer,
+    overview            text,
+    principal_studio_id integer
+        references studios
+);
+
+alter table movies
+    owner to neondb_owner;
+
+create index idx_movies_principal_studio
+    on movies (principal_studio_id);
+
+create table revenues
+(
+    id                        integer generated always as identity
+        primary key,
+    film_id                   integer not null
+        constraint foreign_key_film_id
+            references movies,
+    rank                      integer,
+    revenue_qc                bigint,
+    revenue_us                bigint,
+    theater_count             integer,
+    cumulatif_qc_to_date      bigint,
+    force_qc_usa              numeric(6, 2),
+    cumulatif_us_to_date      bigint,
+    change_qc                 numeric(6, 2),
+    change_us                 numeric(6, 2),
+    weekend_id                integer not null
+        references weekends
+            on update cascade,
+    week_count                integer,
+    data_source               text,
+    average_showing_occupancy numeric(6, 2),
+    showings_proportion       numeric(6, 4),
+    date                      date,
+    preview                   boolean,
+    constraint unique_film_weekend
+        unique (film_id, weekend_id)
+);
+
+alter table revenues
+    owner to neondb_owner;
+
+create index idx_revenues_weekend_id
+    on revenues (weekend_id);
+
+create index idx_revenues_film_id
+    on revenues (film_id);
+
+create unique index ux_revenues_estimate_daily
+    on revenues (film_id, weekend_id, date, preview)
+    where (data_source = 'estimate'::text);
+
+create table movie_actors
+(
+    movie_id integer not null
+        constraint constraint_2
+            references movies
+            on delete cascade,
+    actor_id integer not null
+        constraint constraint_3
+            references actors,
+    "order"  integer,
+    constraint pk
+        primary key (movie_id, actor_id)
+);
+
+alter table movie_actors
+    owner to neondb_owner;
+
+create table movie_countries
+(
+    movie_id     integer    not null
+        constraint fk_movie_countries_movie_id
+            references movies
+            on delete cascade,
+    country_code varchar(5) not null
+        constraint fk_movie_countries_country_code
+            references countries,
+    constraint pk_movie_countries
+        primary key (country_code, movie_id)
+);
+
+alter table movie_countries
+    owner to neondb_owner;
+
+create table movie_crew
+(
+    movie_id integer not null
+        constraint fk_movie_crew_movie_id
+            references movies
+            on delete cascade,
+    crew_id  integer not null
+        constraint kf_movie_crew_crew_id
+            references crew,
+    job      text    not null,
+    constraint pk_movie_crew
+        primary key (movie_id, crew_id, job)
+);
+
+alter table movie_crew
+    owner to neondb_owner;
+
+create table movie_genres
+(
+    movie_id integer not null
+        constraint fk_movie_genre_movie_id
+            references movies
+            on delete cascade,
+    genre_id integer not null
+        constraint fk_movie_genre_genre_id
+            references genres,
+    constraint pk_movie_genre
+        primary key (movie_id, genre_id)
+);
+
+alter table movie_genres
+    owner to neondb_owner;
+
+create table movie_studio
+(
+    movie_id  integer not null
+        constraint fk_movie_studio_movie_id
+            references movies
+            on delete cascade,
+    studio_id integer not null
+        constraint fk_movie_studio_studio_id
+            references studios,
+    constraint pk_movie_studio
+        primary key (movie_id, studio_id)
+);
+
+alter table movie_studio
+    owner to neondb_owner;
+
+create table metrics_constants
+(
+    id               serial
+        primary key,
+    effective_from   timestamp with time zone default now() not null,
+    pop_us           bigint                                 not null,
+    pop_ca           bigint                                 not null,
+    pop_qc           bigint                                 not null,
+    pop_ratio_cached numeric(12, 8) generated always as (((pop_qc)::numeric / ((pop_us)::numeric + (pop_ca)::numeric))) stored
+);
+
+alter table metrics_constants
+    owner to neondb_owner;
+
+create table theaters
+(
+    id             bigserial
+        primary key,
+    name           text not null
+        constraint uq_theater_name
+            unique,
+    screens        integer,
+    company        text,
+    theater_api_id integer,
+    showings_url   text
+);
+
+alter table theaters
+    owner to neondb_owner;
+
+create table screens
+(
+    id         serial
+        primary key,
+    theater_id integer not null
+        references theaters
+            on delete cascade,
+    name       text,
+    seat_count integer,
+    format     text,
+    unique (theater_id, name)
+);
+
+alter table screens
+    owner to neondb_owner;
+
+create table showings
+(
+    id         bigint                   default nextval('performances_id_seq'::regclass) not null
+        constraint performances_pkey
+            primary key,
+    movie_id   bigint                                                                    not null
+        constraint performances_movie_id_fkey
+            references movies
+            on delete cascade,
+    theater_id bigint                                                                    not null
+        constraint performances_theater_id_fkey
+            references theaters
+            on delete cascade,
+    start_at   timestamp with time zone                                                  not null,
+    scraped_at timestamp with time zone default now(),
+    date       date                                                                      not null,
+    screen_id  integer
+        references screens
+            on delete cascade,
+    seats_sold integer,
+    constraint uq_perf
+        unique (movie_id, theater_id, start_at, date)
+);
+
+alter table showings
+    owner to neondb_owner;
+
+alter sequence performances_id_seq owned by showings.id;
+
+create index ix_perf_movie_date
+    on showings (movie_id, date);
+
+create index ix_perf_theater_date
+    on showings (theater_id, date);
+
+create index ix_perf_start_at
+    on showings (start_at);
+
+create index ix_showings_movie_date
+    on showings (movie_id, date);
+
+create table daily_revenues
+(
+    film_id                   integer                                not null
+        constraint film_id
+            references movies,
+    date                      date                                   not null,
+    revenue_qc                bigint,
+    created_at                timestamp with time zone default now() not null,
+    rank                      integer,
+    revenue_us                bigint,
+    force_qc_usa              numeric(6, 2),
+    change_qc                 numeric(6, 2),
+    change_us                 numeric(6, 2),
+    week_count                integer,
+    average_showing_occupancy numeric(6, 2),
+    showings_proportion       numeric(6, 4),
+    primary key (film_id, date)
+);
+
+alter table daily_revenues
+    owner to neondb_owner;
+
+create function compute_revenue_metrics() returns trigger
+    language plpgsql
+as
+$$
+DECLARE
+  v_pop_ratio numeric;
+  v_this_start date;
+  v_prev_qc bigint;
+  v_prev_us bigint;
+BEGIN
+  SELECT pop_ratio_cached
+  INTO v_pop_ratio
+  FROM metrics_constants
+  ORDER BY effective_from DESC, id DESC
+  LIMIT 1;
+
+  IF v_pop_ratio IS NULL THEN
+    RAISE EXCEPTION 'metrics_constants is empty or pop_ratio_cached is NULL';
+  END IF;
+
+  IF NEW.revenue_us IS NULL OR NEW.revenue_us = 0 THEN
+    NEW.force_qc_usa := NULL;
+  ELSE
+    NEW.force_qc_usa :=
+      ROUND((NEW.revenue_qc::numeric / NEW.revenue_us::numeric) / v_pop_ratio * 100, 2);
+  END IF;
+
+  SELECT w.start_date INTO v_this_start
+  FROM weekends w
+  WHERE w.id = NEW.weekend_id;
+
+  SELECT r2.revenue_qc, r2.revenue_us
+  INTO v_prev_qc, v_prev_us
+  FROM revenues r2
+  JOIN weekends w2 ON w2.id = r2.weekend_id
+  WHERE r2.film_id = NEW.film_id
+    AND w2.start_date < v_this_start
+  ORDER BY w2.start_date DESC
+  LIMIT 1;
+
+  IF v_prev_qc IS NULL OR v_prev_qc = 0 OR NEW.revenue_qc IS NULL THEN
+    NEW.change_qc := NULL;
+  ELSE
+    NEW.change_qc :=
+      ROUND(((NEW.revenue_qc::numeric - v_prev_qc::numeric) / v_prev_qc::numeric) * 100, 2);
+  END IF;
+
+  IF v_prev_us IS NULL OR v_prev_us = 0 OR NEW.revenue_us IS NULL THEN
+    NEW.change_us := NULL;
+  ELSE
+    NEW.change_us :=
+      ROUND(((NEW.revenue_us::numeric - v_prev_us::numeric) / v_prev_us::numeric) * 100, 2);
+  END IF;
+
+  RETURN NEW;
+END
+$$;
+
+alter function compute_revenue_metrics() owner to neondb_owner;
+
+create function freeze_theater_count() returns trigger
+    language plpgsql
+as
+$$
+BEGIN
+  IF OLD.theater_count IS NOT NULL THEN
+    NEW.theater_count := OLD.theater_count;
+  END IF;
+  RETURN NEW;
+END $$;
+
+alter function freeze_theater_count() owner to neondb_owner;
+
+create function set_principal_studio_once(p_movie_id integer) returns void
+    language sql
+as
+$$
+WITH studio_counts AS (
+  SELECT studio_id, COUNT(*)::bigint AS total
+  FROM movie_studio
+  GROUP BY studio_id
+),
+pick AS (
+  SELECT DISTINCT ON (ms.movie_id)
+         ms.movie_id,
+         ms.studio_id
+  FROM movie_studio ms
+  JOIN studio_counts sc ON sc.studio_id = ms.studio_id
+  WHERE ms.movie_id = p_movie_id
+  ORDER BY ms.movie_id, sc.total DESC, ms.studio_id ASC
+)
+UPDATE movies m
+SET principal_studio_id = p.studio_id
+FROM pick p
+WHERE m.id = p.movie_id
+  AND m.principal_studio_id IS NULL;
+$$;
+
+alter function set_principal_studio_once(integer) owner to neondb_owner;
+
+create function trg_on_movie_studio_set_principal_once() returns trigger
+    language plpgsql
+as
+$$
+BEGIN
+  PERFORM set_principal_studio_once(NEW.movie_id);
+  RETURN NULL;
+END
+$$;
+
+alter function trg_on_movie_studio_set_principal_once() owner to neondb_owner;
+
+create function update_weekend_totals(p_weekend_id integer) returns void
+    language sql
+as
+$$
+UPDATE weekends w
+SET
+  total_revenues_qc = (SELECT COALESCE(SUM(COALESCE(r.revenue_qc,0)),0) FROM revenues r WHERE r.weekend_id = p_weekend_id),
+  total_revenues_us = (SELECT COALESCE(SUM(COALESCE(r.revenue_us,0)),0) FROM revenues r WHERE r.weekend_id = p_weekend_id)
+WHERE w.id = p_weekend_id;
+$$;
+
+alter function update_weekend_totals(integer) owner to neondb_owner;
+
+create function trg_update_weekend_totals_and_changes() returns trigger
+    language plpgsql
+as
+$$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM update_weekend_totals(NEW.weekend_id);
+    PERFORM update_change_this_and_next(NEW.weekend_id);
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF NEW.weekend_id IS DISTINCT FROM OLD.weekend_id THEN
+      IF OLD.weekend_id IS NOT NULL THEN
+        PERFORM update_weekend_totals(OLD.weekend_id);
+        PERFORM update_change_this_and_next(OLD.weekend_id);
+      END IF;
+      IF NEW.weekend_id IS NOT NULL THEN
+        PERFORM update_weekend_totals(NEW.weekend_id);
+        PERFORM update_change_this_and_next(NEW.weekend_id);
+      END IF;
+    ELSE
+      PERFORM update_weekend_totals(NEW.weekend_id);
+      PERFORM update_change_this_and_next(NEW.weekend_id);
+    END IF;
+  ELSIF TG_OP = 'DELETE' THEN
+    IF OLD.weekend_id IS NOT NULL THEN
+      PERFORM update_weekend_totals(OLD.weekend_id);
+      PERFORM update_change_this_and_next(OLD.weekend_id);
+    END IF;
+  END IF;
+  RETURN NULL;
+END
+$$;
+
+alter function trg_update_weekend_totals_and_changes() owner to neondb_owner;
+
+create function update_weekend_change(p_weekend_id integer) returns void
+    language plpgsql
+as
+$$
+DECLARE
+  this_start date;
+  prev_qc bigint;
+  prev_us bigint;
+BEGIN
+  SELECT start_date INTO this_start FROM weekends WHERE id = p_weekend_id;
+  IF this_start IS NULL THEN RETURN; END IF;
+
+  SELECT x.prev_qc, y.prev_us
+  INTO prev_qc, prev_us
+  FROM LATERAL (
+    SELECT w2.total_revenues_qc AS prev_qc
+    FROM weekends w2
+    WHERE w2.start_date < this_start AND w2.total_revenues_qc IS NOT NULL
+    ORDER BY w2.start_date DESC
+    LIMIT 1
+  ) x
+  LEFT JOIN LATERAL (
+    SELECT w3.total_revenues_us AS prev_us
+    FROM weekends w3
+    WHERE w3.start_date < this_start AND w3.total_revenues_us IS NOT NULL
+    ORDER BY w3.start_date DESC
+    LIMIT 1
+  ) y ON true;
+
+  UPDATE weekends w
+  SET
+    change_qc = CASE WHEN prev_qc IS NULL OR prev_qc = 0 THEN NULL ELSE ROUND(((w.total_revenues_qc::numeric - prev_qc::numeric)/prev_qc::numeric)*100,2) END,
+    change_us = CASE WHEN prev_us IS NULL OR prev_us = 0 THEN NULL ELSE ROUND(((w.total_revenues_us::numeric - prev_us::numeric)/prev_us::numeric)*100,2) END
+  WHERE w.id = p_weekend_id;
+END
+$$;
+
+alter function update_weekend_change(integer) owner to neondb_owner;
+
+create function update_change_this_and_next(p_weekend_id integer) returns void
+    language plpgsql
+as
+$$
+DECLARE
+  next_id int;
+BEGIN
+  PERFORM update_weekend_change(p_weekend_id);
+
+  SELECT w2.id
+  INTO next_id
+  FROM weekends w1
+  JOIN weekends w2
+    ON w2.start_date = (SELECT MIN(w3.start_date) FROM weekends w3 WHERE w3.start_date > w1.start_date)
+  WHERE w1.id = p_weekend_id;
+
+  IF next_id IS NOT NULL THEN
+    PERFORM update_weekend_change(next_id);
+  END IF;
+END
+$$;
+
+alter function update_change_this_and_next(integer) owner to neondb_owner;
+
+create function compute_revenue_change_and_force() returns trigger
+    language plpgsql
+as
+$$
+DECLARE
+  this_start date;
+  prev_qc bigint;
+  prev_us bigint;
+  pop_ratio numeric;
+BEGIN
+  SELECT pop_ratio_cached INTO pop_ratio
+  FROM metrics_constants
+  ORDER BY effective_from DESC, id DESC
+  LIMIT 1;
+
+  SELECT start_date INTO this_start
+  FROM weekends
+  WHERE id = NEW.weekend_id;
+
+  SELECT r.revenue_qc, r.revenue_us
+  INTO prev_qc, prev_us
+  FROM revenues r
+  JOIN weekends w ON w.id = r.weekend_id
+  WHERE r.film_id = NEW.film_id
+    AND w.start_date < this_start
+  ORDER BY w.start_date DESC
+  LIMIT 1;
+
+  NEW.change_qc :=
+    CASE WHEN prev_qc IS NULL OR prev_qc = 0
+         THEN NULL
+         ELSE ROUND(((NEW.revenue_qc::numeric - prev_qc::numeric)/prev_qc::numeric)*100, 2)
+    END;
+
+  NEW.change_us :=
+    CASE WHEN prev_us IS NULL OR prev_us = 0
+         THEN NULL
+         ELSE ROUND(((NEW.revenue_us::numeric - prev_us::numeric)/prev_us::numeric)*100, 2)
+    END;
+
+  IF NEW.revenue_us IS NULL OR NEW.revenue_us = 0 OR pop_ratio IS NULL OR pop_ratio = 0
+  THEN
+    NEW.force_qc_usa := NULL;
+  ELSE
+    NEW.force_qc_usa :=
+      ROUND((COALESCE(NEW.revenue_qc,0)::numeric / NEW.revenue_us::numeric) / pop_ratio * 100, 2);
+  END IF;
+
+  RETURN NEW;
+END
+$$;
+
+alter function compute_revenue_change_and_force() owner to neondb_owner;
+
+create function set_week_count() returns trigger
+    language plpgsql
+as
+$$
+BEGIN
+  IF TG_OP = 'INSERT'
+     OR NEW.film_id <> COALESCE(OLD.film_id, NEW.film_id)
+     OR NEW.weekend_id <> COALESCE(OLD.weekend_id, NEW.weekend_id)
+  THEN
+    SELECT 1 + COUNT(*)
+      INTO NEW.week_count
+      FROM revenues r
+     WHERE r.film_id   = NEW.film_id
+       AND r.weekend_id < NEW.weekend_id;
+  END IF;
+
+  RETURN NEW;
+END
+$$;
+
+alter function set_week_count() owner to neondb_owner;
+
+create function trg_recompute_week_counts() returns trigger
+    language plpgsql
+as
+$$
+BEGIN
+  -- Prevent recursion when this function's own UPDATE fires triggers
+  IF pg_trigger_depth() > 1 THEN
+    RETURN NEW;
+  END IF;
+
+  WITH ordered AS (
+    SELECT r.film_id,
+           r.weekend_id,
+           ROW_NUMBER() OVER (PARTITION BY r.film_id ORDER BY r.weekend_id) AS rn
+    FROM revenues r
+    WHERE r.film_id = NEW.film_id
+  )
+  UPDATE revenues AS r
+  SET week_count = o.rn
+  FROM ordered AS o
+  WHERE r.film_id   = o.film_id
+    AND r.weekend_id = o.weekend_id
+    AND r.week_count IS DISTINCT FROM o.rn;  -- avoid no-op updates
+
+  RETURN NEW;
+END
+$$;
+
+alter function trg_recompute_week_counts() owner to neondb_owner;
+
+create function unaccent(regdictionary, text) returns text
+    stable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function unaccent(regdictionary, text) owner to cloud_admin;
+
+create function unaccent(text) returns text
+    stable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function unaccent(text) owner to cloud_admin;
+
+create function unaccent_init(internal) returns internal
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function unaccent_init(internal) owner to cloud_admin;
+
+create function unaccent_lexize(internal, internal, internal, internal) returns internal
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function unaccent_lexize(internal, internal, internal, internal) owner to cloud_admin;
+
+create function set_limit(real) returns real
+    strict
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function set_limit(real) owner to cloud_admin;
+
+create function show_limit() returns real
+    stable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function show_limit() owner to cloud_admin;
+
+create function show_trgm(text) returns text[]
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function show_trgm(text) owner to cloud_admin;
+
+create function similarity(text, text) returns real
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function similarity(text, text) owner to cloud_admin;
+
+create function similarity_op(text, text) returns boolean
+    stable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function similarity_op(text, text) owner to cloud_admin;
+
+create function word_similarity(text, text) returns real
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function word_similarity(text, text) owner to cloud_admin;
+
+create function word_similarity_op(text, text) returns boolean
+    stable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function word_similarity_op(text, text) owner to cloud_admin;
+
+create function word_similarity_commutator_op(text, text) returns boolean
+    stable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function word_similarity_commutator_op(text, text) owner to cloud_admin;
+
+create function similarity_dist(text, text) returns real
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function similarity_dist(text, text) owner to cloud_admin;
+
+create function word_similarity_dist_op(text, text) returns real
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function word_similarity_dist_op(text, text) owner to cloud_admin;
+
+create function word_similarity_dist_commutator_op(text, text) returns real
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function word_similarity_dist_commutator_op(text, text) owner to cloud_admin;
+
+create function gtrgm_in(cstring) returns gtrgm
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gtrgm_in(cstring) owner to cloud_admin;
+
+create function gtrgm_out(gtrgm) returns cstring
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gtrgm_out(gtrgm) owner to cloud_admin;
+
+create function gtrgm_consistent(internal, text, smallint, oid, internal) returns boolean
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gtrgm_consistent(internal, text, smallint, oid, internal) owner to cloud_admin;
+
+create function gtrgm_distance(internal, text, smallint, oid, internal) returns double precision
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gtrgm_distance(internal, text, smallint, oid, internal) owner to cloud_admin;
+
+create function gtrgm_compress(internal) returns internal
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gtrgm_compress(internal) owner to cloud_admin;
+
+create function gtrgm_decompress(internal) returns internal
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gtrgm_decompress(internal) owner to cloud_admin;
+
+create function gtrgm_penalty(internal, internal, internal) returns internal
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gtrgm_penalty(internal, internal, internal) owner to cloud_admin;
+
+create function gtrgm_picksplit(internal, internal) returns internal
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gtrgm_picksplit(internal, internal) owner to cloud_admin;
+
+create function gtrgm_union(internal, internal) returns gtrgm
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gtrgm_union(internal, internal) owner to cloud_admin;
+
+create function gtrgm_same(gtrgm, gtrgm, internal) returns internal
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gtrgm_same(gtrgm, gtrgm, internal) owner to cloud_admin;
+
+create function gin_extract_value_trgm(text, internal) returns internal
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gin_extract_value_trgm(text, internal) owner to cloud_admin;
+
+create function gin_extract_query_trgm(text, internal, smallint, internal, internal, internal, internal) returns internal
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gin_extract_query_trgm(text, internal, smallint, internal, internal, internal, internal) owner to cloud_admin;
+
+create function gin_trgm_consistent(internal, smallint, text, integer, internal, internal, internal, internal) returns boolean
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gin_trgm_consistent(internal, smallint, text, integer, internal, internal, internal, internal) owner to cloud_admin;
+
+create function gin_trgm_triconsistent(internal, smallint, text, integer, internal, internal, internal) returns "char"
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gin_trgm_triconsistent(internal, smallint, text, integer, internal, internal, internal) owner to cloud_admin;
+
+create function strict_word_similarity(text, text) returns real
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function strict_word_similarity(text, text) owner to cloud_admin;
+
+create function strict_word_similarity_op(text, text) returns boolean
+    stable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function strict_word_similarity_op(text, text) owner to cloud_admin;
+
+create function strict_word_similarity_commutator_op(text, text) returns boolean
+    stable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function strict_word_similarity_commutator_op(text, text) owner to cloud_admin;
+
+create function strict_word_similarity_dist_op(text, text) returns real
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function strict_word_similarity_dist_op(text, text) owner to cloud_admin;
+
+create function strict_word_similarity_dist_commutator_op(text, text) returns real
+    immutable
+    strict
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function strict_word_similarity_dist_commutator_op(text, text) owner to cloud_admin;
+
+create function gtrgm_options(internal) returns void
+    immutable
+    parallel safe
+    language c
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+alter function gtrgm_options(internal) owner to cloud_admin;
+
+create operator % (procedure = similarity_op, leftarg = text, rightarg = text, commutator = %, join = matchingjoinsel, restrict = matchingsel);
+
+alter operator %(text, text) owner to cloud_admin;
+
+create operator <-> (procedure = similarity_dist, leftarg = text, rightarg = text, commutator = <->);
+
+alter operator <->(text, text) owner to cloud_admin;
+
+create operator family gist_trgm_ops using gist;
+
+alter operator family gist_trgm_ops using gist add
+    operator 1 %(text, text),
+    operator 2 <->(text, text) for order by float_ops,
+    operator 3 ~~(text,text),
+    operator 4 ~~*(text,text),
+    operator 5 ~(text,text),
+    operator 6 ~*(text,text),
+    operator 7 %>(text, text),
+    operator 8 <->>(text, text) for order by float_ops,
+    operator 9 %>>(text, text),
+    operator 10 <->>>(text, text) for order by float_ops,
+    operator 11 =(text,text),
+    function 6(text, text) gtrgm_picksplit(internal, internal),
+    function 7(text, text) gtrgm_same(gtrgm, gtrgm, internal),
+    function 8(text, text) gtrgm_distance(internal, text, smallint, oid, internal),
+    function 10(text, text) gtrgm_options(internal),
+    function 2(text, text) gtrgm_union(internal, internal),
+    function 3(text, text) gtrgm_compress(internal),
+    function 4(text, text) gtrgm_decompress(internal),
+    function 5(text, text) gtrgm_penalty(internal, internal, internal),
+    function 1(text, text) gtrgm_consistent(internal, text, smallint, oid, internal);
+
+alter operator family gist_trgm_ops using gist owner to cloud_admin;
+
+create operator class gist_trgm_ops for type text using gist as storage gtrgm function 6(text, text) gtrgm_picksplit(internal, internal),
+	function 1(text, text) gtrgm_consistent(internal, text, smallint, oid, internal),
+	function 7(text, text) gtrgm_same(gtrgm, gtrgm, internal),
+	function 5(text, text) gtrgm_penalty(internal, internal, internal),
+	function 2(text, text) gtrgm_union(internal, internal);
+
+alter operator class gist_trgm_ops using gist owner to cloud_admin;
+
+create operator family gin_trgm_ops using gin;
+
+alter operator family gin_trgm_ops using gin add
+    operator 6 ~*(text,text),
+    operator 7 %>(text, text),
+    operator 11 =(text,text),
+    operator 9 %>>(text, text),
+    operator 1 %(text, text),
+    operator 3 ~~(text,text),
+    operator 4 ~~*(text,text),
+    operator 5 ~(text,text),
+    function 1(text, text) btint4cmp(integer,integer),
+    function 4(text, text) gin_trgm_consistent(internal, smallint, text, integer, internal, internal, internal, internal),
+    function 6(text, text) gin_trgm_triconsistent(internal, smallint, text, integer, internal, internal, internal),
+    function 2(text, text) gin_extract_value_trgm(text, internal),
+    function 3(text, text) gin_extract_query_trgm(text, internal, smallint, internal, internal, internal, internal);
+
+alter operator family gin_trgm_ops using gin owner to cloud_admin;
+
+create operator class gin_trgm_ops for type text using gin as storage integer function 3(text, text) gin_extract_query_trgm(text, internal, smallint, internal, internal, internal, internal),
+	function 2(text, text) gin_extract_value_trgm(text, internal);
+
+alter operator class gin_trgm_ops using gin owner to cloud_admin;
+
+-- Cyclic dependencies found
+
+create operator %> (procedure = word_similarity_commutator_op, leftarg = text, rightarg = text, commutator = <%, join = matchingjoinsel, restrict = matchingsel);
+
+alter operator %>(text, text) owner to cloud_admin;
+
+create operator <% (procedure = word_similarity_op, leftarg = text, rightarg = text, commutator = %>, join = matchingjoinsel, restrict = matchingsel);
+
+alter operator <%(text, text) owner to cloud_admin;
+
+-- Cyclic dependencies found
+
+create operator %>> (procedure = strict_word_similarity_commutator_op, leftarg = text, rightarg = text, commutator = <<%, join = matchingjoinsel, restrict = matchingsel);
+
+alter operator %>>(text, text) owner to cloud_admin;
+
+create operator <<% (procedure = strict_word_similarity_op, leftarg = text, rightarg = text, commutator = %>>, join = matchingjoinsel, restrict = matchingsel);
+
+alter operator <<%(text, text) owner to cloud_admin;
+
+-- Cyclic dependencies found
+
+create operator <->> (procedure = word_similarity_dist_commutator_op, leftarg = text, rightarg = text, commutator = <<->);
+
+alter operator <->>(text, text) owner to cloud_admin;
+
+create operator <<-> (procedure = word_similarity_dist_op, leftarg = text, rightarg = text, commutator = <->>);
+
+alter operator <<->(text, text) owner to cloud_admin;
+
+-- Cyclic dependencies found
+
+create operator <->>> (procedure = strict_word_similarity_dist_commutator_op, leftarg = text, rightarg = text, commutator = <<<->);
+
+alter operator <->>>(text, text) owner to cloud_admin;
+
+create operator <<<-> (procedure = strict_word_similarity_dist_op, leftarg = text, rightarg = text, commutator = <->>>);
+
+alter operator <<<->(text, text) owner to cloud_admin;
+
