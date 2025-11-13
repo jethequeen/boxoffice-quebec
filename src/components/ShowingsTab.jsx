@@ -983,21 +983,74 @@ function ShowingsTab({ movieId }) {
         </div>
       )}
 
-      {/* Results count */}
+      {/* Results count and controls */}
       {showingsData && (
-        <div style={{ marginBottom: '16px', fontSize: '14px', color: '#64748b' }}>
-          {showingsData.count} représentation{showingsData.count !== 1 ? 's' : ''} trouvée{showingsData.count !== 1 ? 's' : ''}
-          {viewMode === 'sales' && Object.keys(groupedShowings.withData).length > 0 && (
-            <span style={{ fontWeight: '500', color: '#6366f1' }}>
-              {' '}(affichage ventes)
-            </span>
+        <div style={{
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px'
+        }}>
+          <div style={{ fontSize: '14px', color: '#64748b' }}>
+            {showingsData.count} représentation{showingsData.count !== 1 ? 's' : ''} trouvée{showingsData.count !== 1 ? 's' : ''}
+            {viewMode === 'sales' && Object.keys(groupedShowings.withData).length > 0 && (
+              <span style={{ fontWeight: '500', color: '#6366f1' }}>
+                {' '}
+              </span>
+            )}
+            {viewMode === 'horaire' && (
+              <span style={{ fontWeight: '500', color: '#6366f1' }}>
+                {' '}
+              </span>
+            )}
+            {proximityEnabled && userLocation && <span style={{ fontWeight: '500', color: '#10b981' }}> </span>}
+          </div>
+
+          {(Object.keys(groupedShowings.withData).length > 0 || Object.keys(groupedShowings.withoutData).length > 0) && (
+            <button
+              onClick={() => {
+                const allTheaterIds = [
+                  ...Object.values(groupedShowings.withData).map(t => t.theatre_id),
+                  ...Object.values(groupedShowings.withoutData).map(t => t.theatre_id)
+                ];
+                if (collapsedTheaters.size === allTheaterIds.length) {
+                  // All collapsed, expand all
+                  setCollapsedTheaters(new Set());
+                } else {
+                  // Some or none collapsed, collapse all
+                  setCollapsedTheaters(new Set(allTheaterIds));
+                }
+              }}
+              style={{
+                padding: '6px 12px',
+                background: '#fff',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: '500',
+                color: '#64748b',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#f9fafb';
+                e.currentTarget.style.borderColor = '#d1d5db';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#fff';
+                e.currentTarget.style.borderColor = '#e5e7eb';
+              }}
+            >
+              {collapsedTheaters.size === (Object.keys(groupedShowings.withData).length + Object.keys(groupedShowings.withoutData).length)
+                ? '▶ Tout développer'
+                : '▼ Tout réduire'}
+            </button>
           )}
-          {viewMode === 'horaire' && (
-            <span style={{ fontWeight: '500', color: '#6366f1' }}>
-              {' '}(affichage horaires)
-            </span>
-          )}
-          {proximityEnabled && userLocation && <span style={{ fontWeight: '500', color: '#10b981' }}> </span>}
         </div>
       )}
 
