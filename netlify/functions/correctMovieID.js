@@ -138,20 +138,46 @@ export const handler = async (event) => {
             // Empêche deux corrections de s’entrelacer
             await sql/*sql*/`SELECT id FROM movies WHERE id IN (${t}, ${n}) FOR UPDATE`;
 
-            /* 1) FACTS FIRST — pas de delete avant la fusion */
-
-            // Revenues: on fusionne vers n, puis on efface les restes de t
-            // Hypothèse d’unicité: (weekend_id, film_id). Adapte ON CONFLICT si différent.
+// Revenues: merge rows from temp (t) into new (n) using your real columns.
+// Assumes UNIQUE(weekend_id, film_id). Adjust if different.
             await sql/*sql*/`
-        INSERT INTO revenues (weekend_id, film_id, amount, source)
-        SELECT weekend_id, ${n} AS film_id, amount, source
-        FROM revenues
-        WHERE film_id = ${t}
-        ON CONFLICT (weekend_id, film_id) DO UPDATE
-          SET amount = EXCLUDED.amount,
-              source = COALESCE(EXCLUDED.source, revenues.source)
-      `;
+                INSERT INTO revenues AS r (
+      weekend_id, film_id,
+      rank,
+      revenue_qc, revenue_us,
+      theater_count,
+      cumulatif_qc_to_date, cumulatif_us_to_date,
+      change_qc, change_us,
+      week_count,
+      data_source
+  )
+                SELECT
+                    weekend_id, ${n} AS film_id,
+                    rank,
+                    revenue_qc, revenue_us,
+                    theater_count,
+                    cumulatif_qc_to_date, cumulatif_us_to_date,
+                    change_qc, change_us,
+                    week_count,
+                    data_source
+                FROM revenues
+                WHERE film_id = ${t}
+                    ON CONFLICT (weekend_id, film_id) DO UPDATE
+                                                             SET
+                                                                 rank                   = COALESCE(EXCLUDED.rank, r.rank),
+                                                             revenue_qc             = COALESCE(EXCLUDED.revenue_qc, r.revenue_qc),
+                                                             revenue_us             = COALESCE(EXCLUDED.revenue_us, r.revenue_us),
+                                                             theater_count          = COALESCE(EXCLUDED.theater_count, r.theater_count),
+                                                             cumulatif_qc_to_date   = COALESCE(EXCLUDED.cumulatif_qc_to_date, r.cumulatif_qc_to_date),
+                                                             cumulatif_us_to_date   = COALESCE(EXCLUDED.cumulatif_us_to_date, r.cumulatif_us_to_date),
+                                                             change_qc              = COALESCE(EXCLUDED.change_qc, r.change_qc),
+                                                             change_us              = COALESCE(EXCLUDED.change_us, r.change_us),
+                                                             week_count             = COALESCE(EXCLUDED.week_count, r.week_count),
+                                                             data_source            = COALESCE(EXCLUDED.data_source, r.data_source)
+            `;
+
             await sql/*sql*/`DELETE FROM revenues WHERE film_id = ${t}`;
+
 
             // Showings: si la PK est (id) et qu’il n’y a pas collision, un UPDATE suffit.
             await sql/*sql*/`UPDATE showings SET movie_id = ${n} WHERE movie_id = ${t}`;
