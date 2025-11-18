@@ -109,5 +109,14 @@ export const getMovieShowings = (movieId, dateFrom, dateTo, theatreId, timeRange
 export const getDailyRevenues = (movieId) =>
     apiCall('getDailyRevenues', { query: { movieId } });
 
-export const getSimilarMovies = (movieId) =>
-    apiCall('getSimilarMovies', { query: { movieId } });
+export const getSimilarMovies = (movieId, forecastRevenue = null) =>
+    apiCall('getSimilarMovies', { query: { movieId, ...(forecastRevenue ? { forecastRevenue } : {}) } });
+
+export const getTopStats = (startDate, endDate, filters = {}, canadianOnly = false) =>
+    apiCall('getTopStats', { query: { startDate, endDate, ...filters, canadianOnly: canadianOnly ? 'true' : undefined }, timeoutMs: 60000 });
+
+export const getForecast = (movieId) =>
+    apiCall('getForecast', { query: { movieId } });
+
+export const getAutocomplete = (type, query) =>
+    apiCall('getAutocomplete', { query: { type, query } });

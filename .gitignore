@@ -31,3 +31,6 @@ dist-ssr
 .env.local
 .env.*.local
 /.claude/settings.local.json
+
+# Database schema (contains sensitive information)
+src/utils/db_schema

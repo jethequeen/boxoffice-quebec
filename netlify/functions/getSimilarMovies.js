@@ -18,7 +18,7 @@ export const handler = async (event) => {
 
     let client;
     try {
-        const { movieId } = event.queryStringParameters || {};
+        const { movieId, forecastRevenue } = event.queryStringParameters || {};
 
         if (!movieId) {
             return {
@@ -67,23 +67,35 @@ export const handler = async (event) => {
         }
 
         const currentMovie = currentMovieResult.rows[0];
-        const currentRevenue = parseFloat(currentMovie.total_revenue_qc) || 0;
-        const minRevenue = Math.floor(currentRevenue * 0.6); // -30%
-        const maxRevenue = Math.ceil(currentRevenue * 1.4); // +30%
+        // Use forecastRevenue if provided (for movies with 0$ actual revenue), otherwise use actual revenue
+        const currentRevenue = forecastRevenue
+            ? parseFloat(forecastRevenue)
+            : parseFloat(currentMovie.total_revenue_qc) || 0;
+        const minRevenue = Math.floor(currentRevenue * 0.6); // -40%
+        const maxRevenue = Math.ceil(currentRevenue * 1.4); // +40%
 
-        // Get similar movies by director/genre/actors/country WITHIN revenue range
+        // Calculate release date constraint: similar movies must be released at least 2 months before current movie
+        const currentReleaseDate = new Date(currentMovie.release_date);
+        const twoMonthsBefore = new Date(currentReleaseDate);
+        twoMonthsBefore.setMonth(twoMonthsBefore.getMonth() - 2);
+        const maxReleaseDateForSimilar = twoMonthsBefore.toISOString().split('T')[0];
+
+        console.log('[SIMILAR] Current movie:', currentMovie.title);
+        console.log('[SIMILAR] Current release date:', currentMovie.release_date);
+        console.log('[SIMILAR] Similar movies must be released before:', maxReleaseDateForSimilar);
+        console.log('[SIMILAR] Revenue range:', minRevenue, '-', maxRevenue);
+        console.log('[SIMILAR] Using forecast revenue?', !!forecastRevenue);
+
+        // Get similar movies by director/genre/actors/country WITHIN revenue range AND release date constraint
         // Fetch each category separately to respect limits
-        const movie_revenues_cte = `
+
+        // 3 by director
+        const byDirectorQuery = `
             WITH movie_revenues AS (
                 SELECT film_id, COALESCE(MAX(cumulatif_qc_to_date), 0) as total_revenue_qc
                 FROM revenues
                 GROUP BY film_id
             )
-        `;
-
-        // 3 by director
-        const byDirectorQuery = `
-            ${movie_revenues_cte}
             SELECT DISTINCT m.id, m.title, m.fr_title, m.release_date, m.poster_path,
                    COALESCE(mr.total_revenue_qc, 0) as total_revenue_qc,
                    'director' as similarity_type
@@ -93,29 +105,55 @@ export const handler = async (event) => {
             WHERE mc.crew_id IN (SELECT crew_id FROM movie_crew WHERE movie_id = $1)
               AND m.id != $1
               AND COALESCE(mr.total_revenue_qc, 0) BETWEEN $2 AND $3
+              AND m.release_date <= $4::date
             ORDER BY COALESCE(mr.total_revenue_qc, 0) DESC
             LIMIT 3;
         `;
 
-        // 4 by genre
+        // 4 by genre - prioritize movies matching more genres, then by revenue similarity
         const byGenreQuery = `
-            ${movie_revenues_cte}
-            SELECT DISTINCT m.id, m.title, m.fr_title, m.release_date, m.poster_path,
-                   COALESCE(mr.total_revenue_qc, 0) as total_revenue_qc,
-                   'genre' as similarity_type
-            FROM movies m
-            JOIN movie_genres mg ON mg.movie_id = m.id
-            LEFT JOIN movie_revenues mr ON mr.film_id = m.id
-            WHERE mg.genre_id IN (SELECT genre_id FROM movie_genres WHERE movie_id = $1)
-              AND m.id != $1
-              AND COALESCE(mr.total_revenue_qc, 0) BETWEEN $2 AND $3
-            ORDER BY COALESCE(mr.total_revenue_qc, 0) DESC
+            WITH movie_revenues AS (
+                SELECT film_id, COALESCE(MAX(cumulatif_qc_to_date), 0) as total_revenue_qc
+                FROM revenues
+                GROUP BY film_id
+            ),
+            current_genres AS (
+                SELECT genre_id FROM movie_genres WHERE movie_id = $1
+            ),
+            genre_matches AS (
+                SELECT
+                    m.id,
+                    m.title,
+                    m.fr_title,
+                    m.release_date,
+                    m.poster_path,
+                    COALESCE(mr.total_revenue_qc, 0) as total_revenue_qc,
+                    COUNT(DISTINCT mg.genre_id) as matching_genres,
+                    ABS(COALESCE(mr.total_revenue_qc, 0) - $4) as revenue_diff
+                FROM movies m
+                JOIN movie_genres mg ON mg.movie_id = m.id
+                LEFT JOIN movie_revenues mr ON mr.film_id = m.id
+                WHERE mg.genre_id IN (SELECT genre_id FROM current_genres)
+                  AND m.id != $1
+                  AND COALESCE(mr.total_revenue_qc, 0) BETWEEN $2 AND $3
+                  AND m.release_date <= $5::date
+                GROUP BY m.id, m.title, m.fr_title, m.release_date, m.poster_path, mr.total_revenue_qc
+            )
+            SELECT
+                id, title, fr_title, release_date, poster_path, total_revenue_qc,
+                'genre' as similarity_type
+            FROM genre_matches
+            ORDER BY matching_genres DESC, revenue_diff ASC
             LIMIT 4;
         `;
 
         // 3 by actor
         const byActorQuery = `
-            ${movie_revenues_cte}
+            WITH movie_revenues AS (
+                SELECT film_id, COALESCE(MAX(cumulatif_qc_to_date), 0) as total_revenue_qc
+                FROM revenues
+                GROUP BY film_id
+            )
             SELECT DISTINCT m.id, m.title, m.fr_title, m.release_date, m.poster_path,
                    COALESCE(mr.total_revenue_qc, 0) as total_revenue_qc,
                    'actor' as similarity_type
@@ -125,13 +163,18 @@ export const handler = async (event) => {
             WHERE ma.actor_id IN (SELECT actor_id FROM movie_actors WHERE movie_id = $1 ORDER BY "order" LIMIT 5)
               AND m.id != $1
               AND COALESCE(mr.total_revenue_qc, 0) BETWEEN $2 AND $3
+              AND m.release_date <= $4::date
             ORDER BY COALESCE(mr.total_revenue_qc, 0) DESC
             LIMIT 3;
         `;
 
         // 2 by country
         const byCountryQuery = `
-            ${movie_revenues_cte}
+            WITH movie_revenues AS (
+                SELECT film_id, COALESCE(MAX(cumulatif_qc_to_date), 0) as total_revenue_qc
+                FROM revenues
+                GROUP BY film_id
+            )
             SELECT DISTINCT m.id, m.title, m.fr_title, m.release_date, m.poster_path,
                    COALESCE(mr.total_revenue_qc, 0) as total_revenue_qc,
                    'country' as similarity_type
@@ -141,16 +184,22 @@ export const handler = async (event) => {
             WHERE mc.country_code IN (SELECT country_code FROM movie_countries WHERE movie_id = $1)
               AND m.id != $1
               AND COALESCE(mr.total_revenue_qc, 0) BETWEEN $2 AND $3
+              AND m.release_date <= $4::date
             ORDER BY COALESCE(mr.total_revenue_qc, 0) DESC
             LIMIT 2;
         `;
 
         const [byDirectorResult, byGenreResult, byActorResult, byCountryResult] = await Promise.all([
-            client.query(byDirectorQuery, [movieId, minRevenue, maxRevenue]),
-            client.query(byGenreQuery, [movieId, minRevenue, maxRevenue]),
-            client.query(byActorQuery, [movieId, minRevenue, maxRevenue]),
-            client.query(byCountryQuery, [movieId, minRevenue, maxRevenue])
+            client.query(byDirectorQuery, [movieId, minRevenue, maxRevenue, maxReleaseDateForSimilar]),
+            client.query(byGenreQuery, [movieId, minRevenue, maxRevenue, currentRevenue, maxReleaseDateForSimilar]),
+            client.query(byActorQuery, [movieId, minRevenue, maxRevenue, maxReleaseDateForSimilar]),
+            client.query(byCountryQuery, [movieId, minRevenue, maxRevenue, maxReleaseDateForSimilar])
         ]);
+
+        console.log('[SIMILAR] Found by director:', byDirectorResult.rows.length);
+        console.log('[SIMILAR] Found by genre:', byGenreResult.rows.length);
+        console.log('[SIMILAR] Found by actor:', byActorResult.rows.length);
+        console.log('[SIMILAR] Found by country:', byCountryResult.rows.length);
 
         // Combine and deduplicate
         const similarMovies = [];
@@ -163,7 +212,7 @@ export const handler = async (event) => {
             }
         });
 
-        // If we need more movies, fill with movies by similar release date
+        // If we need more movies, fill with movies by similar release date (but still before the constraint)
         const needed = 8 - similarMovies.length;
         if (needed > 0) {
             const excludeIds = similarMovies.map(m => m.id);
@@ -182,8 +231,8 @@ export const handler = async (event) => {
                   AND ${excludeIds.length > 0 ? `m.id != ALL($6)` : 'TRUE'}
                   AND COALESCE(mr.total_revenue_qc, 0) BETWEEN $2 AND $3
                   AND m.release_date IS NOT NULL
-                  AND m.release_date BETWEEN ($4::date - INTERVAL '2 months') AND ($4::date + INTERVAL '2 months')
-                ORDER BY ABS(m.release_date - $4::date)
+                  AND m.release_date <= $4::date
+                ORDER BY m.release_date DESC
                 LIMIT $5;
             `;
 
@@ -191,7 +240,7 @@ export const handler = async (event) => {
                 movieId,
                 minRevenue,
                 maxRevenue,
-                currentMovie.release_date,
+                maxReleaseDateForSimilar,
                 needed
             ];
 
@@ -201,6 +250,7 @@ export const handler = async (event) => {
 
             const byDateResult = await client.query(byDateQuery, params);
 
+            console.log('[SIMILAR] Needed', needed, 'more movies, found', byDateResult.rows.length, 'by release date');
             similarMovies.push(...byDateResult.rows);
         }
 
@@ -216,6 +266,9 @@ export const handler = async (event) => {
             byCountry: finalSimilar.filter(m => m.similarity_type === 'country').length,
             byReleaseDate: finalSimilar.filter(m => m.similarity_type === 'release_date').length
         };
+
+        console.log('[SIMILAR] Final selection:', finalSimilar.length, 'movies');
+        console.log('[SIMILAR] Breakdown:', breakdown);
 
         return {
             statusCode: 200,
@@ -239,7 +292,8 @@ export const handler = async (event) => {
                 revenueRange: {
                     min: minRevenue,
                     max: maxRevenue,
-                    current: currentRevenue
+                    current: currentRevenue,
+                    usedForecast: !!forecastRevenue
                 },
                 breakdown
             }),

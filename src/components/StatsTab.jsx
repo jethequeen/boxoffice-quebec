@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getDailyRevenues, getSimilarMovies } from '../utils/api';
+import { getDailyRevenues, getSimilarMovies, getForecast } from '../utils/api';
 import { formatCurrency } from '../utils/formatUtils';
 import {
   LineChart,
@@ -20,6 +20,7 @@ function StatsTab({ movieId, movieTitle }) {
   const navigate = useNavigate();
   const [dailyRevenues, setDailyRevenues] = useState(null);
   const [similarMovies, setSimilarMovies] = useState(null);
+  const [forecast, setForecast] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -43,14 +44,23 @@ function StatsTab({ movieId, movieTitle }) {
         setLoading(true);
         setError(null);
 
-        // Fetch both daily revenues and similar movies in parallel
-        const [dailyRevenuesData, similarMoviesData] = await Promise.all([
+        // Fetch forecast and daily revenues first
+        const [dailyRevenuesData, forecastData] = await Promise.all([
           getDailyRevenues(movieId),
-          getSimilarMovies(movieId)
+          getForecast(movieId)
         ]);
+
+        // If forecast is needed, fetch similar movies using the forecast revenue
+        // Otherwise fetch normally
+        const forecastRevenue = forecastData?.needsForecast
+          ? forecastData.forecast.predictedRevenue
+          : null;
+
+        const similarMoviesData = await getSimilarMovies(movieId, forecastRevenue);
 
         setDailyRevenues(dailyRevenuesData);
         setSimilarMovies(similarMoviesData);
+        setForecast(forecastData);
         setHasLoaded(true);
       } catch (err) {
         console.error('Error fetching stats data:', err);
@@ -128,12 +138,18 @@ function StatsTab({ movieId, movieTitle }) {
 
   // Add current movie
   if (similarMovies?.currentMovie) {
+    // Use forecast revenue if available and needed, otherwise use actual revenue
+    const displayRevenue = forecast?.needsForecast
+      ? forecast.forecast.predictedRevenue
+      : parseFloat(similarMovies.currentMovie.total_revenue_qc) || 0;
+
     barChartData.push({
       id: similarMovies.currentMovie.id,
       title: similarMovies.currentMovie.fr_title || similarMovies.currentMovie.title,
-      revenue: parseFloat(similarMovies.currentMovie.total_revenue_qc) || 0,
+      revenue: displayRevenue,
       similarityType: 'current',
       isCurrent: true,
+      isForecast: forecast?.needsForecast || false,
       poster_path: similarMovies.currentMovie.poster_path
     });
   }
@@ -212,10 +228,13 @@ function StatsTab({ movieId, movieTitle }) {
       ? `https://image.tmdb.org/t/p/w92${movie.poster_path}`
       : null;
 
-    const titleMaxLength = 15;
+    const titleMaxLength = isMobile ? 8 : 15;
     const displayTitle = movie.title.length > titleMaxLength
       ? movie.title.substring(0, titleMaxLength) + '...'
       : movie.title;
+
+    const posterWidth = isMobile ? 35 : 46;
+    const posterHeight = isMobile ? 52 : 69;
 
     return (
       <g transform={`translate(${x},${y})`}>
@@ -223,10 +242,10 @@ function StatsTab({ movieId, movieTitle }) {
         {posterUrl ? (
           <image
             href={posterUrl}
-            x={-23}
+            x={-posterWidth / 2}
             y={0}
-            width={46}
-            height={69}
+            width={posterWidth}
+            height={posterHeight}
             style={{
               borderRadius: '4px',
               border: movie.isCurrent ? '2px solid #f59e0b' : 'none'
@@ -234,10 +253,10 @@ function StatsTab({ movieId, movieTitle }) {
           />
         ) : (
           <rect
-            x={-23}
+            x={-posterWidth / 2}
             y={0}
-            width={46}
-            height={69}
+            width={posterWidth}
+            height={posterHeight}
             fill="#e5e7eb"
             rx={4}
           />
@@ -246,10 +265,10 @@ function StatsTab({ movieId, movieTitle }) {
         {/* Movie title */}
         <text
           x={0}
-          y={80}
+          y={posterHeight + 12}
           textAnchor="middle"
           fill="#64748b"
-          fontSize={10}
+          fontSize={isMobile ? 8 : 10}
           fontWeight={movie.isCurrent ? 600 : 400}
         >
           {displayTitle}
@@ -260,7 +279,7 @@ function StatsTab({ movieId, movieTitle }) {
 
   // Custom label for bar chart - shows revenue on top
   const CustomBarLabel = (props) => {
-    const { x, y, width, value } = props;
+    const { x, y, width, value, payload } = props;
 
     // Format revenue in short form
     let formattedValue;
@@ -272,6 +291,9 @@ function StatsTab({ movieId, movieTitle }) {
       formattedValue = `${value}$`;
     }
 
+    // Add forecast indicator if this is the current movie with forecast
+    const displayText = payload?.isForecast ? `${formattedValue} 🔮` : formattedValue;
+
     return (
       <text
         x={x + width / 2}
@@ -281,7 +303,7 @@ function StatsTab({ movieId, movieTitle }) {
         fontSize={11}
         fontWeight={500}
       >
-        {formattedValue}
+        {displayText}
       </text>
     );
   };
@@ -319,42 +341,44 @@ function StatsTab({ movieId, movieTitle }) {
           <>
             <div style={{ marginBottom: '12px', fontSize: '14px', color: '#64748b' }}>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={lineChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                {/* Weekend highlights */}
-                {weekendRanges.map((range, index) => (
-                  <ReferenceArea
-                    key={`weekend-${index}`}
-                    x1={range.start}
-                    x2={range.end}
-                    fill="#fef3c7"
-                    fillOpacity={0.3}
+            <div style={{ overflowX: isMobile ? 'auto' : 'visible', overflowY: 'visible' }}>
+              <ResponsiveContainer width={isMobile ? Math.max(lineChartData.length * 40, 600) : '100%'} height={300}>
+                <LineChart data={lineChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  {/* Weekend highlights */}
+                  {weekendRanges.map((range, index) => (
+                    <ReferenceArea
+                      key={`weekend-${index}`}
+                      x1={range.start}
+                      x2={range.end}
+                      fill="#fef3c7"
+                      fillOpacity={0.3}
+                    />
+                  ))}
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={formatXAxisDate}
+                    label={{position: 'insideBottom', offset: -5, style: { fontSize: '13px', fill: '#64748b' } }}
+                    tick={{ fontSize: 11, fill: '#64748b', angle: -45, textAnchor: 'end' }}
+                    height={40}
                   />
-                ))}
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={formatXAxisDate}
-                  label={{position: 'insideBottom', offset: -5, style: { fontSize: '13px', fill: '#64748b' } }}
-                  tick={{ fontSize: 11, fill: '#64748b', angle: -45, textAnchor: 'end' }}
-                  height={40}
-                />
-                <YAxis
-                  tickFormatter={formatYAxis}
-                  label={{ angle: -90, position: 'insideLeft', style: { fontSize: '13px', fill: '#64748b' } }}
-                  tick={{ fontSize: 12, fill: '#64748b' }}
-                />
-                <Tooltip content={<CustomLineTooltip />} />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#6366f1"
-                  strokeWidth={2}
-                  dot={{ fill: '#6366f1', r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+                  <YAxis
+                    tickFormatter={formatYAxis}
+                    label={{ angle: -90, position: 'insideLeft', style: { fontSize: '13px', fill: '#64748b' } }}
+                    tick={{ fontSize: 12, fill: '#64748b' }}
+                  />
+                  <Tooltip content={<CustomLineTooltip />} />
+                  <Line
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    dot={{ fill: '#6366f1', r: 3 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </>
         ) : (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
@@ -371,8 +395,36 @@ function StatsTab({ movieId, movieTitle }) {
         boxShadow: '0 1px 3px rgba(0,0,0,.08)'
       }}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600', color: '#0f172a' }}>
-          Comparaison avec films similaires
+          Comparatifs
         </h3>
+
+        {/* Forecast Section - Show when movie has 0$ revenue and released 2+ months ago */}
+        {forecast?.needsForecast && (
+          <div style={{
+            background: '#fef3c7',
+            border: '1px solid #fbbf24',
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '20px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <span style={{ fontSize: '20px' }}>🔮</span>
+              <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#92400e' }}>
+                Prévision de revenus
+              </h4>
+            </div>
+            <div style={{ fontSize: '14px', color: '#78350f', marginBottom: '12px' }}>
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: '700', color: '#92400e', marginBottom: '16px' }}>
+              {formatCurrency(forecast.forecast.predictedRevenue)}
+            </div>
+            <div style={{ fontSize: '13px', color: '#78350f' }}>
+              <div style={{ fontWeight: '600', marginBottom: '8px' }}>
+              </div>
+            </div>
+          </div>
+        )}
+
         {barChartData.length > 0 ? (
           <>
             <div style={{ marginBottom: '12px', fontSize: '14px', color: '#64748b' }}>
@@ -403,7 +455,7 @@ function StatsTab({ movieId, movieTitle }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#9ca3af' }} />
                     <span style={{ color: '#64748b' }}>
-                      {similarMovies.breakdown.byActor} par acteurs
+                      Partageant des acteurs
                     </span>
                   </div>
                 )}
@@ -432,7 +484,7 @@ function StatsTab({ movieId, movieTitle }) {
                   <XAxis
                     dataKey="title"
                     tick={<CustomXAxisTick />}
-                    height={110}
+                    height={isMobile ? 80 : 110}
                     interval={0}
                   />
                   <YAxis

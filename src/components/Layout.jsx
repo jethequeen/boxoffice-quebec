@@ -7,7 +7,7 @@ function Layout({ children }) {
     const location = useLocation();
     const navItems = [
         { path: '/box-office', label: 'Box Office' },
-        { path: '/movies', label: 'Films' },
+        { path: '/movies', label: 'Classement' },
     ];
 
     return (
