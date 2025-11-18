@@ -11,6 +11,7 @@ import './BoxOffice.css';
 import CorrectionIdpanel from "./correctionIdpanel.jsx";
 import { getMovieDetails } from '../utils/api';
 import ShowingsTab from './ShowingsTab';
+import StatsTab from './StatsTab';
 
 function useIsMobile(breakpoint = 768) {
   const getMatch = () => {
@@ -696,9 +697,7 @@ function MovieDetails() {
   );
 
 
-  const tabStats = (
-      <div style={{padding:"12px 0"}}>Statistiques à venir.</div>
-  );
+  const tabStats = <StatsTab movieId={movie?.id} movieTitle={movie?.fr_title || movie?.title} />;
 
   const tabHoraire = <ShowingsTab movieId={movie?.id} />;
 

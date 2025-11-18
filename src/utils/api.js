@@ -105,3 +105,9 @@ export const correctMovieID = (tempId, newId) =>
 
 export const getMovieShowings = (movieId, dateFrom, dateTo, theatreId, timeRange, company, lat, lon, limit) =>
     apiCall('getMovieShowings', { query: { movieId, dateFrom, dateTo, theatreId, timeRange, company, lat, lon, limit } });
+
+export const getDailyRevenues = (movieId) =>
+    apiCall('getDailyRevenues', { query: { movieId } });
+
+export const getSimilarMovies = (movieId) =>
+    apiCall('getSimilarMovies', { query: { movieId } });

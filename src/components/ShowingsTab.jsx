@@ -204,7 +204,7 @@ function ShowingsTab({ movieId }) {
   const [proximityDistance, setProximityDistance] = useState(30);
   const [locationRequested, setLocationRequested] = useState(false);
   const [locationReady, setLocationReady] = useState(false);
-  const [viewMode, setViewMode] = useState('sales'); // 'horaire' or 'sales'
+  const [viewMode, setViewMode] = useState('horaire'); // 'horaire' or 'sales'
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
   const datePickerRef = useRef(null);
 
@@ -940,7 +940,7 @@ function ShowingsTab({ movieId }) {
                   setSelectedTimeRange('');
                   setProximityEnabled(true);
                   setProximityDistance(30);
-                  setViewMode('sales');
+                  setViewMode('horaire');
                   if (!userLocation) requestLocation();
                 }}
                 style={{
