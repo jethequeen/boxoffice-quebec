@@ -27,14 +27,26 @@ const buildUrl = (endpoint, query) => {
 };
 
 const handleResponse = async (res) => {
+  const contentType = res.headers.get('content-type');
   let data;
-  try {
-    data = await res.json();
-  } catch {
-    // Fallback if server didn’t send JSON
-    const text = await res.text().catch(() => '');
-    throw new Error(text || `HTTP ${res.status}`);
+
+  // Check if response is JSON
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      console.error('JSON parse error:', parseErr);
+      const text = await res.text().catch(() => '');
+      console.error('Response text:', text);
+      throw new Error(`Failed to parse JSON response. Status: ${res.status}`);
+    }
+  } else {
+    // Not JSON - probably an error page
+    const text = await res.text();
+    console.error('Non-JSON response:', text.substring(0, 500));
+    throw new Error(`Server returned non-JSON response (${contentType}). Status: ${res.status}. Check function logs.`);
   }
+
   if (!res.ok) {
     const msg = data?.error || data?.message || `HTTP ${res.status}`;
     const e = new Error(msg);
@@ -112,8 +124,13 @@ export const getDailyRevenues = (movieId) =>
 export const getSimilarMovies = (movieId, forecastRevenue = null) =>
     apiCall('getSimilarMovies', { query: { movieId, ...(forecastRevenue ? { forecastRevenue } : {}) } });
 
-export const getTopStats = (startDate, endDate, filters = {}, canadianOnly = false) =>
-    apiCall('getTopStats', { query: { startDate, endDate, ...filters, canadianOnly: canadianOnly ? 'true' : undefined }, timeoutMs: 60000 });
+export const getTopStats = (startDate, endDate, filters = {}, canadianOnly = false) => {
+    const query = { startDate, endDate, ...filters };
+    if (canadianOnly) {
+        query.canadianOnly = 'true';
+    }
+    return apiCall('getTopStats', { query, timeoutMs: 60000 });
+};
 
 export const getForecast = (movieId) =>
     apiCall('getForecast', { query: { movieId } });

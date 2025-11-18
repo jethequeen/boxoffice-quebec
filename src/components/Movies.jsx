@@ -72,7 +72,8 @@ function Movies() {
       setTopStatsCanadian(resultCanadian);
     } catch (err) {
       console.error('Error fetching top stats:', err);
-      setError('Erreur lors du chargement des statistiques');
+      console.error('Error details:', err.details);
+      setError(`Erreur lors du chargement des statistiques: ${err.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
