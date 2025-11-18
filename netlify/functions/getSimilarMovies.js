@@ -68,8 +68,8 @@ export const handler = async (event) => {
 
         const currentMovie = currentMovieResult.rows[0];
         const currentRevenue = parseFloat(currentMovie.total_revenue_qc) || 0;
-        const minRevenue = Math.floor(currentRevenue * 0.6); // -40%
-        const maxRevenue = Math.ceil(currentRevenue * 1.4); // +40%
+        const minRevenue = Math.floor(currentRevenue * 0.6); // -30%
+        const maxRevenue = Math.ceil(currentRevenue * 1.4); // +30%
 
         // Get similar movies by director/genre/actors/country WITHIN revenue range
         // Fetch each category separately to respect limits

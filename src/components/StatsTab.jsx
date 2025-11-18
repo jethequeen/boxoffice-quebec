@@ -23,6 +23,17 @@ function StatsTab({ movieId, movieTitle }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     if (!movieId || hasLoaded) return;
@@ -177,45 +188,6 @@ function StatsTab({ movieId, movieTitle }) {
     return null;
   };
 
-  // Custom tooltip for bar chart
-  const CustomBarTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      const similarityLabels = {
-        director: 'Même réalisateur',
-        genre: 'Genres similaires',
-        actor: 'Acteurs en commun',
-        country: 'Même pays',
-        release_date: 'Date de sortie similaire',
-        current: 'Film actuel'
-      };
-      return (
-        <div style={{
-          background: 'white',
-          border: '1px solid #e5e7eb',
-          borderRadius: '8px',
-          padding: '12px',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-          maxWidth: '250px'
-        }}>
-          <p style={{ margin: '0 0 4px 0', fontWeight: data.isCurrent ? '700' : '600', color: '#0f172a' }}>
-            {data.title}
-            {data.isCurrent && ' ⭐'}
-          </p>
-          <p style={{ margin: '4px 0', color: '#0f172a', fontWeight: '600' }}>
-            {formatCurrency(data.revenue)}
-          </p>
-          {data.similarityType && (
-            <p style={{ margin: '4px 0', fontSize: '12px', color: data.isCurrent ? '#f59e0b' : '#6366f1', fontWeight: '500' }}>
-              {similarityLabels[data.similarityType] || data.similarityType}
-            </p>
-          )}
-        </div>
-      );
-    }
-    return null;
-  };
-
   // Get color by similarity type
   const getBarColor = (similarityType, isCurrent) => {
     if (isCurrent) return '#f59e0b'; // Orange for current movie
@@ -282,19 +254,35 @@ function StatsTab({ movieId, movieTitle }) {
         >
           {displayTitle}
         </text>
-
-        {/* Star indicator for current movie */}
-        {movie.isCurrent && (
-          <text
-            x={0}
-            y={93}
-            textAnchor="middle"
-            fontSize={12}
-          >
-            ⭐
-          </text>
-        )}
       </g>
+    );
+  };
+
+  // Custom label for bar chart - shows revenue on top
+  const CustomBarLabel = (props) => {
+    const { x, y, width, value } = props;
+
+    // Format revenue in short form
+    let formattedValue;
+    if (value >= 1000000) {
+      formattedValue = `${(value / 1000000).toFixed(1)}M$`;
+    } else if (value >= 1000) {
+      formattedValue = `${Math.round(value / 1000)}k$`;
+    } else {
+      formattedValue = `${value}$`;
+    }
+
+    return (
+      <text
+        x={x + width / 2}
+        y={y - 5}
+        fill="#0f172a"
+        textAnchor="middle"
+        fontSize={11}
+        fontWeight={500}
+      >
+        {formattedValue}
+      </text>
     );
   };
 
@@ -347,13 +335,13 @@ function StatsTab({ movieId, movieTitle }) {
                 <XAxis
                   dataKey="date"
                   tickFormatter={formatXAxisDate}
-                  label={{ value: 'Date', position: 'insideBottom', offset: -5, style: { fontSize: '13px', fill: '#64748b' } }}
+                  label={{position: 'insideBottom', offset: -5, style: { fontSize: '13px', fill: '#64748b' } }}
                   tick={{ fontSize: 11, fill: '#64748b', angle: -45, textAnchor: 'end' }}
-                  height={60}
+                  height={40}
                 />
                 <YAxis
                   tickFormatter={formatYAxis}
-                  label={{ value: 'Revenus', angle: -90, position: 'insideLeft', style: { fontSize: '13px', fill: '#64748b' } }}
+                  label={{ angle: -90, position: 'insideLeft', style: { fontSize: '13px', fill: '#64748b' } }}
                   tick={{ fontSize: 12, fill: '#64748b' }}
                 />
                 <Tooltip content={<CustomLineTooltip />} />
@@ -388,11 +376,9 @@ function StatsTab({ movieId, movieTitle }) {
         {barChartData.length > 0 ? (
           <>
             <div style={{ marginBottom: '12px', fontSize: '14px', color: '#64748b' }}>
-              Revenus totaux QC comparés à des films similaires de même calibre (±40% de revenus)
             </div>
             {similarMovies?.revenueRange && (
               <div style={{ marginBottom: '12px', fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>
-                Fourchette de comparaison: {formatCurrency(similarMovies.revenueRange.min)} - {formatCurrency(similarMovies.revenueRange.max)}
               </div>
             )}
             {similarMovies?.breakdown && (
@@ -409,7 +395,7 @@ function StatsTab({ movieId, movieTitle }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#3b82f6' }} />
                     <span style={{ color: '#64748b' }}>
-                      {similarMovies.breakdown.byGenre} par genre
+                       Même genre
                     </span>
                   </div>
                 )}
@@ -425,7 +411,7 @@ function StatsTab({ movieId, movieTitle }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#10b981' }} />
                     <span style={{ color: '#64748b' }}>
-                      {similarMovies.breakdown.byCountry} par pays
+                      Même pays
                     </span>
                   </div>
                 )}
@@ -433,55 +419,58 @@ function StatsTab({ movieId, movieTitle }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#bfdbfe' }} />
                     <span style={{ color: '#64748b' }}>
-                      {similarMovies.breakdown.byReleaseDate} par date de sortie
+                      Même date de sortie
                     </span>
                   </div>
                 )}
               </div>
             )}
-            <ResponsiveContainer width="100%" height={550}>
-              <BarChart data={barChartData} margin={{ bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis
-                  dataKey="title"
-                  tick={<CustomXAxisTick />}
-                  height={110}
-                  interval={0}
-                />
-                <YAxis
-                  tickFormatter={formatYAxis}
-                  tick={{ fontSize: 12, fill: '#64748b' }}
-                  label={{ value: 'Revenus QC', angle: -90, position: 'insideLeft', style: { fontSize: '13px', fill: '#64748b' } }}
-                />
-                <Tooltip content={<CustomBarTooltip />} />
-                <Bar
-                  dataKey="revenue"
-                  radius={[4, 4, 0, 0]}
-                  fill="#6366f1"
-                  onClick={(data) => {
-                    if (data && data.id) {
-                      navigate(`/movies/${data.id}`);
-                    }
-                  }}
-                  shape={(props) => {
-                    const { x, y, width, height, payload } = props;
-                    const fill = getBarColor(payload.similarityType, payload.isCurrent);
-                    return (
-                      <rect
-                        x={x}
-                        y={y}
-                        width={width}
-                        height={height}
-                        fill={fill}
-                        rx={4}
-                        ry={4}
-                        style={{ cursor: 'pointer' }}
-                      />
-                    );
-                  }}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+            <div style={{ overflowX: isMobile ? 'auto' : 'visible', overflowY: 'visible' }}>
+              <ResponsiveContainer width={isMobile ? barChartData.length * 80 : '100%'} height={isMobile ? 300 : 420}>
+                <BarChart data={barChartData} margin={{ top: 30, bottom: 20 }} barCategoryGap={isMobile ? '25%' : '25%'}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="title"
+                    tick={<CustomXAxisTick />}
+                    height={110}
+                    interval={0}
+                  />
+                  <YAxis
+                    tickFormatter={formatYAxis}
+                    tick={{ fontSize: 12, fill: '#64748b' }}
+                    label={{angle: -90, position: 'insideLeft', style: { fontSize: '13px', fill: '#64748b' } }}
+                    domain={[(dataMin) => Math.floor(dataMin * 0.9), 'auto']}
+                  />
+                  <Bar
+                    dataKey="revenue"
+                    radius={[4, 4, 0, 0]}
+                    fill="#6366f1"
+                    onClick={(data) => {
+                      if (data && data.id) {
+                        navigate(`/movies/${data.id}`);
+                      }
+                    }}
+                    label={<CustomBarLabel />}
+                    shape={(props) => {
+                      const { x, y, width, height, payload } = props;
+                      const fill = getBarColor(payload.similarityType, payload.isCurrent);
+                      return (
+                        <rect
+                          x={x}
+                          y={y}
+                          width={width}
+                          height={height}
+                          fill={fill}
+                          rx={4}
+                          ry={4}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      );
+                    }}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </>
         ) : (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
