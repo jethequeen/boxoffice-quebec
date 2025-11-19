@@ -413,6 +413,25 @@
     cursor: pointer;
 }
 
+/* First week highlight */
+.box-office-table tbody tr.first-week-movie td {
+    background-color: rgba(191, 219, 254, 0.25);
+}
+
+.box-office-table tbody tr.first-week-movie:hover td {
+    background-color: rgba(191, 219, 254, 0.35);
+}
+
+/* Ensure sticky lead column inherits the background */
+.table-container.is-scrolling-x .first-week-movie td.lead-sticky {
+    background-color: rgba(191, 219, 254, 0.25);
+    box-shadow: 8px 0 10px -8px rgba(15,23,42,.22);
+}
+
+.table-container.is-scrolling-x .first-week-movie:hover td.lead-sticky {
+    background-color: rgba(191, 219, 254, 0.35);
+}
+
 .movie-title-wrap {
     scroll-margin-top: 84px;
 }

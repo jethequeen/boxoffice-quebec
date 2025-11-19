@@ -71,8 +71,11 @@ export const handler = async (event) => {
         const currentMovie = currentMovieResult.rows[0];
         const currentRevenue = parseFloat(currentMovie.total_revenue_qc) || 0;
 
-        // Check if movie needs forecast (simply: 0$ revenue)
-        const needsForecast = currentRevenue === 0;
+        // Check if movie needs forecast (release date is in the future)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Set to midnight for accurate date comparison
+        const releaseDate = currentMovie.release_date ? new Date(currentMovie.release_date) : null;
+        const needsForecast = releaseDate && releaseDate > today;
 
         if (!needsForecast) {
             await client.end();

@@ -213,8 +213,15 @@ export default function MovieTable({
                     </thead>
 
                     <tbody>
-                    {sortedRows.map((row) => (
-                        <tr key={row.id} className={onRowClick ? 'row-clickable' : undefined}
+                    {sortedRows.map((row) => {
+                        const isFirstWeek = row.week_number === 1;
+                        const rowClasses = [
+                            onRowClick ? 'row-clickable' : '',
+                            isFirstWeek ? 'first-week-movie' : ''
+                        ].filter(Boolean).join(' ');
+
+                        return (
+                        <tr key={row.id} className={rowClasses || undefined}
                             onClick={onRowClick ? () => onRowClick(row) : undefined}>
                             {visibleColumns.map((col) => {
                                 const v = col.value ? col.value(row) : row[col.key];
@@ -237,7 +244,8 @@ export default function MovieTable({
                                 );
                             })}
                         </tr>
-                    ))}
+                        );
+                    })}
                     </tbody>
                 </table>
             </div>

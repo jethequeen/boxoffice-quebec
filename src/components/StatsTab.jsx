@@ -398,7 +398,7 @@ function StatsTab({ movieId, movieTitle }) {
           Comparatifs
         </h3>
 
-        {/* Forecast Section - Show when movie has 0$ revenue and released 2+ months ago */}
+        {/* Forecast Section - Show when movie release date is in the future */}
         {forecast?.needsForecast && (
           <div style={{
             background: '#fef3c7',
