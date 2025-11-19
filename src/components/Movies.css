@@ -315,3 +315,26 @@
     font-size: 0.8rem;
   }
 }
+
+/* Summary element styling */
+details > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+details > summary::before {
+  content: '▶';
+  display: inline-block;
+  margin-right: 8px;
+  transition: transform 0.2s;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+details[open] > summary::before {
+  transform: rotate(90deg);
+}

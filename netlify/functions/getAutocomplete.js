@@ -44,65 +44,72 @@ export const handler = async (event) => {
         switch(type) {
             case 'directors':
                 const directorsQuery = `
-                    SELECT DISTINCT c.id, c.name
+                    SELECT DISTINCT c.id, c.name, COUNT(mc.movie_id) as movie_count
                     FROM crew c
                     JOIN movie_crew mc ON mc.crew_id = c.id
                     WHERE LOWER(c.name) LIKE LOWER($1)
-                    ORDER BY c.name
+                    GROUP BY c.id, c.name
+                    ORDER BY movie_count DESC, c.name
                     LIMIT 10;
                 `;
                 const directorsResult = await client.query(directorsQuery, [searchTerm]);
-                results = directorsResult.rows;
+                results = directorsResult.rows.map(r => ({ id: r.id, name: r.name }));
                 break;
 
             case 'actors':
                 const actorsQuery = `
-                    SELECT DISTINCT a.id, a.name
+                    SELECT DISTINCT a.id, a.name, COUNT(ma.movie_id) as movie_count
                     FROM actors a
                     JOIN movie_actors ma ON ma.actor_id = a.id
                     WHERE LOWER(a.name) LIKE LOWER($1)
-                    ORDER BY a.name
+                    GROUP BY a.id, a.name
+                    ORDER BY movie_count DESC, a.name
                     LIMIT 10;
                 `;
                 const actorsResult = await client.query(actorsQuery, [searchTerm]);
-                results = actorsResult.rows;
+                results = actorsResult.rows.map(r => ({ id: r.id, name: r.name }));
                 break;
 
             case 'studios':
                 const studiosQuery = `
-                    SELECT DISTINCT s.id, s.name
+                    SELECT DISTINCT s.id, s.name, COUNT(ms.movie_id) as movie_count
                     FROM studios s
                     JOIN movie_studio ms ON ms.studio_id = s.id
                     WHERE LOWER(s.name) LIKE LOWER($1)
-                    ORDER BY s.name
+                    GROUP BY s.id, s.name
+                    ORDER BY movie_count DESC, s.name
                     LIMIT 10;
                 `;
                 const studiosResult = await client.query(studiosQuery, [searchTerm]);
-                results = studiosResult.rows;
+                results = studiosResult.rows.map(r => ({ id: r.id, name: r.name }));
                 break;
 
             case 'genres':
                 const genresQuery = `
-                    SELECT DISTINCT g.id, g.name
+                    SELECT DISTINCT g.id, g.name, COUNT(mg.movie_id) as movie_count
                     FROM genres g
+                    LEFT JOIN movie_genres mg ON mg.genre_id = g.id
                     WHERE LOWER(g.name) LIKE LOWER($1)
-                    ORDER BY g.name
+                    GROUP BY g.id, g.name
+                    ORDER BY movie_count DESC, g.name
                     LIMIT 10;
                 `;
                 const genresResult = await client.query(genresQuery, [searchTerm]);
-                results = genresResult.rows;
+                results = genresResult.rows.map(r => ({ id: r.id, name: r.name }));
                 break;
 
             case 'countries':
                 const countriesQuery = `
-                    SELECT DISTINCT c.code as id, c.name
+                    SELECT DISTINCT c.code as id, c.name, COUNT(mc.movie_id) as movie_count
                     FROM countries c
+                    LEFT JOIN movie_countries mc ON mc.country_code = c.code
                     WHERE LOWER(c.name) LIKE LOWER($1) OR LOWER(c.code) LIKE LOWER($1)
-                    ORDER BY c.name
+                    GROUP BY c.code, c.name
+                    ORDER BY movie_count DESC, c.name
                     LIMIT 10;
                 `;
                 const countriesResult = await client.query(countriesQuery, [searchTerm]);
-                results = countriesResult.rows;
+                results = countriesResult.rows.map(r => ({ id: r.id, name: r.name }));
                 break;
 
             default:

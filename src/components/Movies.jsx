@@ -36,6 +36,13 @@ function Movies() {
   // Autocomplete state
   const [suggestions, setSuggestions] = useState({});
   const [activeSuggestion, setActiveSuggestion] = useState(null);
+  const [inputValues, setInputValues] = useState({
+    directors: '',
+    actors: '',
+    studios: '',
+    genres: '',
+    countries: ''
+  });
   const [selectedNames, setSelectedNames] = useState({
     directors: [],
     actors: [],
@@ -83,14 +90,22 @@ function Movies() {
     fetchTopStats();
   };
 
+  const handleApplyFiltersAllTime = () => {
+    // Set date range to all time before fetching
+    const today = new Date();
+    setStartDate('2000-01-01');
+    setEndDate(today.toISOString().split('T')[0]);
+    // fetchTopStats will be called automatically via useEffect when dates change
+  };
+
   const handleFilterChange = async (type, value) => {
     // Clear previous timeout
     if (suggestionTimeouts.current[type]) {
       clearTimeout(suggestionTimeouts.current[type]);
     }
 
-    // Update filter value
-    setFilters(prev => ({ ...prev, [type]: value }));
+    // Update input value (for display only, not the filter)
+    setInputValues(prev => ({ ...prev, [type]: value }));
 
     // Don't show suggestions if input is too short
     if (value.length < 2) {
@@ -126,6 +141,7 @@ function Movies() {
 
     // Clear suggestions and input
     setSuggestions(prev => ({ ...prev, [type]: [] }));
+    setInputValues(prev => ({ ...prev, [type]: '' }));
     setActiveSuggestion(null);
   };
 
@@ -230,7 +246,7 @@ function Movies() {
           </div>
         </div>
 
-        {/* Filters - TODO: Add autocomplete lookup components */}
+        {/* Filters */}
         <details style={{ marginBottom: '12px' }}>
           <summary style={{
             cursor: 'pointer',
@@ -265,6 +281,7 @@ function Movies() {
               <input
                 type="text"
                 placeholder="Rechercher un réalisateur..."
+                value={inputValues.directors}
                 onChange={(e) => handleFilterChange('directors', e.target.value)}
                 onFocus={() => setActiveSuggestion('directors')}
                 onBlur={() => setTimeout(() => setActiveSuggestion(null), 200)}
@@ -278,97 +295,167 @@ function Movies() {
                 </div>
               )}
             </div>
-            <div>
+            <div style={{ position: 'relative' }}>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#64748b' }}>
-                Acteurs (IDs)
+                Acteurs
               </label>
+              {selectedNames.actors.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                  {selectedNames.actors.map(item => (
+                    <span key={item.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#f1f5f9', borderRadius: '4px', fontSize: '12px', color: '#475569' }}>
+                      {item.name}
+                      <button onClick={() => handleRemoveSelection('actors', item.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '0', color: '#64748b', fontSize: '14px' }}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
               <input
                 type="text"
-                placeholder="ex: 789,012"
-                value={filters.actors}
-                onChange={(e) => setFilters({ ...filters, actors: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '6px',
-                  fontSize: '14px'
-                }}
+                placeholder="Rechercher un acteur..."
+                value={inputValues.actors}
+                onChange={(e) => handleFilterChange('actors', e.target.value)}
+                onFocus={() => setActiveSuggestion('actors')}
+                onBlur={() => setTimeout(() => setActiveSuggestion(null), 200)}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '14px' }}
               />
+              {activeSuggestion === 'actors' && suggestions.actors?.length > 0 && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #e5e7eb', borderRadius: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: '200px', overflowY: 'auto', marginTop: '4px' }}>
+                  {suggestions.actors.map(item => (
+                    <div key={item.id} onClick={() => handleSuggestionClick('actors', item)} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '14px', color: '#0f172a', borderBottom: '1px solid #f1f5f9' }} onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.background = 'white'}>{item.name}</div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div>
+            <div style={{ position: 'relative' }}>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#64748b' }}>
-                Studios (IDs)
+                Studios
               </label>
+              {selectedNames.studios.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                  {selectedNames.studios.map(item => (
+                    <span key={item.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#f1f5f9', borderRadius: '4px', fontSize: '12px', color: '#475569' }}>
+                      {item.name}
+                      <button onClick={() => handleRemoveSelection('studios', item.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '0', color: '#64748b', fontSize: '14px' }}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
               <input
                 type="text"
-                placeholder="ex: 123,456"
-                value={filters.studios}
-                onChange={(e) => setFilters({ ...filters, studios: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '6px',
-                  fontSize: '14px'
-                }}
+                placeholder="Rechercher un studio..."
+                value={inputValues.studios}
+                onChange={(e) => handleFilterChange('studios', e.target.value)}
+                onFocus={() => setActiveSuggestion('studios')}
+                onBlur={() => setTimeout(() => setActiveSuggestion(null), 200)}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '14px' }}
               />
+              {activeSuggestion === 'studios' && suggestions.studios?.length > 0 && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #e5e7eb', borderRadius: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: '200px', overflowY: 'auto', marginTop: '4px' }}>
+                  {suggestions.studios.map(item => (
+                    <div key={item.id} onClick={() => handleSuggestionClick('studios', item)} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '14px', color: '#0f172a', borderBottom: '1px solid #f1f5f9' }} onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.background = 'white'}>{item.name}</div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div>
+            <div style={{ position: 'relative' }}>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#64748b' }}>
-                Genres (IDs)
+                Genres
               </label>
+              {selectedNames.genres.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                  {selectedNames.genres.map(item => (
+                    <span key={item.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#f1f5f9', borderRadius: '4px', fontSize: '12px', color: '#475569' }}>
+                      {item.name}
+                      <button onClick={() => handleRemoveSelection('genres', item.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '0', color: '#64748b', fontSize: '14px' }}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
               <input
                 type="text"
-                placeholder="ex: 28,12"
-                value={filters.genres}
-                onChange={(e) => setFilters({ ...filters, genres: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '6px',
-                  fontSize: '14px'
-                }}
+                placeholder="Rechercher un genre..."
+                value={inputValues.genres}
+                onChange={(e) => handleFilterChange('genres', e.target.value)}
+                onFocus={() => setActiveSuggestion('genres')}
+                onBlur={() => setTimeout(() => setActiveSuggestion(null), 200)}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '14px' }}
               />
+              {activeSuggestion === 'genres' && suggestions.genres?.length > 0 && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #e5e7eb', borderRadius: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: '200px', overflowY: 'auto', marginTop: '4px' }}>
+                  {suggestions.genres.map(item => (
+                    <div key={item.id} onClick={() => handleSuggestionClick('genres', item)} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '14px', color: '#0f172a', borderBottom: '1px solid #f1f5f9' }} onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.background = 'white'}>{item.name}</div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div>
+            <div style={{ position: 'relative' }}>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#64748b' }}>
-                Pays (codes)
+                Pays
               </label>
+              {selectedNames.countries.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                  {selectedNames.countries.map(item => (
+                    <span key={item.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#f1f5f9', borderRadius: '4px', fontSize: '12px', color: '#475569' }}>
+                      {item.name}
+                      <button onClick={() => handleRemoveSelection('countries', item.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '0', color: '#64748b', fontSize: '14px' }}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
               <input
                 type="text"
-                placeholder="ex: CA,US"
-                value={filters.countries}
-                onChange={(e) => setFilters({ ...filters, countries: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '6px',
-                  fontSize: '14px'
-                }}
+                placeholder="Rechercher un pays..."
+                value={inputValues.countries}
+                onChange={(e) => handleFilterChange('countries', e.target.value)}
+                onFocus={() => setActiveSuggestion('countries')}
+                onBlur={() => setTimeout(() => setActiveSuggestion(null), 200)}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '14px' }}
               />
+              {activeSuggestion === 'countries' && suggestions.countries?.length > 0 && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #e5e7eb', borderRadius: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: '200px', overflowY: 'auto', marginTop: '4px' }}>
+                  {suggestions.countries.map(item => (
+                    <div key={item.id} onClick={() => handleSuggestionClick('countries', item)} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '14px', color: '#0f172a', borderBottom: '1px solid #f1f5f9' }} onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.background = 'white'}>{item.name}</div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-          <button
-            onClick={handleApplyFilters}
-            style={{
-              marginTop: '12px',
-              padding: '8px 16px',
-              background: '#6366f1',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: '14px',
-              fontWeight: '500',
-              cursor: 'pointer'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = '#4f46e5'}
-            onMouseLeave={(e) => e.currentTarget.style.background = '#6366f1'}
-          >
-            Appliquer les filtres
-          </button>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
+            <button
+              onClick={handleApplyFilters}
+              style={{
+                padding: '8px 16px',
+                background: '#6366f1',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#4f46e5'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#6366f1'}
+            >
+              Appliquer les filtres
+            </button>
+            <button
+              onClick={handleApplyFiltersAllTime}
+              style={{
+                padding: '8px 16px',
+                background: '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#059669'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#10b981'}
+            >
+              Appliquer les filtres pour tout les temps
+            </button>
+          </div>
         </details>
       </div>
 
@@ -378,128 +465,47 @@ function Movies() {
           {/* Top 20 Movies - Two columns */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 450px), 1fr))',
-            gap: '24px',
-            marginBottom: '24px'
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
+            gap: '16px',
+            marginBottom: '16px'
           }}>
             {/* Top 20 All Movies */}
-            <section style={{
+            <details open style={{
               background: 'white',
               borderRadius: '12px',
-              padding: '24px',
+              padding: '16px',
               boxShadow: '0 1px 3px rgba(0,0,0,.08)'
             }}>
-              <h2 style={{ margin: '0 0 16px 0', fontSize: '20px', fontWeight: '600', color: '#0f172a' }}>
+              <summary style={{
+                cursor: 'pointer',
+                fontSize: '18px',
+                fontWeight: '600',
+                color: '#0f172a',
+                listStyle: 'none',
+                marginBottom: '12px',
+                userSelect: 'none'
+              }}>
                 Top 20 Films
-              </h2>
+              </summary>
             {topStats.topMovies && topStats.topMovies.length > 0 ? (
-              <div style={{ display: 'grid', gap: '12px' }}>
-                {topStats.topMovies.map((movie, index) => (
-                  <div
-                    key={movie.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '16px',
-                      padding: '12px',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#f8fafc';
-                      e.currentTarget.style.borderColor = '#cbd5e1';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.borderColor = '#e5e7eb';
-                    }}
-                  >
-                    <div style={{
-                      minWidth: '32px',
-                      height: '32px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: index < 3 ? '#fef3c7' : '#f1f5f9',
-                      borderRadius: '6px',
-                      fontSize: '16px',
-                      fontWeight: '700',
-                      color: index < 3 ? '#92400e' : '#64748b'
-                    }}>
-                      {index + 1}
-                    </div>
-                    {movie.poster_path && (
-                      <img
-                        src={`https://image.tmdb.org/t/p/w92${movie.poster_path}`}
-                        alt={movie.fr_title || movie.title}
-                        style={{
-                          width: '40px',
-                          height: '60px',
-                          objectFit: 'cover',
-                          borderRadius: '4px'
-                        }}
-                      />
-                    )}
-                    <div style={{ flex: 1 }}>
-                      <Link
-                        to={`/movies/${movie.id}`}
-                        style={{
-                          fontSize: '15px',
-                          fontWeight: '600',
-                          color: '#0f172a',
-                          textDecoration: 'none'
-                        }}
-                      >
-                        {movie.fr_title || movie.title}
-                      </Link>
-                      <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
-                        {new Date(movie.release_date).toLocaleDateString('fr-CA')}
-                      </div>
-                    </div>
-                    <div style={{
-                      fontSize: '16px',
-                      fontWeight: '700',
-                      color: '#6366f1',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {formatCurrency(movie.revenue_in_range)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              ) : (
-                <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Aucun film trouvé pour cette période</p>
-              )}
-            </section>
-
-            {/* Top 20 Canadian Movies */}
-            <section style={{
-              background: 'white',
-              borderRadius: '12px',
-              padding: '24px',
-              boxShadow: '0 1px 3px rgba(0,0,0,.08)'
-            }}>
-              <h2 style={{ margin: '0 0 16px 0', fontSize: '20px', fontWeight: '600', color: '#0f172a' }}>
-                Top 20 Films Canadiens 🍁
-              </h2>
-              {topStatsCanadian?.topMovies && topStatsCanadian.topMovies.length > 0 ? (
-                <div style={{ display: 'grid', gap: '12px' }}>
-                  {topStatsCanadian.topMovies.map((movie, index) => (
+              <div style={{ overflowX: 'auto', margin: '0 -16px', padding: '0 16px' }}>
+                <div style={{ display: 'grid', gap: '8px', minWidth: 'fit-content' }}>
+                  {topStats.topMovies.map((movie, index) => (
                     <div
                       key={movie.id}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '16px',
-                        padding: '12px',
+                        gap: '8px',
+                        padding: '8px',
                         border: '1px solid #e5e7eb',
-                        borderRadius: '8px',
-                        transition: 'all 0.2s'
+                        borderRadius: '6px',
+                        transition: 'all 0.2s',
+                        minWidth: '400px'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#f8fafc';
-                        e.currentTarget.style.borderColor = '#cbd5e1';
+                        e.currentTarget.style.background = '#fef2f2';
+                        e.currentTarget.style.borderColor = '#fca5a5';
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = 'transparent';
@@ -507,14 +513,14 @@ function Movies() {
                       }}
                     >
                       <div style={{
-                        minWidth: '32px',
-                        height: '32px',
+                        minWidth: '24px',
+                        height: '24px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         background: index < 3 ? '#fef3c7' : '#f1f5f9',
-                        borderRadius: '6px',
-                        fontSize: '16px',
+                        borderRadius: '4px',
+                        fontSize: '13px',
                         fontWeight: '700',
                         color: index < 3 ? '#92400e' : '#64748b'
                       }}>
@@ -532,24 +538,28 @@ function Movies() {
                           }}
                         />
                       )}
-                      <div style={{ flex: 1 }}>
+                      <div style={{ flex: 1, minWidth: '120px', maxWidth: '200px' }}>
                         <Link
                           to={`/movies/${movie.id}`}
                           style={{
-                            fontSize: '15px',
+                            fontSize: '13px',
                             fontWeight: '600',
                             color: '#0f172a',
-                            textDecoration: 'none'
+                            textDecoration: 'none',
+                            display: 'block',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
                           }}
                         >
                           {movie.fr_title || movie.title}
                         </Link>
-                        <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
+                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
                           {new Date(movie.release_date).toLocaleDateString('fr-CA')}
                         </div>
                       </div>
                       <div style={{
-                        fontSize: '16px',
+                        fontSize: '13px',
                         fontWeight: '700',
                         color: '#dc2626',
                         whiteSpace: 'nowrap'
@@ -559,41 +569,156 @@ function Movies() {
                     </div>
                   ))}
                 </div>
+              </div>
               ) : (
-                <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Aucun film canadien trouvé pour cette période</p>
+                <p style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '13px' }}>Aucun film trouvé pour cette période</p>
               )}
-            </section>
+            </details>
+
+            {/* Top 20 Quebec Movies */}
+            <details open style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,.08)'
+            }}>
+              <summary style={{
+                cursor: 'pointer',
+                fontSize: '18px',
+                fontWeight: '600',
+                color: '#0f172a',
+                listStyle: 'none',
+                marginBottom: '12px',
+                userSelect: 'none'
+              }}>
+                Top 20 Films Québécois
+              </summary>
+              {topStatsCanadian?.topMovies && topStatsCanadian.topMovies.length > 0 ? (
+                <div style={{ overflowX: 'auto', margin: '0 -16px', padding: '0 16px' }}>
+                  <div style={{ display: 'grid', gap: '8px', minWidth: 'fit-content' }}>
+                    {topStatsCanadian.topMovies.map((movie, index) => (
+                      <div
+                        key={movie.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '6px',
+                          transition: 'all 0.2s',
+                          minWidth: '400px'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#eff6ff';
+                          e.currentTarget.style.borderColor = '#93c5fd';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.borderColor = '#e5e7eb';
+                        }}
+                      >
+                        <div style={{
+                          minWidth: '24px',
+                          height: '24px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: index < 3 ? '#fef3c7' : '#f1f5f9',
+                          borderRadius: '4px',
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          color: index < 3 ? '#92400e' : '#64748b'
+                        }}>
+                          {index + 1}
+                        </div>
+                        {movie.poster_path && (
+                          <img
+                            src={`https://image.tmdb.org/t/p/w92${movie.poster_path}`}
+                            alt={movie.fr_title || movie.title}
+                            style={{
+                              width: '40px',
+                              height: '60px',
+                              objectFit: 'cover',
+                              borderRadius: '4px'
+                            }}
+                          />
+                        )}
+                        <div style={{ flex: 1, minWidth: '120px', maxWidth: '200px' }}>
+                          <Link
+                            to={`/movies/${movie.id}`}
+                            style={{
+                              fontSize: '13px',
+                              fontWeight: '600',
+                              color: '#0f172a',
+                              textDecoration: 'none',
+                              display: 'block',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {movie.fr_title || movie.title}
+                          </Link>
+                          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                            {new Date(movie.release_date).toLocaleDateString('fr-CA')}
+                          </div>
+                        </div>
+                        <div style={{
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          color: '#6366f1',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {formatCurrency(movie.revenue_in_range)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '13px' }}>Aucun film québécois trouvé pour cette période</p>
+              )}
+            </details>
           </div>
 
           {/* Grid of Other Tops */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '24px'
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))',
+            gap: '16px'
           }}>
             {/* Top 10 Genres */}
-            <section style={{
+            <details open style={{
               background: 'white',
               borderRadius: '12px',
-              padding: '20px',
+              padding: '16px',
               boxShadow: '0 1px 3px rgba(0,0,0,.08)'
             }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600', color: '#0f172a' }}>
+              <summary style={{
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#0f172a',
+                listStyle: 'none',
+                marginBottom: '12px',
+                userSelect: 'none'
+              }}>
                 Top 10 Genres
-              </h3>
+              </summary>
               {topStats.topGenres && topStats.topGenres.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {topStats.topGenres.map((genre, index) => (
-                    <div key={genre.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ flex: 1 }}>
-                        <span style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>
+                    <div key={genre.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a' }}>
                           {index + 1}. {genre.name}
                         </span>
-                        <span style={{ fontSize: '12px', color: '#94a3b8', marginLeft: '8px' }}>
-                          ({genre.movie_count} films)
+                        <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '6px', whiteSpace: 'nowrap' }}>
+                          ({genre.movie_count})
                         </span>
                       </div>
-                      <div style={{ fontSize: '14px', fontWeight: '600', color: '#3b82f6' }}>
+                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#3b82f6', whiteSpace: 'nowrap' }}>
                         {formatCurrency(genre.total_revenue)}
                       </div>
                     </div>
@@ -602,31 +727,39 @@ function Movies() {
               ) : (
                 <p style={{ color: '#94a3b8', fontSize: '13px', fontStyle: 'italic' }}>Aucune donnée</p>
               )}
-            </section>
+            </details>
 
             {/* Top 10 Studios */}
-            <section style={{
+            <details open style={{
               background: 'white',
               borderRadius: '12px',
-              padding: '20px',
+              padding: '16px',
               boxShadow: '0 1px 3px rgba(0,0,0,.08)'
             }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600', color: '#0f172a' }}>
+              <summary style={{
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#0f172a',
+                listStyle: 'none',
+                marginBottom: '12px',
+                userSelect: 'none'
+              }}>
                 Top 10 Studios
-              </h3>
+              </summary>
               {topStats.topStudios && topStats.topStudios.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {topStats.topStudios.map((studio, index) => (
-                    <div key={studio.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ flex: 1 }}>
-                        <span style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>
+                    <div key={studio.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {index + 1}. {studio.name}
                         </span>
-                        <span style={{ fontSize: '12px', color: '#94a3b8', marginLeft: '8px' }}>
-                          ({studio.movie_count} films)
+                        <span style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                          ({studio.movie_count})
                         </span>
                       </div>
-                      <div style={{ fontSize: '14px', fontWeight: '600', color: '#8b5cf6' }}>
+                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#8b5cf6', whiteSpace: 'nowrap' }}>
                         {formatCurrency(studio.total_revenue)}
                       </div>
                     </div>
@@ -635,31 +768,39 @@ function Movies() {
               ) : (
                 <p style={{ color: '#94a3b8', fontSize: '13px', fontStyle: 'italic' }}>Aucune donnée</p>
               )}
-            </section>
+            </details>
 
             {/* Top 10 Countries */}
-            <section style={{
+            <details open style={{
               background: 'white',
               borderRadius: '12px',
-              padding: '20px',
+              padding: '16px',
               boxShadow: '0 1px 3px rgba(0,0,0,.08)'
             }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600', color: '#0f172a' }}>
+              <summary style={{
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#0f172a',
+                listStyle: 'none',
+                marginBottom: '12px',
+                userSelect: 'none'
+              }}>
                 Top 10 Pays
-              </h3>
+              </summary>
               {topStats.topCountries && topStats.topCountries.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {topStats.topCountries.map((country, index) => (
-                    <div key={country.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ flex: 1 }}>
-                        <span style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>
+                    <div key={country.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a' }}>
                           {index + 1}. {country.name}
                         </span>
-                        <span style={{ fontSize: '12px', color: '#94a3b8', marginLeft: '8px' }}>
-                          ({country.movie_count} films)
+                        <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '6px', whiteSpace: 'nowrap' }}>
+                          ({country.movie_count})
                         </span>
                       </div>
-                      <div style={{ fontSize: '14px', fontWeight: '600', color: '#10b981' }}>
+                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#10b981', whiteSpace: 'nowrap' }}>
                         {formatCurrency(country.total_revenue)}
                       </div>
                     </div>
@@ -668,31 +809,39 @@ function Movies() {
               ) : (
                 <p style={{ color: '#94a3b8', fontSize: '13px', fontStyle: 'italic' }}>Aucune donnée</p>
               )}
-            </section>
+            </details>
 
             {/* Top 10 Actors */}
-            <section style={{
+            <details open style={{
               background: 'white',
               borderRadius: '12px',
-              padding: '20px',
+              padding: '16px',
               boxShadow: '0 1px 3px rgba(0,0,0,.08)'
             }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600', color: '#0f172a' }}>
+              <summary style={{
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#0f172a',
+                listStyle: 'none',
+                marginBottom: '12px',
+                userSelect: 'none'
+              }}>
                 Top 10 Acteurs
-              </h3>
+              </summary>
               {topStats.topActors && topStats.topActors.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {topStats.topActors.map((actor, index) => (
-                    <div key={actor.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ flex: 1 }}>
-                        <span style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>
+                    <div key={actor.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {index + 1}. {actor.name}
                         </span>
-                        <span style={{ fontSize: '12px', color: '#94a3b8', marginLeft: '8px' }}>
-                          ({actor.movie_count} films)
+                        <span style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                          ({actor.movie_count})
                         </span>
                       </div>
-                      <div style={{ fontSize: '14px', fontWeight: '600', color: '#f59e0b' }}>
+                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#f59e0b', whiteSpace: 'nowrap' }}>
                         {formatCurrency(actor.total_revenue)}
                       </div>
                     </div>
@@ -701,7 +850,7 @@ function Movies() {
               ) : (
                 <p style={{ color: '#94a3b8', fontSize: '13px', fontStyle: 'italic' }}>Aucune donnée</p>
               )}
-            </section>
+            </details>
           </div>
         </>
       )}
