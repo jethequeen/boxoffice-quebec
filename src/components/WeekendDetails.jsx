@@ -59,7 +59,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
     };
   };
 
-  const [nextExists, setNextExists] = useState(false);
   const nextWeekendId = useMemo(() => getNextWeekendId(realWeekendId), [realWeekendId]);
 
 
@@ -69,26 +68,26 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
     if (showNavigation) navigate(`/box-office/${newWeekendId}`);
   };
   const navigateToPrevious = () => handleWeekendChange(getPreviousWeekendId(realWeekendId));
-  const navigateToNext = () => {
-    if (!nextExists) return;
-    handleWeekendChange(nextWeekendId);
-  };
+  const navigateToNext = () => handleWeekendChange(nextWeekendId);
 
   const normalizeMovie = (m) => {
-    const revenue_qc = toNum(m.revenue_qc) ?? 0;
+    // For release-only movies (no box office data yet), keep null values
+    const isReleaseOnly = m.is_release_only === true;
+
+    const revenue_qc = toNum(m.revenue_qc) ?? (isReleaseOnly ? null : 0);
 
     const rawSC = m.screen_count ?? m.theater_count ?? 0;
-    const screen_count = Number.isFinite(+rawSC) ? +rawSC : 0;
+    const screen_count = isReleaseOnly && rawSC === 0 ? null : (Number.isFinite(+rawSC) ? +rawSC : 0);
 
-    const rev_per_screen = screen_count > 0 ? revenue_qc / screen_count : null;
+    const rev_per_screen = screen_count > 0 && revenue_qc !== null ? revenue_qc / screen_count : null;
 
     return {
       ...m,
       revenue_qc,
-      revenue_us: toNum(m.revenue_us) ?? 0,
+      revenue_us: toNum(m.revenue_us) ?? (isReleaseOnly ? null : 0),
       change_percent: m.change_percent,
       force_qc_usa: toNum(m.force_qc_usa),
-      cumulatif_qc: toNum(m.cumulatif_qc) ?? revenue_qc,
+      cumulatif_qc: toNum(m.cumulatif_qc) ?? (isReleaseOnly ? null : revenue_qc),
       week_number: m.week_count ?? 1,
       studio_name: m.studio_name ?? 'Independent',
       screen_count,
@@ -111,14 +110,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       setWeekendMeta(weekend);
       setRawMovies(movies.map(normalizeMovie));
 
-      try {
-        const resNext = await getBoxOfficeData(1, nextWeekendId);
-        const { weekend: nextW } = pickPayload(resNext);
-        setNextExists(!!nextW); // true only if backend knows this weekend
-      } catch {
-        setNextExists(false);
-      }
-
       // optional diagnostics
       console.log('[bo] weekend', realWeekendId, {
         start: weekend?.start_date,
@@ -130,7 +121,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       setError('Erreur lors du chargement des données du weekend');
       setRawMovies([]);
       setWeekendMeta(null);
-      setNextExists(false);
     } finally {
       setLoading(false);
     }
@@ -192,8 +182,6 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
   }, [rawMovies, sort]);
 
   /* ---------- header + cards data ---------- */
-  const canGoNext = nextExists;
-
   const sum = (arr, key) => arr.reduce((s, m) => s + (toNum(m[key]) || 0), 0);
   const totalQC =
       toNum(weekendMeta?.total_revenues_qc) ?? (rawMovies.length ? sum(rawMovies, 'revenue_qc') : null);
@@ -284,9 +272,8 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
               <h1 className="weekend-title">{formatWeekendRange(realWeekendId)}</h1>
 
               <button
-                  className={`nav-arrow next ${!canGoNext ? 'disabled' : ''}`}
+                  className="nav-arrow next"
                   onClick={navigateToNext}
-                  disabled={!canGoNext}
                   title="Weekend suivant"
                   aria-label="Weekend suivant"
               >

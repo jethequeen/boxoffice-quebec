@@ -62,7 +62,7 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         minPx: 100,
         headerAlign: 'center',
         value: (m) => m.revenue_qc,
-        render: (v) => formatCurrency(v),
+        render: (v) => (v == null || v === 0) ? '-' : formatCurrency(v),
     };
 
     const change_percent = {

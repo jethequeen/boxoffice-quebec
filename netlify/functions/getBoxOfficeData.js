@@ -11,8 +11,30 @@ export const handler = async (event) => {
 
         const limitNum = Math.max(1, Math.min(1000, Number(rawLimit) || 30));
 
-        // 1) Weekend meta (totals + % change)
-        const [weekend] = await sql/*sql*/`
+        // Helper to calculate weekend dates from weekendId (YYYYWW format)
+        const getWeekendDatesFromId = (wId) => {
+            const year = Math.floor(wId / 100);
+            const week = wId % 100;
+
+            // Calculate ISO week dates
+            const jan4 = new Date(Date.UTC(year, 0, 4));
+            const mondayWeek1 = new Date(jan4);
+            mondayWeek1.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7));
+
+            const friday = new Date(mondayWeek1);
+            friday.setUTCDate(mondayWeek1.getUTCDate() + (week - 1) * 7 + 4);
+
+            const sunday = new Date(friday);
+            sunday.setUTCDate(friday.getUTCDate() + 2);
+
+            return {
+                start_date: friday.toISOString().split('T')[0],
+                end_date: sunday.toISOString().split('T')[0]
+            };
+        };
+
+        // 1) Weekend meta (totals + % change) - generate synthetic weekend if it doesn't exist
+        let [weekend] = await sql/*sql*/`
       SELECT
         w.id,
         w.start_date,
@@ -26,13 +48,26 @@ export const handler = async (event) => {
       LIMIT 1
     `;
 
-        // replace your current "movies" SQL with this block
+        // If weekend doesn't exist, create a synthetic one
+        if (!weekend) {
+            const dates = getWeekendDatesFromId(parseInt(weekendId));
+            weekend = {
+                id: parseInt(weekendId),
+                start_date: dates.start_date,
+                end_date: dates.end_date,
+                total_revenues_qc: null,
+                total_revenues_us: null,
+                change_qc: null,
+                change_us: null
+            };
+        }
+
+        // Get movies from revenues AND movies releasing this weekend
         const movies = await sql/*sql*/`
             WITH w AS (
-                SELECT start_date, end_date
-                FROM weekends
-                WHERE id = ${weekendId}
-                LIMIT 1
+                SELECT
+                    ${weekend.start_date}::date AS start_date,
+                    ${weekend.end_date}::date AS end_date
                 ),
                 ranked AS (
             SELECT
@@ -51,7 +86,8 @@ export const handler = async (event) => {
                 OVER (PARTITION BY r.film_id ORDER BY r.weekend_id) AS prev_qc
             FROM revenues r
             WHERE r.weekend_id <= ${weekendId}
-                )
+                ),
+                box_office_movies AS (
             SELECT
                 m.id,
                 m.title,
@@ -60,7 +96,7 @@ export const handler = async (event) => {
                 m.principal_studio_id,
                 s.name AS studio_name,
                 x.weekend_id,
-                x.rank,
+                x.rank::int,
                 m.poster_path,
                 x.revenue_qc,
                 x.revenue_us,
@@ -71,11 +107,12 @@ export const handler = async (event) => {
                 x.cumulatif_qc_to_date AS cumulatif_qc,
                 x.cumulatif_us_to_date,
                 x.force_qc_usa,
-                x.week_count,
+                x.week_count::int,
                 CASE
                     WHEN x.prev_qc IS NULL OR x.prev_qc = 0 THEN NULL
                     ELSE ((x.revenue_qc - x.prev_qc) / x.prev_qc) * 100
-                    END AS change_percent
+                    END AS change_percent,
+                FALSE::boolean AS is_release_only
             FROM ranked x
                      JOIN movies m ON m.id = x.film_id
                      LEFT JOIN studios s ON s.id = m.principal_studio_id
@@ -92,9 +129,54 @@ export const handler = async (event) => {
                     AND w.end_date
                     ) sc ON TRUE
             WHERE x.weekend_id = ${weekendId}
-            ORDER BY x.rank
-                LIMIT ${limitNum}
-
+                ),
+                release_movies AS (
+            SELECT
+                m.id,
+                m.title,
+                m.fr_title,
+                m.release_date,
+                m.principal_studio_id,
+                s.name AS studio_name,
+                ${weekendId}::int AS weekend_id,
+                NULL::int AS rank,
+                m.poster_path,
+                NULL::float8 AS revenue_qc,
+                NULL::float8 AS revenue_us,
+                sc.screen_count,
+                NULL::float8 AS average_showing_occupancy,
+                NULL::float8 AS showings_proportion,
+                NULL::float8 AS cumulatif_qc,
+                NULL::float8 AS cumulatif_us_to_date,
+                NULL::float8 AS force_qc_usa,
+                1::int AS week_count,
+                NULL::float8 AS change_percent,
+                TRUE::boolean AS is_release_only
+            FROM movies m
+                     CROSS JOIN w
+                     LEFT JOIN studios s ON s.id = m.principal_studio_id
+                     LEFT JOIN LATERAL (
+                SELECT COALESCE(COUNT(*),0)::int AS screen_count
+                FROM showings sh
+                WHERE sh.movie_id = m.id
+                  AND sh.date BETWEEN (w.start_date - INTERVAL '1 day')::date AND w.end_date
+                    ) sc ON TRUE
+            WHERE m.release_date BETWEEN w.start_date AND w.end_date
+              AND NOT EXISTS (
+                SELECT 1 FROM ranked r WHERE r.film_id = m.id AND r.weekend_id = ${weekendId}
+                )
+                ),
+                combined AS (
+            SELECT * FROM box_office_movies
+            UNION ALL
+            SELECT * FROM release_movies
+                )
+            SELECT * FROM combined
+            ORDER BY
+                CASE WHEN rank IS NOT NULL THEN rank ELSE 999999 END,
+                revenue_qc DESC NULLS LAST,
+                title
+            LIMIT ${limitNum}
         `;
 
 
