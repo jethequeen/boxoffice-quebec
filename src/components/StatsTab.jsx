@@ -91,13 +91,24 @@ function StatsTab({ movieId, movieTitle }) {
   }
 
   // Prepare data for daily revenue line chart
-  const lineChartData = dailyRevenues?.dailyRevenues?.map(item => ({
-    date: item.date,
-    daysSinceRelease: parseInt(item.days_since_release),
-    revenue: parseFloat(item.revenue),
-    showingsCount: parseInt(item.showings_count),
-    theatersCount: parseInt(item.theaters_count)
-  })) || [];
+  const lineChartData = dailyRevenues?.dailyRevenues?.map(item => {
+    // Ensure date is a string in YYYY-MM-DD format
+    let dateStr = item.date;
+    if (item.date instanceof Date) {
+      dateStr = item.date.toISOString().split('T')[0];
+    } else if (typeof item.date === 'string') {
+      // Extract just the date part if it includes time
+      dateStr = item.date.split('T')[0];
+    }
+
+    return {
+      date: dateStr,
+      daysSinceRelease: parseInt(item.days_since_release),
+      revenue: parseFloat(item.revenue),
+      showingsCount: parseInt(item.showings_count),
+      theatersCount: parseInt(item.theaters_count)
+    };
+  }) || [];
 
   // Identify weekend ranges for highlighting (Friday, Saturday, Sunday)
   const getWeekendRanges = (data) => {
@@ -105,20 +116,30 @@ function StatsTab({ movieId, movieTitle }) {
     let weekendStart = null;
 
     data.forEach((item, index) => {
-      const date = new Date(item.date);
-      const dayOfWeek = date.getDay(); // 0 = Sunday, 5 = Friday, 6 = Saturday
+      try {
+        // Parse date manually to avoid timezone issues
+        if (!item.date) return;
+        const parts = item.date.split('-');
+        if (parts.length !== 3) return;
+        const [year, month, day] = parts.map(Number);
+        const date = new Date(year, month - 1, day);
+        if (isNaN(date.getTime())) return;
+        const dayOfWeek = date.getDay(); // 0 = Sunday, 5 = Friday, 6 = Saturday
 
-      // Check if it's a weekend day (Friday, Saturday, or Sunday)
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
+        // Check if it's a weekend day (Friday, Saturday, or Sunday)
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
 
-      if (isWeekend && !weekendStart) {
-        // Start of a weekend
-        weekendStart = item.date;
-      } else if (!isWeekend && weekendStart) {
-        // End of a weekend (now it's a weekday)
-        const prevDate = data[index - 1]?.date;
-        ranges.push({ start: weekendStart, end: prevDate });
-        weekendStart = null;
+        if (isWeekend && !weekendStart) {
+          // Start of a weekend
+          weekendStart = item.date;
+        } else if (!isWeekend && weekendStart) {
+          // End of a weekend (now it's a weekday)
+          const prevDate = data[index - 1]?.date;
+          ranges.push({ start: weekendStart, end: prevDate });
+          weekendStart = null;
+        }
+      } catch (e) {
+        console.error('Error processing date for weekend range:', item.date, e);
       }
     });
 
@@ -184,7 +205,20 @@ function StatsTab({ movieId, movieTitle }) {
           boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
         }}>
           <p style={{ margin: '0 0 4px 0', fontWeight: '600', color: '#0f172a' }}>
-            {new Date(data.date).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })}
+            {(() => {
+              try {
+                if (!data.date) return 'Date inconnue';
+                const parts = data.date.split('-');
+                if (parts.length !== 3) return data.date;
+                const [year, month, day] = parts.map(Number);
+                const date = new Date(year, month - 1, day);
+                if (isNaN(date.getTime())) return data.date;
+                return date.toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+              } catch (e) {
+                console.error('Error formatting tooltip date:', data.date, e);
+                return data.date || 'Date inconnue';
+              }
+            })()}
           </p>
           <p style={{ margin: '4px 0', color: '#6366f1', fontWeight: '500' }}>
             Jour {data.daysSinceRelease}
@@ -320,8 +354,19 @@ function StatsTab({ movieId, movieTitle }) {
 
   // Format date for X-axis
   const formatXAxisDate = (dateStr) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('fr-CA', { month: 'short', day: 'numeric' });
+    try {
+      // Parse date manually to avoid timezone issues
+      if (!dateStr) return '';
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return dateStr;
+      const [year, month, day] = parts.map(Number);
+      const date = new Date(year, month - 1, day);
+      if (isNaN(date.getTime())) return dateStr;
+      return date.toLocaleDateString('fr-CA', { month: 'short', day: 'numeric' });
+    } catch (e) {
+      console.error('Error formatting date:', dateStr, e);
+      return dateStr;
+    }
   };
 
   return (
