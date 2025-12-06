@@ -418,8 +418,16 @@ function StatsTab({ movieId, movieTitle }) {
                     dataKey="revenue"
                     stroke="#6366f1"
                     strokeWidth={2}
-                    dot={{ fill: '#6366f1', r: 3 }}
-                    activeDot={{ r: 5 }}
+                    dot={{ fill: '#6366f1', r: 3, cursor: 'pointer' }}
+                    activeDot={{
+                      r: 5,
+                      cursor: 'pointer',
+                      onClick: (e, payload) => {
+                        if (payload?.payload?.date) {
+                          navigate(`/daily/${payload.payload.date}`);
+                        }
+                      }
+                    }}
                   />
                 </LineChart>
               </ResponsiveContainer>

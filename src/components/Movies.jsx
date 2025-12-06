@@ -488,87 +488,91 @@ function Movies() {
                 Top 20 Films
               </summary>
             {topStats.topMovies && topStats.topMovies.length > 0 ? (
-              <div style={{ overflowX: 'auto', margin: '0 -16px', padding: '0 16px' }}>
-                <div style={{ display: 'grid', gap: '8px', minWidth: 'fit-content' }}>
-                  {topStats.topMovies.map((movie, index) => (
-                    <div
-                      key={movie.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '8px',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '6px',
-                        transition: 'all 0.2s',
-                        minWidth: '400px'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#fef2f2';
-                        e.currentTarget.style.borderColor = '#fca5a5';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.borderColor = '#e5e7eb';
-                      }}
-                    >
-                      <div style={{
-                        minWidth: '24px',
-                        height: '24px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: index < 3 ? '#fef3c7' : '#f1f5f9',
-                        borderRadius: '4px',
-                        fontSize: '13px',
-                        fontWeight: '700',
-                        color: index < 3 ? '#92400e' : '#64748b'
-                      }}>
-                        {index + 1}
-                      </div>
-                      {movie.poster_path && (
-                        <img
-                          src={`https://image.tmdb.org/t/p/w92${movie.poster_path}`}
-                          alt={movie.fr_title || movie.title}
-                          style={{
-                            width: '40px',
-                            height: '60px',
-                            objectFit: 'cover',
-                            borderRadius: '4px'
-                          }}
-                        />
-                      )}
-                      <div style={{ flex: 1, minWidth: '120px', maxWidth: '200px' }}>
-                        <Link
-                          to={`/movies/${movie.id}`}
-                          style={{
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            color: '#0f172a',
-                            textDecoration: 'none',
-                            display: 'block',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          {movie.fr_title || movie.title}
-                        </Link>
-                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                          {new Date(movie.release_date).toLocaleDateString('fr-CA')}
-                        </div>
-                      </div>
-                      <div style={{
-                        fontSize: '13px',
-                        fontWeight: '700',
-                        color: '#dc2626',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        {formatCurrency(movie.revenue_in_range)}
-                      </div>
+              <div style={{ display: 'grid', gap: '8px' }}>
+                {topStats.topMovies.map((movie, index) => (
+                  <div
+                    key={movie.id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'auto auto 1fr auto',
+                      gridTemplateRows: 'auto auto',
+                      gap: '8px',
+                      padding: '8px',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '6px',
+                      transition: 'all 0.2s',
+                      alignItems: 'center'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#fef2f2';
+                      e.currentTarget.style.borderColor = '#fca5a5';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.borderColor = '#e5e7eb';
+                    }}
+                  >
+                    <div style={{
+                      minWidth: '24px',
+                      height: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: index < 3 ? '#fef3c7' : '#f1f5f9',
+                      borderRadius: '4px',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      color: index < 3 ? '#92400e' : '#64748b',
+                      gridRow: '1 / 3'
+                    }}>
+                      {index + 1}
                     </div>
-                  ))}
-                </div>
+                    {movie.poster_path && (
+                      <img
+                        src={`https://image.tmdb.org/t/p/w92${movie.poster_path}`}
+                        alt={movie.fr_title || movie.title}
+                        style={{
+                          width: '40px',
+                          height: '60px',
+                          objectFit: 'cover',
+                          borderRadius: '4px',
+                          gridRow: '1 / 3'
+                        }}
+                      />
+                    )}
+                    <div style={{ minWidth: 0, gridColumn: '3 / 4' }}>
+                      <Link
+                        to={`/movies/${movie.id}`}
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          color: '#0f172a',
+                          textDecoration: 'none',
+                          display: 'block',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {movie.fr_title || movie.title}
+                      </Link>
+                    </div>
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      color: '#dc2626',
+                      whiteSpace: 'nowrap',
+                      gridColumn: '4 / 5',
+                      gridRow: '1 / 3',
+                      textAlign: 'right'
+                    }}>
+                      {formatCurrency(movie.revenue_in_range)}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', gridColumn: '3 / 4' }}>
+                      {new Date(movie.release_date).toLocaleDateString('fr-CA')}
+                    </div>
+                  </div>
+                ))}
               </div>
               ) : (
                 <p style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '13px' }}>Aucun film trouvé pour cette période</p>
@@ -594,87 +598,91 @@ function Movies() {
                 Top 20 Films Québécois
               </summary>
               {topStatsCanadian?.topMovies && topStatsCanadian.topMovies.length > 0 ? (
-                <div style={{ overflowX: 'auto', margin: '0 -16px', padding: '0 16px' }}>
-                  <div style={{ display: 'grid', gap: '8px', minWidth: 'fit-content' }}>
-                    {topStatsCanadian.topMovies.map((movie, index) => (
-                      <div
-                        key={movie.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          padding: '8px',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '6px',
-                          transition: 'all 0.2s',
-                          minWidth: '400px'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#eff6ff';
-                          e.currentTarget.style.borderColor = '#93c5fd';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'transparent';
-                          e.currentTarget.style.borderColor = '#e5e7eb';
-                        }}
-                      >
-                        <div style={{
-                          minWidth: '24px',
-                          height: '24px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          background: index < 3 ? '#fef3c7' : '#f1f5f9',
-                          borderRadius: '4px',
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          color: index < 3 ? '#92400e' : '#64748b'
-                        }}>
-                          {index + 1}
-                        </div>
-                        {movie.poster_path && (
-                          <img
-                            src={`https://image.tmdb.org/t/p/w92${movie.poster_path}`}
-                            alt={movie.fr_title || movie.title}
-                            style={{
-                              width: '40px',
-                              height: '60px',
-                              objectFit: 'cover',
-                              borderRadius: '4px'
-                            }}
-                          />
-                        )}
-                        <div style={{ flex: 1, minWidth: '120px', maxWidth: '200px' }}>
-                          <Link
-                            to={`/movies/${movie.id}`}
-                            style={{
-                              fontSize: '13px',
-                              fontWeight: '600',
-                              color: '#0f172a',
-                              textDecoration: 'none',
-                              display: 'block',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            {movie.fr_title || movie.title}
-                          </Link>
-                          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                            {new Date(movie.release_date).toLocaleDateString('fr-CA')}
-                          </div>
-                        </div>
-                        <div style={{
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          color: '#6366f1',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {formatCurrency(movie.revenue_in_range)}
-                        </div>
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  {topStatsCanadian.topMovies.map((movie, index) => (
+                    <div
+                      key={movie.id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'auto auto 1fr auto',
+                        gridTemplateRows: 'auto auto',
+                        gap: '8px',
+                        padding: '8px',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '6px',
+                        transition: 'all 0.2s',
+                        alignItems: 'center'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#eff6ff';
+                        e.currentTarget.style.borderColor = '#93c5fd';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.borderColor = '#e5e7eb';
+                      }}
+                    >
+                      <div style={{
+                        minWidth: '24px',
+                        height: '24px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: index < 3 ? '#fef3c7' : '#f1f5f9',
+                        borderRadius: '4px',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        color: index < 3 ? '#92400e' : '#64748b',
+                        gridRow: '1 / 3'
+                      }}>
+                        {index + 1}
                       </div>
-                    ))}
-                  </div>
+                      {movie.poster_path && (
+                        <img
+                          src={`https://image.tmdb.org/t/p/w92${movie.poster_path}`}
+                          alt={movie.fr_title || movie.title}
+                          style={{
+                            width: '40px',
+                            height: '60px',
+                            objectFit: 'cover',
+                            borderRadius: '4px',
+                            gridRow: '1 / 3'
+                          }}
+                        />
+                      )}
+                      <div style={{ minWidth: 0, gridColumn: '3 / 4' }}>
+                        <Link
+                          to={`/movies/${movie.id}`}
+                          style={{
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            color: '#0f172a',
+                            textDecoration: 'none',
+                            display: 'block',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {movie.fr_title || movie.title}
+                        </Link>
+                      </div>
+                      <div style={{
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        color: '#6366f1',
+                        whiteSpace: 'nowrap',
+                        gridColumn: '4 / 5',
+                        gridRow: '1 / 3',
+                        textAlign: 'right'
+                      }}>
+                        {formatCurrency(movie.revenue_in_range)}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8', gridColumn: '3 / 4' }}>
+                        {new Date(movie.release_date).toLocaleDateString('fr-CA')}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <p style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '13px' }}>Aucun film québécois trouvé pour cette période</p>

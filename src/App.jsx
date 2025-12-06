@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Home from './components/Home'
 import WeekendDetails from './components/WeekendDetails'
+import DailyDetails from './components/DailyDetails'
 import Movies from './components/Movies'
 import MovieDetails from './components/MovieDetails'
 import GenreDetails from './components/GenreDetails'
@@ -17,6 +18,7 @@ function App() {
           <Route path="/box-office" element={<WeekendDetails showNavigation={true} />} />
           <Route path="/box-office/:weekendId" element={<WeekendDetails showNavigation={true} />} />
           <Route path="/weekend/:weekendId" element={<WeekendDetails />} />
+          <Route path="/daily/:date" element={<DailyDetails />} />
           <Route path="/movies" element={<Movies />} />
           <Route path="/movies/:id" element={<MovieDetails />} />
           <Route path="/genres/:id" element={<GenreDetails />} />

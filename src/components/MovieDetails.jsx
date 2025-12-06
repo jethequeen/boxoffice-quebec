@@ -348,10 +348,10 @@ function MovieDetails() {
     if (!fri) return '—';
     const sun = new Date(fri);
     sun.setDate(sun.getDate() + 2);
-    const dd = (d) => d.toLocaleString('fr-CA', { day: '2-digit' });
-    const month = sun.toLocaleString('fr-CA', { month: 'long' });
+    const dd = (d) => d.toLocaleString('fr-CA', { day: 'numeric' });
+    const month = sun.toLocaleString('fr-CA', { month: 'short' });
     const year = sun.getFullYear();
-    return `${dd(fri)} au ${dd(sun)} ${month} ${year}`;
+    return `${dd(fri)}-${dd(sun)} ${month} ${year}`;
   };
 
   useEffect(() => { fetchMovieDetails(); }, [id]);
@@ -609,7 +609,9 @@ function MovieDetails() {
                       required: true,
                       headerClassName: 'date-sticky',
                       className: 'date-sticky date-cell',
-                      widthPct: 14,
+                      widthPct: 11,
+                      align: 'center',
+                      headerAlign: 'center',
                       render: (_, r) => (
                           <Link to={`/box-office/${r.weekend_id}#movie-${movie.id}`} className="date-link" title="Voir le weekend">
                             {formatWeekendRange(r.weekend_id)}

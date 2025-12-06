@@ -179,7 +179,7 @@ export default function Home() {
 
     return (
         <Navigate
-            to={`/weekend/${currentWeekendId}`}
+            to="/box-office"
             replace
             state={{ from: 'home-auto' }}
         />

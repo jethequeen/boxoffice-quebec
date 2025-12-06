@@ -121,6 +121,9 @@ export const getMovieShowings = (movieId, dateFrom, dateTo, theatreId, timeRange
 export const getDailyRevenues = (movieId) =>
     apiCall('getDailyRevenues', { query: { movieId } });
 
+export const getDailyBoxOffice = (date) =>
+    apiCall('getDailyBoxOffice', { query: { date } });
+
 export const getSimilarMovies = (movieId, forecastRevenue = null) =>
     apiCall('getSimilarMovies', { query: { movieId, ...(forecastRevenue ? { forecastRevenue } : {}) } });
 

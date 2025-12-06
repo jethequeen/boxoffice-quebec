@@ -167,7 +167,12 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
       }
     };
 
-    const arr = [...rawMovies];
+    // Filter out movies without sales data
+    const arr = [...rawMovies].filter(m => {
+      const revenue = toNum(m.revenue_qc);
+      return revenue !== null && revenue > 0;
+    });
+
     arr.sort((a, b) => {
       const va = val(a, sort.key);
       const vb = val(b, sort.key);
