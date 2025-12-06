@@ -317,7 +317,6 @@ function Comparateur({ movieId }) {
                       rows={tableRows}
                       columns={columns}
                       initialSort={{ key: 'revenue_qc', dir: 'desc' }}
-                      initialVisibleKeys={['title','revenue_qc', 'budget', 'studio', 'year']}
                       searchAccessors={[r => r.fr_title, r => r.title, r => r.studio_name]}
                   />
                 </div>
@@ -607,6 +606,10 @@ function MovieDetails() {
                   ['date','revenue_qc','change_percent','rank','screen_count','rev_per_screen','qc_usa','week_number','occupancy','weight'],
                   {
                     date: {
+                      required: true,
+                      headerClassName: 'date-sticky',
+                      className: 'date-sticky date-cell',
+                      widthPct: 14,
                       render: (_, r) => (
                           <Link to={`/box-office/${r.weekend_id}#movie-${movie.id}`} className="date-link" title="Voir le weekend">
                             {formatWeekendRange(r.weekend_id)}
@@ -616,7 +619,7 @@ function MovieDetails() {
                   }
               )}
               initialSort={{ key: 'date', dir: 'asc' }}
-              initialVisibleKeys={['date','revenue_qc','change_percent','rank','screen_count','rev_per_screen','qc_usa']}
+              initialVisibleKeys={['date','revenue_qc','change_percent','rank','screen_count','rev_per_screen','week_number','occupancy']}
               caps={{ mobile: Infinity, tablet: Infinity, desktop: Infinity }}
               mobileMode="auto"
               searchAccessors={[r => r.dateObj?.toISOString?.().slice(0,10), r => String(r.rank)]}

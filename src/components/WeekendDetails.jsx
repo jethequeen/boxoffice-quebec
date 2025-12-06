@@ -317,7 +317,7 @@ function WeekendDetails({ weekendId: propWeekendId, showNavigation = false }) {
                 rows={movies}
                 columns={columns}
                 initialSort={{ key: 'revenue_qc', dir: 'desc' }}
-                initialVisibleKeys={['title','revenue_qc','change_percent','screen_count','rev_per_screen','week_number', 'occupancy']}
+                initialVisibleKeys={['title','revenue_qc','change_percent','week_number','cumulatif_qc','screen_count','rev_per_screen','occupancy']}
                 searchAccessors={[r => r.fr_title, r => r.title, r => r.studio_name]}
             />
         ) : (

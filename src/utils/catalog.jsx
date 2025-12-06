@@ -56,7 +56,7 @@ export function createColumnsCatalog({ Link, formatCurrency, pct0, toNum }) {
         label: 'Recettes',
         sortable: true,
         priority: 1,
-        widthPct: 7,
+        widthPct: 8,
         mobileWidthPct: 18,
         align: 'center',
         minPx: 100,

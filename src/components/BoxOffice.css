@@ -284,6 +284,28 @@
     overflow: visible;
 }
 
+/* ===== Sticky Date Column (for MovieDetails) ===== */
+.box-office-table thead th.date-sticky,
+.box-office-table tbody td.date-sticky {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: #fff;
+}
+
+.box-office-table thead th.date-sticky {
+    background: #f8fafc;
+}
+
+.table-container.is-scrolling-x .date-sticky {
+    box-shadow: 8px 0 10px -8px rgba(15,23,42,.22);
+}
+
+.date-cell {
+    overflow: visible;
+    white-space: nowrap;
+}
+
 /* ===== Title Cell with Poster ===== */
 .title-cell {
     --poster-h: 48px;
@@ -313,6 +335,7 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
+    max-width: 100%;
     min-height: var(--poster-h);
     justify-content: center;
     position: relative;
@@ -346,6 +369,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 100%;
     margin-top: 1px;
     font-size: .85rem;
     line-height: 1.2;
