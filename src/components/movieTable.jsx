@@ -214,10 +214,8 @@ export default function MovieTable({
 
                     <tbody>
                     {sortedRows.map((row) => {
-                        const isFirstWeek = row.week_number === 1;
                         const rowClasses = [
-                            onRowClick ? 'row-clickable' : '',
-                            isFirstWeek ? 'first-week-movie' : ''
+                            onRowClick ? 'row-clickable' : ''
                         ].filter(Boolean).join(' ');
 
                         return (

@@ -474,8 +474,7 @@ function MovieDetails() {
         ? new Date(r.start_date)
         : getFridayFromWeekendId(String(r.weekend_id));
     const revenue_qc_num = Number(r.revenue_qc) || 0;
-    const prev = i > 0 ? Number(revenues[i - 1].revenue_qc) || 0 : null;
-    const change_percent = prev ? ((revenue_qc_num - prev) / prev) * 100 : null;
+    const change_percent = r.change_qc != null ? Number(r.change_qc) : null;
     const screen_count = Number(r.screen_count) || 0;
     const rev_per_screen = screen_count > 0 ? revenue_qc_num / screen_count : null;
     const week_number = Number(r.week_count) || i + 1;

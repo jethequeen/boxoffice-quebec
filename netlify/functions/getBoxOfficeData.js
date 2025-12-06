@@ -82,8 +82,7 @@ export const handler = async (event) => {
                 r.week_count                   AS week_count,
                 r.average_showing_occupancy    AS occupancy,
                 r.showings_proportion          AS weight,
-                LAG(r.revenue_qc::float8)
-                OVER (PARTITION BY r.film_id ORDER BY r.weekend_id) AS prev_qc
+                r.change_qc::float8            AS change_percent
             FROM revenues r
             WHERE r.weekend_id <= ${weekendId}
                 ),
@@ -108,10 +107,7 @@ export const handler = async (event) => {
                 x.cumulatif_us_to_date,
                 x.force_qc_usa,
                 x.week_count::int,
-                CASE
-                    WHEN x.prev_qc IS NULL OR x.prev_qc = 0 THEN NULL
-                    ELSE ((x.revenue_qc - x.prev_qc) / x.prev_qc) * 100
-                    END AS change_percent,
+                x.change_percent,
                 FALSE::boolean AS is_release_only
             FROM ranked x
                      JOIN movies m ON m.id = x.film_id
