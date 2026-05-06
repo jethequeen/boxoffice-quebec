@@ -27,7 +27,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['netlify/functions/**/*.js'], // 👈 adjust if needed
+    files: ['netlify/functions/**/*.js', 'netlify/lib/**/*.js'],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.node, // 👈 Enables 'process', 'require', etc.

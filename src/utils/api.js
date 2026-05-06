@@ -140,3 +140,6 @@ export const getForecast = (movieId) =>
 
 export const getAutocomplete = (type, query) =>
     apiCall('getAutocomplete', { query: { type, query } });
+
+export const getInventorySnapshot = () =>
+    apiCall('getInventorySnapshot');

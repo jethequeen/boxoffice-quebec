@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
-import Home from './components/Home'
+import InventoryDashboard from './components/InventoryDashboard'
 import WeekendDetails from './components/WeekendDetails'
 import DailyDetails from './components/DailyDetails'
 import Movies from './components/Movies'
@@ -14,7 +14,7 @@ function App() {
     <Router>
       <Layout>
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<InventoryDashboard />} />
           <Route path="/box-office" element={<WeekendDetails showNavigation={true} />} />
           <Route path="/box-office/:weekendId" element={<WeekendDetails showNavigation={true} />} />
           <Route path="/weekend/:weekendId" element={<WeekendDetails />} />
