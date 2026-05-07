@@ -60,7 +60,13 @@ export const handler = async (event) => {
 
         const totals = aggregateRows(rows);
         const decrements = decrementsFromRows(rows);
-        log.steps.push({ step: 'aggregated', totals, decrementCount: decrements.length });
+        const platformDecrements = decrementsFromRows(rows.filter((r) => r.section === 'Platforms'));
+        log.steps.push({
+            step: 'aggregated',
+            totals,
+            decrementCount: decrements.length,
+            platformDecrementCount: platformDecrements.length,
+        });
 
         const bsx = await readBsx();
         if (!bsx) return jsonResponse(412, { error: 'No inventory.bsx in blob store. Seed it first.' });
@@ -79,7 +85,7 @@ export const handler = async (event) => {
             fees: totals.fees,
             bySection: totals.bySection,
         };
-        await appendSalesEntry({ ...entry, applied, missing });
+        await appendSalesEntry({ ...entry, applied, missing, platformDecrements });
         log.steps.push({ step: 'sales_history_appended' });
 
         try {

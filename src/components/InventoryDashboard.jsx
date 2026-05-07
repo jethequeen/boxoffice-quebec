@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
     BarChart, Bar,
 } from 'recharts';
 import { getInventorySnapshot } from '../utils/api';
 import './InventoryDashboard.css';
+
+const TOKEN_STORAGE_KEY = 'cfb_ingest_token';
 
 const fmtMoney = (n) => {
     const v = Number(n || 0);
@@ -30,6 +32,107 @@ function Kpi({ label, value, sub }) {
     );
 }
 
+function UploadBsx({ onUploaded }) {
+    const fileRef = useRef(null);
+    const [token, setToken] = useState(() => {
+        try { return localStorage.getItem(TOKEN_STORAGE_KEY) || ''; } catch { return ''; }
+    });
+    const [file, setFile] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState(null);
+    const [err, setErr] = useState(null);
+    const [open, setOpen] = useState(false);
+
+    const persistToken = (v) => {
+        setToken(v);
+        try {
+            if (v) localStorage.setItem(TOKEN_STORAGE_KEY, v);
+            else localStorage.removeItem(TOKEN_STORAGE_KEY);
+        } catch { /* ignore */ }
+    };
+
+    const submit = async () => {
+        if (!file) return;
+        setBusy(true);
+        setMsg(null);
+        setErr(null);
+        try {
+            const xml = await file.text();
+            if (!xml.includes('<BrickStoreXML')) {
+                throw new Error('Fichier invalide : la racine <BrickStoreXML> est introuvable.');
+            }
+            const res = await fetch('/.netlify/functions/seedInventory?force=1', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/xml',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: xml,
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+            setMsg(`Inventaire mis à jour (${(data.length / 1024).toFixed(1)} ko).`);
+            setFile(null);
+            if (fileRef.current) fileRef.current.value = '';
+            onUploaded?.();
+        } catch (e) {
+            setErr(e.message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <section className="inv-card inv-upload">
+            <div className="inv-card__head">
+                <h2>Mise à jour de l'inventaire maître</h2>
+                <button type="button" className="inv-tab" onClick={() => setOpen((v) => !v)}>
+                    {open ? 'Fermer' : 'Téléverser un .bsx'}
+                </button>
+            </div>
+            {open && (
+                <div className="inv-upload__body">
+                    <p className="inv-upload__hint">
+                        Quand tu envoies des nouvelles pièces à CFB, téléverse le fichier <code>.bsx</code> mis à jour ici
+                        pour remplacer l'inventaire maître. Les ventes futures seront décrémentées de cette nouvelle base.
+                    </p>
+                    <div className="inv-upload__row">
+                        <input
+                            ref={fileRef}
+                            type="file"
+                            accept=".bsx,.xml,application/xml,text/xml"
+                            onChange={(e) => setFile(e.target.files?.[0] || null)}
+                            disabled={busy}
+                        />
+                    </div>
+                    <div className="inv-upload__row">
+                        <input
+                            type="password"
+                            placeholder="Ingest token (laisse vide si non requis)"
+                            value={token}
+                            onChange={(e) => persistToken(e.target.value)}
+                            disabled={busy}
+                            className="inv-upload__token"
+                        />
+                    </div>
+                    <div className="inv-upload__row">
+                        <button
+                            type="button"
+                            className="inv-upload__submit"
+                            onClick={submit}
+                            disabled={!file || busy}
+                        >
+                            {busy ? 'Téléversement…' : 'Remplacer l’inventaire'}
+                        </button>
+                    </div>
+                    {msg && <div className="inv-upload__ok">✓ {msg}</div>}
+                    {err && <div className="inv-upload__err">⚠ {err}</div>}
+                </div>
+            )}
+        </section>
+    );
+}
+
 function pickRange(entries, days) {
     if (!entries?.length) return [];
     const cutoff = new Date();
@@ -43,6 +146,7 @@ export default function InventoryDashboard() {
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState(null);
     const [range, setRange] = useState(30);
+    const [reloadTick, setReloadTick] = useState(0);
 
     useEffect(() => {
         let cancel = false;
@@ -59,7 +163,7 @@ export default function InventoryDashboard() {
             }
         })();
         return () => { cancel = true; };
-    }, []);
+    }, [reloadTick]);
 
     const dailySeries = useMemo(() => pickRange(data?.sales?.daily || [], range), [data, range]);
 
@@ -94,6 +198,8 @@ export default function InventoryDashboard() {
                     valeur estimée {fmtMoney(inv.totalValue)}
                 </p>
             </header>
+
+            <UploadBsx onUploaded={() => setReloadTick((n) => n + 1)} />
 
             <section className="inv-kpis">
                 <Kpi
