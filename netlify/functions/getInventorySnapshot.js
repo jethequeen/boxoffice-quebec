@@ -52,10 +52,10 @@ function bucketSales(history) {
         accumulate(week, isoWeek(date), totals);
         accumulate(month, monthKey(date), totals);
 
-        // Prefer platformDecrements (real sales only). Fall back to applied for entries
-        // written before the split, since those don't have platformDecrements at all.
-        const sellerSource = Array.isArray(e.platformDecrements) ? e.platformDecrements : (e.applied || []);
-        for (const a of sellerSource) {
+        // Only count platform sales — manual withdrawals are inventory write-offs, not sales.
+        // Entries written before platformDecrements existed are skipped here (they'd need
+        // section info we no longer have).
+        for (const a of e.platformDecrements || []) {
             if (a.itemId == null) continue;
             const key = sellerKey(a.itemId, a.colorName, a.condition);
             const cur = sellers.get(key) || {
@@ -65,8 +65,7 @@ function bucketSales(history) {
                 partsSold: 0,
                 occurrences: 0,
             };
-            // platformDecrements has `qty`; legacy applied has `decrement`
-            cur.partsSold += Number(a.qty ?? a.decrement ?? 0);
+            cur.partsSold += Number(a.qty || 0);
             cur.occurrences += 1;
             sellers.set(key, cur);
         }
