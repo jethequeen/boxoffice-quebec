@@ -50,13 +50,34 @@ export async function loadReportForm() {
 
     $effectiveForm.find('input,select,textarea').each((_, el) => {
         const $el = $(el);
+        const tag = (el.tagName || el.name || '').toLowerCase();
         const name = $el.attr('name');
         if (!name || name === '_csrf_token') return;
-        const value = $el.attr('value') ?? '';
+
+        let value = '';
+        if (tag === 'select') {
+            const $selected = $el.find('option[selected]').first();
+            const $first = $el.find('option').first();
+            const $eff = $selected.length ? $selected : $first;
+            value = $eff.attr('value') ?? $eff.text().trim() ?? '';
+        } else if (tag === 'textarea') {
+            value = $el.text();
+        } else {
+            const type = ($el.attr('type') || '').toLowerCase();
+            if (type === 'checkbox' || type === 'radio') {
+                if ($el.attr('checked') == null) return;
+                value = $el.attr('value') ?? 'on';
+            } else {
+                value = $el.attr('value') ?? '';
+            }
+        }
         if (!(name in fields)) fields[name] = value;
+
+        const inputType = ($el.attr('type') || '').toLowerCase();
         const lower = name.toLowerCase();
-        if (!startName && /(start|from|begin)/.test(lower) && /date/.test(lower)) startName = name;
-        if (!endName && /(end|to|until)/.test(lower) && /date/.test(lower)) endName = name;
+        const looksLikeDate = inputType === 'date' || /date/.test(lower);
+        if (!startName && looksLikeDate && /\b(start|from|begin)\b/.test(lower)) startName = name;
+        if (!endName && looksLikeDate && /\b(end|to|until)\b/.test(lower)) endName = name;
     });
 
     return { csrf, action, fields, startName, endName };
