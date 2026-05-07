@@ -1,5 +1,5 @@
 import { generateReport, parseReportRows, aggregateRows, decrementsFromRows } from '../lib/cfb.js';
-import { readBsx, writeBsx, appendSalesEntry } from '../lib/blobs.js';
+import { readBsx, writeBsx, appendSalesEntry, hasSalesEntryForDate } from '../lib/blobs.js';
 import { parseBsx, serializeBsx, applyDecrements } from '../lib/bsx.js';
 import { postDailyEntry } from '../lib/sheets.js';
 import { jsonResponse } from '../lib/http.js';
@@ -21,12 +21,20 @@ export const handler = async (event) => {
 
     const qs = event.queryStringParameters || {};
     const dryRun = qs.dryRun === '1';
+    const force = qs.force === '1';
     const date = qs.date || todayInTZ();
     const startDate = qs.startDate || date;
     const endDate = qs.endDate || date;
-    const log = { date, startDate, endDate, dryRun, steps: [] };
+    const log = { date, startDate, endDate, dryRun, force, steps: [] };
 
     try {
+        if (!dryRun && !force && await hasSalesEntryForDate(date)) {
+            return jsonResponse(409, {
+                error: `Already ingested ${date}. Pass ?force=1 to override (will double-decrement).`,
+                date,
+            });
+        }
+
         const { html, dateFields } = await generateReport({ startDate, endDate });
         log.steps.push({ step: 'generated_report', htmlLength: html.length, dateFields });
 

@@ -1,6 +1,6 @@
 import { schedule } from '@netlify/functions';
 import { generateReport, parseReportRows, aggregateRows, decrementsFromRows } from '../lib/cfb.js';
-import { readBsx, writeBsx, appendSalesEntry } from '../lib/blobs.js';
+import { readBsx, writeBsx, appendSalesEntry, hasSalesEntryForDate } from '../lib/blobs.js';
 import { parseBsx, serializeBsx, applyDecrements } from '../lib/bsx.js';
 import { postDailyEntry } from '../lib/sheets.js';
 
@@ -12,6 +12,11 @@ const todayInTZ = (tz = 'America/Toronto') => {
 async function run() {
     const date = todayInTZ();
     const log = { date, steps: [] };
+
+    if (await hasSalesEntryForDate(date)) {
+        log.note = `Already ingested ${date}, skipping.`;
+        return log;
+    }
 
     const { html } = await generateReport({ startDate: date, endDate: date });
     log.steps.push({ step: 'generated_report', htmlLength: html.length });

@@ -74,3 +74,8 @@ export async function appendSalesEntry(entry) {
     await writeSalesHistory(history);
     return history;
 }
+
+export async function hasSalesEntryForDate(date) {
+    const history = await readSalesHistory();
+    return history.some((e) => e?.date === date);
+}
