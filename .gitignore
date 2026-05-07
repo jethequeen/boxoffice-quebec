@@ -34,3 +34,6 @@ dist-ssr
 
 # Database schema (contains sensitive information)
 src/utils/db_schema
+
+# Saved CFB report HTML (contains order numbers + email)
+Accueil*.html

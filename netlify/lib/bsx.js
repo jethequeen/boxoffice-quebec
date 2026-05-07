@@ -34,36 +34,82 @@ export function getItems(doc) {
     return doc?.BrickStoreXML?.Inventory?.Item ?? [];
 }
 
-const lotKey = (lotId) => String(lotId);
+const compositeKey = (itemId, colorName, condition) =>
+    `${String(itemId).trim()}|${String(colorName).trim().toLowerCase()}|${String(condition).trim().toUpperCase().slice(0, 1)}`;
 
-export function indexByLot(doc) {
+/**
+ * Group items by (ItemID, ColorName, Condition). Same key may map to multiple lots
+ * (different remarks / sub-conditions / lots from BrickStore).
+ */
+export function indexByCompositeKey(doc) {
     const map = new Map();
     for (const item of getItems(doc)) {
-        if (item.LotID != null) map.set(lotKey(item.LotID), item);
+        if (item.ItemID == null) continue;
+        const key = compositeKey(item.ItemID, item.ColorName, item.Condition);
+        const list = map.get(key) || [];
+        list.push(item);
+        map.set(key, list);
     }
     return map;
 }
 
 /**
- * Apply per-lot decrements to the parsed BSX doc. Mutates in-place.
- * decrements: array of { lotId, qty }
- * Returns { applied: [...], missing: [...] } so the caller can log misses.
+ * Apply decrements to the parsed BSX doc. Mutates in-place.
+ * decrements: array of { itemId, colorName, condition, qty }
+ *
+ * Match strategy:
+ *  - Exact match on (itemId, colorName-case-insensitive, condition-first-letter).
+ *  - On multi-lot collision (same key spread across multiple BSX <Item> entries),
+ *    decrement from the lot with the largest current Qty first, falling through
+ *    to the next as needed. Deterministic tie-break by LotID asc.
+ *  - If total available across matches is less than requested, decrement all to 0
+ *    and report the shortfall in `missing[].shortfall`.
+ *
+ * Returns { applied: [...], missing: [...] }.
  */
 export function applyDecrements(doc, decrements) {
-    const byLot = indexByLot(doc);
+    const byKey = indexByCompositeKey(doc);
     const applied = [];
     const missing = [];
-    for (const { lotId, qty } of decrements) {
-        const item = byLot.get(lotKey(lotId));
-        if (!item) {
-            missing.push({ lotId, qty });
+
+    for (const dec of decrements) {
+        const { itemId, colorName, condition, qty } = dec;
+        const want = Number(qty || 0);
+        if (want <= 0) continue;
+
+        const key = compositeKey(itemId, colorName, condition);
+        const lots = byKey.get(key);
+        if (!lots || !lots.length) {
+            missing.push({ ...dec, reason: 'no_match' });
             continue;
         }
-        const before = Number(item.Qty ?? 0);
-        const after = Math.max(0, before - Number(qty || 0));
-        item.Qty = String(after);
-        applied.push({ lotId, before, after, decrement: Number(qty || 0) });
+
+        const sorted = [...lots].sort((a, b) => {
+            const qa = Number(a.Qty ?? 0);
+            const qb = Number(b.Qty ?? 0);
+            if (qb !== qa) return qb - qa;
+            return String(a.LotID ?? '').localeCompare(String(b.LotID ?? ''));
+        });
+
+        let remaining = want;
+        const hits = [];
+        for (const item of sorted) {
+            if (remaining <= 0) break;
+            const before = Number(item.Qty ?? 0);
+            const take = Math.min(before, remaining);
+            const after = before - take;
+            item.Qty = String(after);
+            remaining -= take;
+            hits.push({ lotId: item.LotID, before, after, taken: take });
+        }
+
+        const decrement = want - remaining;
+        applied.push({ ...dec, decrement, hits });
+        if (remaining > 0) {
+            missing.push({ ...dec, reason: 'insufficient_qty', shortfall: remaining });
+        }
     }
+
     return { applied, missing };
 }
 

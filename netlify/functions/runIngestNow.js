@@ -19,17 +19,25 @@ const auth = (event) => {
 export const handler = async (event) => {
     if (!auth(event)) return jsonResponse(401, { error: 'unauthorized' });
 
-    const dryRun = (event.queryStringParameters?.dryRun || '') === '1';
-    const date = event.queryStringParameters?.date || todayInTZ();
-    const log = { date, dryRun, steps: [] };
+    const qs = event.queryStringParameters || {};
+    const dryRun = qs.dryRun === '1';
+    const date = qs.date || todayInTZ();
+    const startDate = qs.startDate || date;
+    const endDate = qs.endDate || date;
+    const log = { date, startDate, endDate, dryRun, steps: [] };
 
     try {
-        const html = await generateReport();
+        const { html } = await generateReport({ startDate, endDate });
         log.steps.push({ step: 'generated_report', htmlLength: html.length });
 
-        const { rows, rawRowCount } = parseReportRows(html, date);
-        log.steps.push({ step: 'parsed_rows', rawRowCount, matchedRows: rows.length });
-        if (dryRun) log.sampleRow = rows[0] || null;
+        const { rows, sections, dateRange } = parseReportRows(html, date);
+        log.steps.push({ step: 'parsed_rows', sections, dateRange, matchedRows: rows.length });
+        if (dryRun) {
+            log.sampleRows = rows.slice(0, 3);
+            log.totals = aggregateRows(rows);
+            log.decrementCount = decrementsFromRows(rows).length;
+            return jsonResponse(200, log);
+        }
 
         if (!rows.length) {
             log.note = 'No rows matched the requested date.';
@@ -40,8 +48,6 @@ export const handler = async (event) => {
         const decrements = decrementsFromRows(rows);
         log.steps.push({ step: 'aggregated', totals, decrementCount: decrements.length });
 
-        if (dryRun) return jsonResponse(200, log);
-
         const bsx = await readBsx();
         if (!bsx) return jsonResponse(412, { error: 'No inventory.bsx in blob store. Seed it first.' });
         const doc = parseBsx(bsx);
@@ -50,7 +56,15 @@ export const handler = async (event) => {
         log.steps.push({ step: 'bsx_updated', applied: applied.length, missing: missing.length });
         if (missing.length) log.missing = missing;
 
-        const entry = { date, ...totals, lotIds: decrements.map((d) => d.lotId) };
+        const entry = {
+            date,
+            parts: totals.parts,
+            lots: totals.lots,
+            total: totals.total,
+            payout: totals.payout,
+            fees: totals.fees,
+            bySection: totals.bySection,
+        };
         await appendSalesEntry({ ...entry, applied, missing });
         log.steps.push({ step: 'sales_history_appended' });
 

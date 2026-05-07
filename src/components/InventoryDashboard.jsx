@@ -67,9 +67,10 @@ export default function InventoryDashboard() {
         const sum = (rows) => rows.reduce((acc, r) => ({
             parts: acc.parts + (r.parts || 0),
             lots: acc.lots + (r.lots || 0),
+            total: acc.total + (r.total || 0),
             payout: acc.payout + (r.payout || 0),
-            taxes: acc.taxes + (r.taxes || 0),
-        }), { parts: 0, lots: 0, payout: 0, taxes: 0 });
+            fees: acc.fees + (r.fees || 0),
+        }), { parts: 0, lots: 0, total: 0, payout: 0, fees: 0 });
         const last = (data?.sales?.daily || []).slice(-1)[0];
         const week = pickRange(data?.sales?.daily || [], 7);
         const month = pickRange(data?.sales?.daily || [], 30);
@@ -153,10 +154,12 @@ export default function InventoryDashboard() {
                     <div className="inv-card__head"><h2>Top vendeurs (pièces)</h2></div>
                     <ol className="inv-list">
                         {(sales.topSellers || []).slice(0, 10).map((s) => (
-                            <li key={s.lotId} className="inv-list__row">
+                            <li key={`${s.itemId}|${s.colorName}|${s.condition}`} className="inv-list__row">
                                 <div className="inv-list__name">
                                     <span className="inv-list__title">{s.name}</span>
-                                    {s.color && <span className="inv-list__meta">{s.color}</span>}
+                                    <span className="inv-list__meta">
+                                        {s.colorName} · {s.condition === 'U' ? 'Used' : 'New'} · {fmtInt(s.qtyOnHand)} en stock
+                                    </span>
                                 </div>
                                 <div className="inv-list__num">{fmtInt(s.partsSold)}</div>
                             </li>

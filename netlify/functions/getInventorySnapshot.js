@@ -19,64 +19,93 @@ const isoWeek = (dateStr) => {
 
 const monthKey = (dateStr) => dateStr.slice(0, 7);
 
+const sellerKey = (itemId, colorName, condition) =>
+    `${String(itemId).trim()}|${String(colorName).trim().toLowerCase()}|${String(condition).trim().toUpperCase().slice(0, 1)}`;
+
+function accumulate(map, key, totals) {
+    const cur = map.get(key) || { parts: 0, lots: 0, total: 0, payout: 0, fees: 0 };
+    cur.parts += totals.parts;
+    cur.lots += totals.lots;
+    cur.total += totals.total;
+    cur.payout += totals.payout;
+    cur.fees += totals.fees;
+    map.set(key, cur);
+}
+
 function bucketSales(history) {
     const day = new Map();
     const week = new Map();
     const month = new Map();
-    const lotTotals = new Map();
+    const sellers = new Map();
 
     for (const e of history) {
         const date = ymd(e.date);
         if (!date) continue;
-        const totals = { parts: e.parts || 0, lots: e.lots || 0, payout: e.payout || 0, taxes: e.taxes || 0 };
+        const totals = {
+            parts: e.parts || 0,
+            lots: e.lots || 0,
+            total: e.total || 0,
+            payout: e.payout || 0,
+            fees: e.fees || 0,
+        };
         accumulate(day, date, totals);
         accumulate(week, isoWeek(date), totals);
         accumulate(month, monthKey(date), totals);
+
         for (const a of e.applied || []) {
-            const key = String(a.lotId);
-            const cur = lotTotals.get(key) || { lotId: a.lotId, partsSold: 0, occurrences: 0 };
+            if (a.itemId == null) continue;
+            const key = sellerKey(a.itemId, a.colorName, a.condition);
+            const cur = sellers.get(key) || {
+                itemId: a.itemId,
+                colorName: a.colorName,
+                condition: a.condition,
+                partsSold: 0,
+                occurrences: 0,
+            };
             cur.partsSold += Number(a.decrement || 0);
             cur.occurrences += 1;
-            lotTotals.set(key, cur);
+            sellers.set(key, cur);
         }
     }
 
+    const flat = (m) => [...m.entries()]
+        .map(([k, v]) => ({ key: k, ...v }))
+        .sort((a, b) => a.key.localeCompare(b.key));
+
     return {
-        daily: [...day.entries()].map(([k, v]) => ({ key: k, ...v })).sort((a, b) => a.key.localeCompare(b.key)),
-        weekly: [...week.entries()].map(([k, v]) => ({ key: k, ...v })).sort((a, b) => a.key.localeCompare(b.key)),
-        monthly: [...month.entries()].map(([k, v]) => ({ key: k, ...v })).sort((a, b) => a.key.localeCompare(b.key)),
-        lotTotals,
+        daily: flat(day),
+        weekly: flat(week),
+        monthly: flat(month),
+        sellers,
     };
 }
 
-function accumulate(map, key, totals) {
-    const cur = map.get(key) || { parts: 0, lots: 0, payout: 0, taxes: 0 };
-    cur.parts += totals.parts;
-    cur.lots += totals.lots;
-    cur.payout += totals.payout;
-    cur.taxes += totals.taxes;
-    map.set(key, cur);
-}
-
-function topSellers(lotTotals, doc) {
+function topSellers(sellers, doc) {
     const items = getItems(doc);
-    const byLot = new Map();
-    for (const it of items) if (it.LotID != null) byLot.set(String(it.LotID), it);
-    const enriched = [...lotTotals.values()]
-        .map((t) => {
-            const it = byLot.get(String(t.lotId));
+    const byKey = new Map();
+    for (const it of items) {
+        if (it.ItemID == null) continue;
+        const k = sellerKey(it.ItemID, it.ColorName, it.Condition);
+        if (!byKey.has(k)) byKey.set(k, it);
+    }
+    return [...sellers.values()]
+        .map((s) => {
+            const k = sellerKey(s.itemId, s.colorName, s.condition);
+            const it = byKey.get(k);
             return {
-                lotId: t.lotId,
-                partsSold: t.partsSold,
-                occurrences: t.occurrences,
+                itemId: s.itemId,
+                colorName: s.colorName,
+                condition: s.condition,
+                partsSold: s.partsSold,
+                occurrences: s.occurrences,
                 name: it?.ItemName || '(removed lot)',
-                color: it?.ColorName || null,
                 category: it?.CategoryName || null,
                 price: Number(it?.Price ?? 0),
+                qtyOnHand: Number(it?.Qty ?? 0),
             };
         })
-        .sort((a, b) => b.partsSold - a.partsSold);
-    return enriched.slice(0, 25);
+        .sort((a, b) => b.partsSold - a.partsSold)
+        .slice(0, 25);
 }
 
 export const handler = async () => {
@@ -88,7 +117,7 @@ export const handler = async () => {
 
         const history = await readSalesHistory();
         const buckets = bucketSales(history);
-        const top = topSellers(buckets.lotTotals, doc);
+        const top = topSellers(buckets.sellers, doc);
 
         return jsonResponse(200, {
             inventory: snapshot,
