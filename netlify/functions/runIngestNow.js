@@ -27,8 +27,8 @@ export const handler = async (event) => {
     const log = { date, startDate, endDate, dryRun, steps: [] };
 
     try {
-        const { html } = await generateReport({ startDate, endDate });
-        log.steps.push({ step: 'generated_report', htmlLength: html.length });
+        const { html, dateFields } = await generateReport({ startDate, endDate });
+        log.steps.push({ step: 'generated_report', htmlLength: html.length, dateFields });
 
         const { rows, sections, dateRange } = parseReportRows(html, date);
         log.steps.push({ step: 'parsed_rows', sections, dateRange, matchedRows: rows.length });
@@ -36,6 +36,12 @@ export const handler = async (event) => {
             log.sampleRows = rows.slice(0, 3);
             log.totals = aggregateRows(rows);
             log.decrementCount = decrementsFromRows(rows).length;
+            if (rows.length === 0) {
+                log.htmlHead = html.slice(0, 1500);
+                log.htmlTail = html.slice(-1500);
+                log.titleMatch = (html.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || null;
+                log.h1H3 = [...html.matchAll(/<h[13][^>]*>([^<]*)<\/h[13]>/gi)].map((m) => m[1].trim()).slice(0, 5);
+            }
             return jsonResponse(200, log);
         }
 
