@@ -25,16 +25,17 @@ async function postOne(label, url, token, entry) {
     }
 }
 
-export async function postDailyEntry(entry) {
+export async function postDailyEntry(entry, opts = {}) {
+    const only = opts.only;  // optional 'legacy' | 'new' to restrict which webhook(s) fire
     const targets = [];
-    if (process.env.GSHEET_WEBHOOK_URL) {
+    if (process.env.GSHEET_WEBHOOK_URL && (!only || only === 'legacy')) {
         targets.push({
             label: 'legacy',
             url: process.env.GSHEET_WEBHOOK_URL,
             token: process.env.GSHEET_WEBHOOK_TOKEN,
         });
     }
-    if (process.env.GSHEET_WEBHOOK_URL_NEW) {
+    if (process.env.GSHEET_WEBHOOK_URL_NEW && (!only || only === 'new')) {
         targets.push({
             label: 'new',
             url: process.env.GSHEET_WEBHOOK_URL_NEW,
@@ -42,7 +43,7 @@ export async function postDailyEntry(entry) {
         });
     }
     if (targets.length === 0) {
-        throw new Error('No sheets webhook configured (set GSHEET_WEBHOOK_URL and/or GSHEET_WEBHOOK_URL_NEW)');
+        throw new Error('No sheets webhook configured for this call (only=' + (only || 'any') + ')');
     }
 
     const results = await Promise.allSettled(

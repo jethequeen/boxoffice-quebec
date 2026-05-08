@@ -1,5 +1,5 @@
 import { generateReport, parseReportRows, aggregateRows, decrementsFromRows } from '../lib/cfb.js';
-import { readBsx, writeBsx, appendSalesEntry, hasSalesEntryForDate, appendInventorySnapshot } from '../lib/blobs.js';
+import { readBsx, writeBsx, appendSalesEntry, hasSalesEntryForDate, appendInventorySnapshot, readSalesHistory } from '../lib/blobs.js';
 import { parseBsx, serializeBsx, applyDecrements, inventorySummary } from '../lib/bsx.js';
 import { postDailyEntry } from '../lib/sheets.js';
 import { jsonResponse } from '../lib/http.js';
@@ -22,12 +22,40 @@ export const handler = async (event) => {
     const qs = event.queryStringParameters || {};
     const dryRun = qs.dryRun === '1';
     const force = qs.force === '1';
+    const postOnly = qs.postOnly === '1';
+    const target = qs.target || null;  // 'legacy' | 'new' — restricts which sheets webhook(s) fire
     const date = qs.date || todayInTZ();
     const startDate = qs.startDate || date;
     const endDate = qs.endDate || date;
-    const log = { date, startDate, endDate, dryRun, force, steps: [] };
+    const log = { date, startDate, endDate, dryRun, force, postOnly, target, steps: [] };
 
     try {
+        if (postOnly) {
+            const history = await readSalesHistory();
+            const found = history.find((e) => e?.date === date);
+            if (!found) {
+                return jsonResponse(404, { error: `No sales-history entry for ${date}.`, date });
+            }
+            const entry = {
+                date: found.date,
+                parts: found.parts,
+                lots: found.lots,
+                total: found.total,
+                payout: found.payout,
+                fees: found.fees,
+                bySection: found.bySection,
+            };
+            log.steps.push({ step: 'postOnly_loaded', entry });
+            try {
+                const result = await postDailyEntry(entry, { only: target });
+                log.steps.push({ step: 'sheets_posted', result });
+            } catch (e) {
+                log.steps.push({ step: 'sheets_failed', error: e.message });
+                return jsonResponse(502, log);
+            }
+            return jsonResponse(200, log);
+        }
+
         if (!dryRun && !force && await hasSalesEntryForDate(date)) {
             return jsonResponse(409, {
                 error: `Already ingested ${date}. Pass ?force=1 to override (will double-decrement).`,
