@@ -302,39 +302,22 @@ export default function InventoryDashboard() {
                 </div>
             </section>
 
-            <section className="inv-grid-2">
-                <div className="inv-card">
-                    <div className="inv-card__head"><h2>Top vendeurs (pièces)</h2></div>
-                    <ol className="inv-list">
-                        {(sales.topSellers || []).slice(0, 10).map((s) => (
-                            <li key={`${s.itemId}|${s.colorName}|${s.condition}`} className="inv-list__row">
-                                <div className="inv-list__name">
-                                    <span className="inv-list__title">{s.name}</span>
-                                    <span className="inv-list__meta">
-                                        {s.colorName} · {s.condition === 'U' ? 'Used' : 'New'} · {fmtInt(s.qtyOnHand)} en stock
-                                    </span>
-                                </div>
-                                <div className="inv-list__num">{fmtInt(s.partsSold)}</div>
-                            </li>
-                        ))}
-                        {!sales.topSellers?.length && <li className="inv-empty">Pas encore de ventes enregistrées.</li>}
-                    </ol>
-                </div>
-
-                <div className="inv-card">
-                    <div className="inv-card__head"><h2>Lots de plus grande valeur</h2></div>
-                    <ol className="inv-list">
-                        {(inv.topLots || []).slice(0, 10).map((l) => (
-                            <li key={l.lotId} className="inv-list__row">
-                                <div className="inv-list__name">
-                                    <span className="inv-list__title">{l.name}</span>
-                                    <span className="inv-list__meta">{l.color} · qté {fmtInt(l.qty)}</span>
-                                </div>
-                                <div className="inv-list__num">{fmtMoney(l.value)}</div>
-                            </li>
-                        ))}
-                    </ol>
-                </div>
+            <section className="inv-card">
+                <div className="inv-card__head"><h2>Top vendeurs (pièces)</h2></div>
+                <ol className="inv-list">
+                    {(sales.topSellers || []).slice(0, 10).map((s) => (
+                        <li key={`${s.itemId}|${s.colorName}|${s.condition}`} className="inv-list__row">
+                            <div className="inv-list__name">
+                                <span className="inv-list__title">{s.name}</span>
+                                <span className="inv-list__meta">
+                                    {s.colorName} · {s.condition === 'U' ? 'Used' : 'New'} · {fmtInt(s.qtyOnHand)} en stock
+                                </span>
+                            </div>
+                            <div className="inv-list__num">{fmtInt(s.partsSold)}</div>
+                        </li>
+                    ))}
+                    {!sales.topSellers?.length && <li className="inv-empty">Pas encore de ventes enregistrées.</li>}
+                </ol>
             </section>
 
             <section className="inv-card">
@@ -349,37 +332,6 @@ export default function InventoryDashboard() {
                             <Bar dataKey="payout" fill="#10B981" radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
-                </div>
-            </section>
-
-            <section className="inv-grid-2">
-                <div className="inv-card">
-                    <div className="inv-card__head"><h2>Top catégories (valeur)</h2></div>
-                    <ol className="inv-list">
-                        {(inv.topCategories || []).slice(0, 8).map((c) => (
-                            <li key={c.category} className="inv-list__row">
-                                <div className="inv-list__name">
-                                    <span className="inv-list__title">{c.category}</span>
-                                    <span className="inv-list__meta">{fmtInt(c.lots)} lots · {fmtInt(c.parts)} pièces</span>
-                                </div>
-                                <div className="inv-list__num">{fmtMoney(c.value)}</div>
-                            </li>
-                        ))}
-                    </ol>
-                </div>
-                <div className="inv-card">
-                    <div className="inv-card__head"><h2>Top couleurs (valeur)</h2></div>
-                    <ol className="inv-list">
-                        {(inv.topColors || []).slice(0, 8).map((c) => (
-                            <li key={c.color} className="inv-list__row">
-                                <div className="inv-list__name">
-                                    <span className="inv-list__title">{c.color}</span>
-                                    <span className="inv-list__meta">{fmtInt(c.lots)} lots · {fmtInt(c.parts)} pièces</span>
-                                </div>
-                                <div className="inv-list__num">{fmtMoney(c.value)}</div>
-                            </li>
-                        ))}
-                    </ol>
                 </div>
             </section>
         </div>
