@@ -341,7 +341,7 @@ export default function InventoryDashboard() {
                         <Kpi
                             label="Aujourd'hui"
                             value={totals.last ? fmtMoney(totals.last.payout) : '—'}
-                            sub={totals.last ? `${fmtInt(totals.last.parts)} pièces · ${fmtInt(totals.last.lots)} lots` : 'Pas encore de données'}
+                            sub={totals.last ? `${fmtInt(totals.last.parts)} pièces · ${fmtInt(totals.last.lots)} lots` : null}
                         />
                         <Kpi
                             label="7 derniers jours"
@@ -364,7 +364,6 @@ export default function InventoryDashboard() {
                         <Kpi
                             label="Moyenne quotidienne (30j)"
                             value={fmtMoney(derived.avgDaily)}
-                            sub="Total 30j ÷ jours observés"
                         />
                         <Kpi
                             label="Ratio ventes / inventaire (30j)"
@@ -376,7 +375,7 @@ export default function InventoryDashboard() {
                             sub={
                                 derived.medianInvValue
                                     ? `Médiane inventaire : ${fmtMoney(derived.medianInvValue)} (${derived.invSnapCount} snapshots)`
-                                    : 'Pas encore d\'historique d\'inventaire'
+                                    : null
                             }
                         />
                     </section>
@@ -435,22 +434,19 @@ export default function InventoryDashboard() {
                         <Kpi
                             label="Lots actifs"
                             value={fmtInt(inv.totalLots)}
-                            sub="Lots avec qté > 0"
                         />
                         <Kpi
                             label="Pièces totales"
                             value={fmtInt(inv.totalParts)}
-                            sub="Sommé sur tous les lots"
                         />
                         <Kpi
                             label="Valeur estimée"
                             value={fmtMoney(inv.totalValue)}
-                            sub="Σ qté × prix"
                         />
                         <Kpi
                             label="Snapshots enregistrés"
                             value={fmtInt(invSeries.length)}
-                            sub={invSeries[0] ? `Depuis ${invSeries[0].date}` : 'Aucun pour l\'instant'}
+                            sub={invSeries[0] ? `Depuis ${invSeries[0].date}` : null}
                         />
                     </section>
 
