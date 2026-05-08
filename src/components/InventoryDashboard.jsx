@@ -38,8 +38,9 @@ function UploadBsx({ onUploaded }) {
         try { return localStorage.getItem(TOKEN_STORAGE_KEY) || ''; } catch { return ''; }
     });
     const [file, setFile] = useState(null);
+    const [mode, setMode] = useState('min');
     const [busy, setBusy] = useState(false);
-    const [msg, setMsg] = useState(null);
+    const [result, setResult] = useState(null);
     const [err, setErr] = useState(null);
     const [open, setOpen] = useState(false);
 
@@ -54,14 +55,14 @@ function UploadBsx({ onUploaded }) {
     const submit = async () => {
         if (!file) return;
         setBusy(true);
-        setMsg(null);
+        setResult(null);
         setErr(null);
         try {
             const xml = await file.text();
             if (!xml.includes('<BrickStoreXML')) {
                 throw new Error('Fichier invalide : la racine <BrickStoreXML> est introuvable.');
             }
-            const res = await fetch('/.netlify/functions/seedInventory?force=1', {
+            const res = await fetch(`/.netlify/functions/mergeInventory?mode=${mode}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/xml',
@@ -71,7 +72,7 @@ function UploadBsx({ onUploaded }) {
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-            setMsg(`Inventaire mis à jour (${(data.length / 1024).toFixed(1)} ko).`);
+            setResult(data);
             setFile(null);
             if (fileRef.current) fileRef.current.value = '';
             onUploaded?.();
@@ -93,9 +94,49 @@ function UploadBsx({ onUploaded }) {
             {open && (
                 <div className="inv-upload__body">
                     <p className="inv-upload__hint">
-                        Quand tu envoies des nouvelles pièces à CFB, téléverse le fichier <code>.bsx</code> mis à jour ici
-                        pour remplacer l'inventaire maître. Les ventes futures seront décrémentées de cette nouvelle base.
+                        Téléverse un <code>.bsx</code> pour <strong>fusionner</strong> ses lots dans l'inventaire maître.
+                        Le mode dicte quoi faire quand un lot existe déjà (même <code>ItemID</code> + couleur + état).
                     </p>
+
+                    <fieldset className="inv-upload__modes" disabled={busy}>
+                        <label className={`inv-upload__mode ${mode === 'min' ? 'inv-upload__mode--active' : ''}`}>
+                            <input
+                                type="radio"
+                                name="mergeMode"
+                                value="min"
+                                checked={mode === 'min'}
+                                onChange={() => setMode('min')}
+                            />
+                            <div>
+                                <div className="inv-upload__mode-title">
+                                    Migration <span className="inv-upload__mode-tag">en cours</span>
+                                </div>
+                                <div className="inv-upload__mode-desc">
+                                    J'envoie de nouveaux lots BrickStore vers CFB. Sur collision : on garde la <strong>quantité minimale</strong>
+                                    (jamais d'inflation pendant la migration).
+                                </div>
+                            </div>
+                        </label>
+
+                        <label className={`inv-upload__mode ${mode === 'add' ? 'inv-upload__mode--active' : ''}`}>
+                            <input
+                                type="radio"
+                                name="mergeMode"
+                                value="add"
+                                checked={mode === 'add'}
+                                onChange={() => setMode('add')}
+                            />
+                            <div>
+                                <div className="inv-upload__mode-title">
+                                    Part-out <span className="inv-upload__mode-tag inv-upload__mode-tag--later">après migration</span>
+                                </div>
+                                <div className="inv-upload__mode-desc">
+                                    J'ai décortiqué un set : ajoute ces lots au maître. Sur collision : on <strong>additionne</strong> les quantités.
+                                </div>
+                            </div>
+                        </label>
+                    </fieldset>
+
                     <div className="inv-upload__row">
                         <input
                             ref={fileRef}
@@ -122,10 +163,16 @@ function UploadBsx({ onUploaded }) {
                             onClick={submit}
                             disabled={!file || busy}
                         >
-                            {busy ? 'Téléversement…' : 'Remplacer l’inventaire'}
+                            {busy ? 'Fusion en cours…' : (mode === 'min' ? 'Fusionner (migration)' : 'Fusionner (part-out)')}
                         </button>
                     </div>
-                    {msg && <div className="inv-upload__ok">✓ {msg}</div>}
+                    {result && (
+                        <div className="inv-upload__ok">
+                            ✓ Fusion réussie · {fmtInt(result.addedKeys)} nouveaux lots ·
+                            {' '}{fmtInt(result.updatedKeys)} ajustés ·
+                            {' '}{fmtInt(result.unchangedKeys)} inchangés
+                        </div>
+                    )}
                     {err && <div className="inv-upload__err">⚠ {err}</div>}
                 </div>
             )}

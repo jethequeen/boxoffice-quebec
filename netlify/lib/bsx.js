@@ -113,6 +113,109 @@ export function applyDecrements(doc, decrements) {
     return { applied, missing };
 }
 
+/**
+ * Merge an incoming BSX document into the master.
+ *
+ * Match key: (ItemID, ColorName, Condition) — same as decrements.
+ *
+ * Mode `min` (migration):
+ *   - New keys (not in master) → append all incoming lots
+ *   - Collisions → master_total := min(master_total, incoming_total). Decrement excess
+ *     from largest master lot first; never grow on collision.
+ *
+ * Mode `add` (part-out):
+ *   - New keys → append all incoming lots
+ *   - Collisions → master_total += incoming_total. Increment is applied to the largest
+ *     master lot (deterministic tie-break by LotID asc).
+ *
+ * Appended lots are reassigned fresh LotIDs (next-after-max-existing) to avoid
+ * collisions with the incoming file's numbering.
+ *
+ * Returns { added, updated, unchanged } with one record per (key) processed.
+ */
+export function mergeInventory(masterDoc, incomingDoc, mode) {
+    if (mode !== 'min' && mode !== 'add') throw new Error(`Unknown merge mode: ${mode}`);
+
+    const masterIndex = indexByCompositeKey(masterDoc);
+    const incomingIndex = indexByCompositeKey(incomingDoc);
+
+    if (!masterDoc.BrickStoreXML) masterDoc.BrickStoreXML = {};
+    if (!masterDoc.BrickStoreXML.Inventory) masterDoc.BrickStoreXML.Inventory = { Item: [] };
+    if (!Array.isArray(masterDoc.BrickStoreXML.Inventory.Item)) {
+        masterDoc.BrickStoreXML.Inventory.Item =
+            [masterDoc.BrickStoreXML.Inventory.Item].filter(Boolean);
+    }
+    const masterList = masterDoc.BrickStoreXML.Inventory.Item;
+
+    let nextLotId = 0;
+    for (const it of masterList) {
+        const n = parseInt(String(it.LotID ?? 0), 10);
+        if (Number.isFinite(n) && n > nextLotId) nextLotId = n;
+    }
+
+    const sortLots = (lots) =>
+        [...lots].sort((a, b) => {
+            const qa = Number(a.Qty ?? 0);
+            const qb = Number(b.Qty ?? 0);
+            if (qb !== qa) return qb - qa;
+            return String(a.LotID ?? '').localeCompare(String(b.LotID ?? ''));
+        });
+
+    const added = [];
+    const updated = [];
+    const unchanged = [];
+
+    for (const [, incomingLots] of incomingIndex) {
+        const incomingTotal = incomingLots.reduce((a, b) => a + Number(b.Qty || 0), 0);
+        if (incomingTotal <= 0) continue;
+
+        const sample = incomingLots[0];
+        const ident = {
+            itemId: sample.ItemID,
+            colorName: sample.ColorName,
+            condition: sample.Condition,
+        };
+
+        const key = compositeKey(sample.ItemID, sample.ColorName, sample.Condition);
+        const masterLots = masterIndex.get(key);
+
+        if (!masterLots || !masterLots.length) {
+            for (const lot of incomingLots) {
+                nextLotId += 1;
+                masterList.push({ ...lot, LotID: String(nextLotId) });
+            }
+            added.push({ ...ident, qty: incomingTotal, lotsAdded: incomingLots.length });
+            continue;
+        }
+
+        const masterTotal = masterLots.reduce((a, b) => a + Number(b.Qty || 0), 0);
+
+        if (mode === 'min') {
+            const target = Math.min(masterTotal, incomingTotal);
+            if (target >= masterTotal) {
+                unchanged.push({ ...ident, masterQty: masterTotal, incomingQty: incomingTotal });
+                continue;
+            }
+            let remaining = masterTotal - target;
+            for (const lot of sortLots(masterLots)) {
+                if (remaining <= 0) break;
+                const before = Number(lot.Qty ?? 0);
+                const take = Math.min(before, remaining);
+                lot.Qty = String(before - take);
+                remaining -= take;
+            }
+            updated.push({ ...ident, before: masterTotal, after: target, mode });
+        } else {
+            const target = sortLots(masterLots)[0];
+            const before = Number(target.Qty ?? 0);
+            target.Qty = String(before + incomingTotal);
+            updated.push({ ...ident, before: masterTotal, after: masterTotal + incomingTotal, mode });
+        }
+    }
+
+    return { added, updated, unchanged };
+}
+
 export function inventorySnapshot(doc) {
     const items = getItems(doc);
     let totalLots = 0;
