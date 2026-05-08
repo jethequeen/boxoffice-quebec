@@ -367,11 +367,6 @@ export default function InventoryDashboard() {
                             sub="Total 30j ÷ jours observés"
                         />
                         <Kpi
-                            label="Plateformes vs Manuels (30j)"
-                            value={`${fmtMoney(derived.split.platforms.payout)} / ${fmtInt(derived.split.manuals.parts)} p.`}
-                            sub={`${fmtInt(derived.split.platforms.parts)} pièces vendues · ${fmtInt(derived.split.manuals.parts)} retraits`}
-                        />
-                        <Kpi
                             label="Ratio ventes / inventaire (30j)"
                             value={
                                 derived.salesRatio == null
@@ -415,24 +410,6 @@ export default function InventoryDashboard() {
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>
-                    </section>
-
-                    <section className="inv-card">
-                        <div className="inv-card__head"><h2>Top vendeurs (pièces)</h2></div>
-                        <ol className="inv-list">
-                            {(sales.topSellers || []).slice(0, 10).map((s) => (
-                                <li key={`${s.itemId}|${s.colorName}|${s.condition}`} className="inv-list__row">
-                                    <div className="inv-list__name">
-                                        <span className="inv-list__title">{s.name}</span>
-                                        <span className="inv-list__meta">
-                                            {s.colorName} · {s.condition === 'U' ? 'Used' : 'New'} · {fmtInt(s.qtyOnHand)} en stock
-                                        </span>
-                                    </div>
-                                    <div className="inv-list__num">{fmtInt(s.partsSold)}</div>
-                                </li>
-                            ))}
-                            {!sales.topSellers?.length && <li className="inv-empty">Pas encore de ventes enregistrées.</li>}
-                        </ol>
                     </section>
 
                     <section className="inv-card">
