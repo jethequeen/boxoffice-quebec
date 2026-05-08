@@ -188,12 +188,42 @@ function pickRange(entries, days) {
     return entries.filter((e) => e.key >= cutoffKey);
 }
 
+function median(values) {
+    if (!values.length) return null;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function pickInvSnapshotsInRange(snapshots, days) {
+    if (!snapshots?.length) return [];
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffKey = cutoff.toISOString().slice(0, 10);
+    return snapshots.filter((s) => s.date >= cutoffKey);
+}
+
+// Latest snapshot per calendar day, sorted ascending — keeps the inventory chart
+// readable when multiple writes hit the same day (daily ingest + a manual merge).
+function dailyInvSeries(snapshots) {
+    if (!snapshots?.length) return [];
+    const byDate = new Map();
+    for (const s of snapshots) {
+        const cur = byDate.get(s.date);
+        if (!cur || (s.timestamp || '') > (cur.timestamp || '')) {
+            byDate.set(s.date, s);
+        }
+    }
+    return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export default function InventoryDashboard() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState(null);
     const [range, setRange] = useState(30);
     const [reloadTick, setReloadTick] = useState(0);
+    const [tab, setTab] = useState('sales');
 
     useEffect(() => {
         let cancel = false;
@@ -229,6 +259,46 @@ export default function InventoryDashboard() {
         return { last, week: sum(week), month: sum(month), year: sum(year) };
     }, [data]);
 
+    const derived = useMemo(() => {
+        const daily = data?.sales?.daily || [];
+        const month30 = pickRange(daily, 30);
+
+        // Average daily payout — use min(30, days_since_first_entry) for a fairer denominator
+        // when we have less than 30 days of history.
+        const firstDate = daily[0]?.key;
+        let denom = 30;
+        if (firstDate) {
+            const ms = (Date.now() - new Date(firstDate + 'T00:00:00Z').getTime()) / 86400000;
+            denom = Math.max(1, Math.min(30, Math.ceil(ms) + 1));
+        }
+        const sum30 = month30.reduce((a, r) => a + (r.payout || 0), 0);
+        const avgDaily = sum30 / denom;
+
+        // Platforms vs manuals over the 30d window
+        const split = month30.reduce((acc, r) => {
+            for (const [section, vals] of Object.entries(r.bySection || {})) {
+                const isPlatform = /platform/i.test(section);
+                const target = isPlatform ? acc.platforms : acc.manuals;
+                target.parts += Number(vals.parts || 0);
+                target.payout += Number(vals.payout || 0);
+                target.total += Number(vals.total || 0);
+            }
+            return acc;
+        }, {
+            platforms: { parts: 0, payout: 0, total: 0 },
+            manuals: { parts: 0, payout: 0, total: 0 },
+        });
+
+        // Sales ratio: 30d payout / median inventory value over the same window
+        const invSnaps30 = pickInvSnapshotsInRange(data?.inventoryHistory || [], 30);
+        const medianInvValue = median(invSnaps30.map((s) => Number(s.totalValue || 0)).filter((v) => v > 0));
+        const salesRatio = medianInvValue ? sum30 / medianInvValue : null;
+
+        return { avgDaily, split, sum30, salesRatio, medianInvValue, invSnapCount: invSnaps30.length };
+    }, [data]);
+
+    const invSeries = useMemo(() => dailyInvSeries(data?.inventoryHistory || []), [data]);
+
     if (loading) return <div className="inv-page-loading">Chargement de l'inventaire…</div>;
     if (err) return <div className="inv-error">⚠ {err}</div>;
     if (!data) return null;
@@ -248,92 +318,205 @@ export default function InventoryDashboard() {
 
             <UploadBsx onUploaded={() => setReloadTick((n) => n + 1)} />
 
-            <section className="inv-kpis">
-                <Kpi
-                    label="Aujourd'hui"
-                    value={totals.last ? fmtMoney(totals.last.payout) : '—'}
-                    sub={totals.last ? `${fmtInt(totals.last.parts)} pièces · ${fmtInt(totals.last.lots)} lots` : 'Pas encore de données'}
-                />
-                <Kpi
-                    label="7 derniers jours"
-                    value={fmtMoney(totals.week.payout)}
-                    sub={`${fmtInt(totals.week.parts)} pièces · ${fmtInt(totals.week.lots)} lots`}
-                />
-                <Kpi
-                    label="30 derniers jours"
-                    value={fmtMoney(totals.month.payout)}
-                    sub={`${fmtInt(totals.month.parts)} pièces · ${fmtInt(totals.month.lots)} lots`}
-                />
-                <Kpi
-                    label="365 derniers jours"
-                    value={fmtMoney(totals.year.payout)}
-                    sub={`${fmtInt(totals.year.parts)} pièces · ${fmtInt(totals.year.lots)} lots`}
-                />
-            </section>
+            <nav className="inv-tabs-nav">
+                <button
+                    type="button"
+                    className={`inv-tabs-nav__btn ${tab === 'sales' ? 'inv-tabs-nav__btn--active' : ''}`}
+                    onClick={() => setTab('sales')}
+                >
+                    Ventes
+                </button>
+                <button
+                    type="button"
+                    className={`inv-tabs-nav__btn ${tab === 'inventory' ? 'inv-tabs-nav__btn--active' : ''}`}
+                    onClick={() => setTab('inventory')}
+                >
+                    Inventaire
+                </button>
+            </nav>
 
-            <section className="inv-card">
-                <div className="inv-card__head">
-                    <h2>Ventes quotidiennes</h2>
-                    <div className="inv-range-tabs">
-                        {[7, 30, 90, 365].map((d) => (
-                            <button
-                                key={d}
-                                className={`inv-tab ${range === d ? 'inv-tab--active' : ''}`}
-                                onClick={() => setRange(d)}
-                            >
-                                {d}j
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                <div className="inv-chart">
-                    <ResponsiveContainer width="100%" height={260}>
-                        <LineChart data={dailySeries} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis dataKey="key" tick={{ fontSize: 11 }} />
-                            <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtMoneyShort} />
-                            <Tooltip
-                                formatter={(v, key) => key === 'payout' ? fmtMoney(v) : fmtInt(v)}
-                                labelStyle={{ fontWeight: 700 }}
-                            />
-                            <Line type="monotone" dataKey="payout" stroke="#4F46E5" strokeWidth={2} dot={false} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-            </section>
+            {tab === 'sales' && (
+                <>
+                    <section className="inv-kpis">
+                        <Kpi
+                            label="Aujourd'hui"
+                            value={totals.last ? fmtMoney(totals.last.payout) : '—'}
+                            sub={totals.last ? `${fmtInt(totals.last.parts)} pièces · ${fmtInt(totals.last.lots)} lots` : 'Pas encore de données'}
+                        />
+                        <Kpi
+                            label="7 derniers jours"
+                            value={fmtMoney(totals.week.payout)}
+                            sub={`${fmtInt(totals.week.parts)} pièces · ${fmtInt(totals.week.lots)} lots`}
+                        />
+                        <Kpi
+                            label="30 derniers jours"
+                            value={fmtMoney(totals.month.payout)}
+                            sub={`${fmtInt(totals.month.parts)} pièces · ${fmtInt(totals.month.lots)} lots`}
+                        />
+                        <Kpi
+                            label="365 derniers jours"
+                            value={fmtMoney(totals.year.payout)}
+                            sub={`${fmtInt(totals.year.parts)} pièces · ${fmtInt(totals.year.lots)} lots`}
+                        />
+                    </section>
 
-            <section className="inv-card">
-                <div className="inv-card__head"><h2>Top vendeurs (pièces)</h2></div>
-                <ol className="inv-list">
-                    {(sales.topSellers || []).slice(0, 10).map((s) => (
-                        <li key={`${s.itemId}|${s.colorName}|${s.condition}`} className="inv-list__row">
-                            <div className="inv-list__name">
-                                <span className="inv-list__title">{s.name}</span>
-                                <span className="inv-list__meta">
-                                    {s.colorName} · {s.condition === 'U' ? 'Used' : 'New'} · {fmtInt(s.qtyOnHand)} en stock
-                                </span>
+                    <section className="inv-kpis">
+                        <Kpi
+                            label="Moyenne quotidienne (30j)"
+                            value={fmtMoney(derived.avgDaily)}
+                            sub="Total 30j ÷ jours observés"
+                        />
+                        <Kpi
+                            label="Plateformes vs Manuels (30j)"
+                            value={`${fmtMoney(derived.split.platforms.payout)} / ${fmtInt(derived.split.manuals.parts)} p.`}
+                            sub={`${fmtInt(derived.split.platforms.parts)} pièces vendues · ${fmtInt(derived.split.manuals.parts)} retraits`}
+                        />
+                        <Kpi
+                            label="Ratio ventes / inventaire (30j)"
+                            value={
+                                derived.salesRatio == null
+                                    ? '—'
+                                    : `${(derived.salesRatio * 100).toLocaleString('fr-CA', { maximumFractionDigits: 2 })} %`
+                            }
+                            sub={
+                                derived.medianInvValue
+                                    ? `Médiane inventaire : ${fmtMoney(derived.medianInvValue)} (${derived.invSnapCount} snapshots)`
+                                    : 'Pas encore d\'historique d\'inventaire'
+                            }
+                        />
+                    </section>
+
+                    <section className="inv-card">
+                        <div className="inv-card__head">
+                            <h2>Ventes quotidiennes</h2>
+                            <div className="inv-range-tabs">
+                                {[7, 30, 90, 365].map((d) => (
+                                    <button
+                                        key={d}
+                                        className={`inv-tab ${range === d ? 'inv-tab--active' : ''}`}
+                                        onClick={() => setRange(d)}
+                                    >
+                                        {d}j
+                                    </button>
+                                ))}
                             </div>
-                            <div className="inv-list__num">{fmtInt(s.partsSold)}</div>
-                        </li>
-                    ))}
-                    {!sales.topSellers?.length && <li className="inv-empty">Pas encore de ventes enregistrées.</li>}
-                </ol>
-            </section>
+                        </div>
+                        <div className="inv-chart">
+                            <ResponsiveContainer width="100%" height={260}>
+                                <LineChart data={dailySeries} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                    <XAxis dataKey="key" tick={{ fontSize: 11 }} />
+                                    <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtMoneyShort} />
+                                    <Tooltip
+                                        formatter={(v, key) => key === 'payout' ? fmtMoney(v) : fmtInt(v)}
+                                        labelStyle={{ fontWeight: 700 }}
+                                    />
+                                    <Line type="monotone" dataKey="payout" stroke="#4F46E5" strokeWidth={2} dot={false} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </section>
 
-            <section className="inv-card">
-                <div className="inv-card__head"><h2>Mensuel</h2></div>
-                <div className="inv-chart">
-                    <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={sales.monthly || []} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis dataKey="key" tick={{ fontSize: 11 }} />
-                            <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtMoneyShort} />
-                            <Tooltip formatter={(v) => fmtMoney(v)} />
-                            <Bar dataKey="payout" fill="#10B981" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </section>
+                    <section className="inv-card">
+                        <div className="inv-card__head"><h2>Top vendeurs (pièces)</h2></div>
+                        <ol className="inv-list">
+                            {(sales.topSellers || []).slice(0, 10).map((s) => (
+                                <li key={`${s.itemId}|${s.colorName}|${s.condition}`} className="inv-list__row">
+                                    <div className="inv-list__name">
+                                        <span className="inv-list__title">{s.name}</span>
+                                        <span className="inv-list__meta">
+                                            {s.colorName} · {s.condition === 'U' ? 'Used' : 'New'} · {fmtInt(s.qtyOnHand)} en stock
+                                        </span>
+                                    </div>
+                                    <div className="inv-list__num">{fmtInt(s.partsSold)}</div>
+                                </li>
+                            ))}
+                            {!sales.topSellers?.length && <li className="inv-empty">Pas encore de ventes enregistrées.</li>}
+                        </ol>
+                    </section>
+
+                    <section className="inv-card">
+                        <div className="inv-card__head"><h2>Mensuel</h2></div>
+                        <div className="inv-chart">
+                            <ResponsiveContainer width="100%" height={220}>
+                                <BarChart data={sales.monthly || []} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                    <XAxis dataKey="key" tick={{ fontSize: 11 }} />
+                                    <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtMoneyShort} />
+                                    <Tooltip formatter={(v) => fmtMoney(v)} />
+                                    <Bar dataKey="payout" fill="#10B981" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </section>
+                </>
+            )}
+
+            {tab === 'inventory' && (
+                <>
+                    <section className="inv-kpis">
+                        <Kpi
+                            label="Lots actifs"
+                            value={fmtInt(inv.totalLots)}
+                            sub="Lots avec qté > 0"
+                        />
+                        <Kpi
+                            label="Pièces totales"
+                            value={fmtInt(inv.totalParts)}
+                            sub="Sommé sur tous les lots"
+                        />
+                        <Kpi
+                            label="Valeur estimée"
+                            value={fmtMoney(inv.totalValue)}
+                            sub="Σ qté × prix"
+                        />
+                        <Kpi
+                            label="Snapshots enregistrés"
+                            value={fmtInt(invSeries.length)}
+                            sub={invSeries[0] ? `Depuis ${invSeries[0].date}` : 'Aucun pour l\'instant'}
+                        />
+                    </section>
+
+                    <section className="inv-card">
+                        <div className="inv-card__head"><h2>Valeur de l'inventaire</h2></div>
+                        {invSeries.length === 0 ? (
+                            <div className="inv-empty">Pas encore d'historique. Le premier snapshot sera enregistré au prochain ingest ou à la prochaine fusion.</div>
+                        ) : (
+                            <div className="inv-chart">
+                                <ResponsiveContainer width="100%" height={240}>
+                                    <LineChart data={invSeries} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                                        <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtMoneyShort} />
+                                        <Tooltip formatter={(v) => fmtMoney(v)} labelStyle={{ fontWeight: 700 }} />
+                                        <Line type="monotone" dataKey="totalValue" stroke="#4F46E5" strokeWidth={2} dot={{ r: 3 }} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        )}
+                    </section>
+
+                    <section className="inv-card">
+                        <div className="inv-card__head"><h2>Pièces en stock</h2></div>
+                        {invSeries.length === 0 ? (
+                            <div className="inv-empty">Pas encore d'historique.</div>
+                        ) : (
+                            <div className="inv-chart">
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <LineChart data={invSeries} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                                        <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtInt} />
+                                        <Tooltip formatter={(v) => fmtInt(v)} labelStyle={{ fontWeight: 700 }} />
+                                        <Line type="monotone" dataKey="totalParts" stroke="#10B981" strokeWidth={2} dot={{ r: 3 }} />
+                                        <Line type="monotone" dataKey="totalLots" stroke="#F59E0B" strokeWidth={2} dot={{ r: 3 }} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        )}
+                    </section>
+                </>
+            )}
         </div>
     );
 }

@@ -1,7 +1,7 @@
 import { schedule } from '@netlify/functions';
 import { generateReport, parseReportRows, aggregateRows, decrementsFromRows } from '../lib/cfb.js';
-import { readBsx, writeBsx, appendSalesEntry, hasSalesEntryForDate } from '../lib/blobs.js';
-import { parseBsx, serializeBsx, applyDecrements } from '../lib/bsx.js';
+import { readBsx, writeBsx, appendSalesEntry, hasSalesEntryForDate, appendInventorySnapshot } from '../lib/blobs.js';
+import { parseBsx, serializeBsx, applyDecrements, inventorySummary } from '../lib/bsx.js';
 import { postDailyEntry } from '../lib/sheets.js';
 
 const todayInTZ = (tz = 'America/Toronto') => {
@@ -45,6 +45,13 @@ async function run() {
     const { applied, missing } = applyDecrements(doc, decrements);
     await writeBsx(serializeBsx(doc));
     log.steps.push({ step: 'bsx_updated', applied: applied.length, missing: missing.length });
+
+    await appendInventorySnapshot({
+        date,
+        timestamp: new Date().toISOString(),
+        source: 'daily_ingest',
+        ...inventorySummary(doc),
+    });
     if (missing.length) log.missing = missing;
 
     const entry = {

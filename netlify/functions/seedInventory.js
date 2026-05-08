@@ -1,5 +1,11 @@
-import { writeBsx, readBsx } from '../lib/blobs.js';
+import { writeBsx, readBsx, appendInventorySnapshot } from '../lib/blobs.js';
+import { parseBsx, inventorySummary } from '../lib/bsx.js';
 import { jsonResponse } from '../lib/http.js';
+
+const todayInTZ = (tz = 'America/Toronto') => {
+    const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+    return fmt.format(new Date());
+};
 
 const auth = (event) => {
     const expected = process.env.INGEST_TOKEN;
@@ -30,5 +36,18 @@ export const handler = async (event) => {
     }
 
     await writeBsx(xml);
+
+    try {
+        const doc = parseBsx(xml);
+        await appendInventorySnapshot({
+            date: todayInTZ(),
+            timestamp: new Date().toISOString(),
+            source: 'seed',
+            ...inventorySummary(doc),
+        });
+    } catch (e) {
+        console.warn('[seedInventory] snapshot failed', e.message);
+    }
+
     return jsonResponse(200, { ok: true, length: xml.length });
 };

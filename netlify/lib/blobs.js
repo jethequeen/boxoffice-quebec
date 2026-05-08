@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 const STORE_NAME = 'inventory';
 const BSX_KEY = 'inventory.bsx';
 const SALES_KEY = 'sales-history.json';
+const INV_HISTORY_KEY = 'inventory-history.json';
 
 /**
  * Local filesystem store — used in dev when BLOBS_LOCAL_DIR is set.
@@ -78,4 +79,16 @@ export async function appendSalesEntry(entry) {
 export async function hasSalesEntryForDate(date) {
     const history = await readSalesHistory();
     return history.some((e) => e?.date === date);
+}
+
+export async function readInventoryHistory() {
+    const raw = await store().get(INV_HISTORY_KEY, { type: 'json' });
+    return Array.isArray(raw) ? raw : [];
+}
+
+export async function appendInventorySnapshot(snapshot) {
+    const history = await readInventoryHistory();
+    history.push(snapshot);
+    await store().setJSON(INV_HISTORY_KEY, history);
+    return history;
 }

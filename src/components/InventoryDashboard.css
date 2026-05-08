@@ -329,3 +329,32 @@
     line-height: 1.4;
     margin-top: 2px;
 }
+
+.inv-tabs-nav {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 0;
+}
+
+.inv-tabs-nav__btn {
+    background: transparent;
+    border: 0;
+    padding: 10px 18px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.15s ease;
+}
+
+.inv-tabs-nav__btn:hover {
+    color: #111827;
+}
+
+.inv-tabs-nav__btn--active {
+    color: #4F46E5;
+    border-bottom-color: #4F46E5;
+}

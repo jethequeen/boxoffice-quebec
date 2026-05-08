@@ -1,6 +1,6 @@
 import { generateReport, parseReportRows, aggregateRows, decrementsFromRows } from '../lib/cfb.js';
-import { readBsx, writeBsx, appendSalesEntry, hasSalesEntryForDate } from '../lib/blobs.js';
-import { parseBsx, serializeBsx, applyDecrements } from '../lib/bsx.js';
+import { readBsx, writeBsx, appendSalesEntry, hasSalesEntryForDate, appendInventorySnapshot } from '../lib/blobs.js';
+import { parseBsx, serializeBsx, applyDecrements, inventorySummary } from '../lib/bsx.js';
 import { postDailyEntry } from '../lib/sheets.js';
 import { jsonResponse } from '../lib/http.js';
 
@@ -52,7 +52,6 @@ export const handler = async (event) => {
             }
             return jsonResponse(200, log);
         }
-
         if (!rows.length) {
             log.note = 'No rows matched the requested date.';
             return jsonResponse(200, log);
@@ -74,6 +73,13 @@ export const handler = async (event) => {
         const { applied, missing } = applyDecrements(doc, decrements);
         await writeBsx(serializeBsx(doc));
         log.steps.push({ step: 'bsx_updated', applied: applied.length, missing: missing.length });
+
+        await appendInventorySnapshot({
+            date,
+            timestamp: new Date().toISOString(),
+            source: 'manual_ingest',
+            ...inventorySummary(doc),
+        });
         if (missing.length) log.missing = missing;
 
         const entry = {

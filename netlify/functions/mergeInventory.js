@@ -1,6 +1,11 @@
-import { writeBsx, readBsx } from '../lib/blobs.js';
-import { parseBsx, serializeBsx, mergeInventory } from '../lib/bsx.js';
+import { writeBsx, readBsx, appendInventorySnapshot } from '../lib/blobs.js';
+import { parseBsx, serializeBsx, mergeInventory, inventorySummary } from '../lib/bsx.js';
 import { jsonResponse } from '../lib/http.js';
+
+const todayInTZ = (tz = 'America/Toronto') => {
+    const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+    return fmt.format(new Date());
+};
 
 const auth = (event) => {
     const expected = process.env.INGEST_TOKEN;
@@ -40,6 +45,13 @@ export const handler = async (event) => {
     const summary = mergeInventory(masterDoc, incomingDoc, mode);
     const newXml = serializeBsx(masterDoc);
     await writeBsx(newXml);
+
+    await appendInventorySnapshot({
+        date: todayInTZ(),
+        timestamp: new Date().toISOString(),
+        source: `merge_${mode}`,
+        ...inventorySummary(masterDoc),
+    });
 
     return jsonResponse(200, {
         ok: true,

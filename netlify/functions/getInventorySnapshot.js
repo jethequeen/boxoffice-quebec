@@ -1,4 +1,4 @@
-import { readBsx, readSalesHistory } from '../lib/blobs.js';
+import { readBsx, readSalesHistory, readInventoryHistory } from '../lib/blobs.js';
 import { parseBsx, inventorySnapshot, getItems } from '../lib/bsx.js';
 import { jsonResponse } from '../lib/http.js';
 
@@ -22,13 +22,20 @@ const monthKey = (dateStr) => dateStr.slice(0, 7);
 const sellerKey = (itemId, colorName, condition) =>
     `${String(itemId).trim()}|${String(colorName).trim().toLowerCase()}|${String(condition).trim().toUpperCase().slice(0, 1)}`;
 
-function accumulate(map, key, totals) {
-    const cur = map.get(key) || { parts: 0, lots: 0, total: 0, payout: 0, fees: 0 };
+function accumulate(map, key, totals, bySection) {
+    const cur = map.get(key) || { parts: 0, lots: 0, total: 0, payout: 0, fees: 0, bySection: {} };
     cur.parts += totals.parts;
     cur.lots += totals.lots;
     cur.total += totals.total;
     cur.payout += totals.payout;
     cur.fees += totals.fees;
+    for (const [section, vals] of Object.entries(bySection || {})) {
+        const c = cur.bySection[section] || { parts: 0, total: 0, payout: 0 };
+        c.parts += Number(vals.parts || 0);
+        c.total += Number(vals.total || 0);
+        c.payout += Number(vals.payout || 0);
+        cur.bySection[section] = c;
+    }
     map.set(key, cur);
 }
 
@@ -48,9 +55,9 @@ function bucketSales(history) {
             payout: e.payout || 0,
             fees: e.fees || 0,
         };
-        accumulate(day, date, totals);
-        accumulate(week, isoWeek(date), totals);
-        accumulate(month, monthKey(date), totals);
+        accumulate(day, date, totals, e.bySection);
+        accumulate(week, isoWeek(date), totals, e.bySection);
+        accumulate(month, monthKey(date), totals, e.bySection);
 
         // Only count platform sales — manual withdrawals are inventory write-offs, not sales.
         // Entries written before platformDecrements existed are skipped here (they'd need
@@ -119,11 +126,13 @@ export const handler = async () => {
         const snapshot = inventorySnapshot(doc);
 
         const history = await readSalesHistory();
+        const invHistory = await readInventoryHistory();
         const buckets = bucketSales(history);
         const top = topSellers(buckets.sellers, doc);
 
         return jsonResponse(200, {
             inventory: snapshot,
+            inventoryHistory: invHistory,
             sales: {
                 daily: buckets.daily,
                 weekly: buckets.weekly,

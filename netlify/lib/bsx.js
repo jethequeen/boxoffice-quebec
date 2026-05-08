@@ -216,6 +216,30 @@ export function mergeInventory(masterDoc, incomingDoc, mode) {
     return { added, updated, unchanged };
 }
 
+/**
+ * Lean summary used for the inventory-history time series.
+ * Identical totals to inventorySnapshot but skips the per-lot/category/color work.
+ */
+export function inventorySummary(doc) {
+    const items = getItems(doc);
+    let totalLots = 0;
+    let totalParts = 0;
+    let totalValue = 0;
+    for (const it of items) {
+        const qty = Number(it.Qty ?? 0);
+        const price = Number(it.Price ?? 0);
+        if (qty <= 0) continue;
+        totalLots += 1;
+        totalParts += qty;
+        totalValue += qty * price;
+    }
+    return {
+        totalLots,
+        totalParts,
+        totalValue: Math.round(totalValue * 100) / 100,
+    };
+}
+
 export function inventorySnapshot(doc) {
     const items = getItems(doc);
     let totalLots = 0;
