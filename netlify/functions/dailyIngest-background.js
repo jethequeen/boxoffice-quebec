@@ -30,11 +30,14 @@ async function run() {
     }
 
     const totals = aggregateRows(rows);
+    const platformRows = rows.filter((r) => r.section === 'Platforms');
+    const platformTotals = aggregateRows(platformRows);
     const decrements = decrementsFromRows(rows);
-    const platformDecrements = decrementsFromRows(rows.filter((r) => r.section === 'Platforms'));
+    const platformDecrements = decrementsFromRows(platformRows);
     log.steps.push({
         step: 'aggregated',
         totals,
+        platformTotals,
         decrementCount: decrements.length,
         platformDecrementCount: platformDecrements.length,
     });
@@ -66,8 +69,17 @@ async function run() {
     await appendSalesEntry({ ...entry, applied, missing, platformDecrements });
     log.steps.push({ step: 'sales_history_appended' });
 
+    // Sheets payload is Platforms-only — manual outputs are inventory write-offs, not sales.
+    const sheetEntry = {
+        date,
+        parts: platformTotals.parts,
+        lots: platformTotals.lots,
+        total: platformTotals.total,
+        payout: platformTotals.payout,
+        fees: platformTotals.fees,
+    };
     try {
-        await postDailyEntry(entry);
+        await postDailyEntry(sheetEntry);
         log.steps.push({ step: 'sheets_posted' });
     } catch (e) {
         log.steps.push({ step: 'sheets_failed', error: e.message });

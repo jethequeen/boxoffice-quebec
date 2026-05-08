@@ -73,8 +73,26 @@ function doPost(e) {
     }
 }
 
+/**
+ * Find the first row where column A is empty. We can't trust getLastRow()
+ * because other columns hold ARRAYFORMULAs / per-row formulas that extend the
+ * "used range" far past the actual transaction data — using getLastRow() would
+ * append rows below the formula tail. Scanning column A puts new rows in the
+ * first available data slot so the formulas pick them up.
+ */
+function firstBlankRowInA_(sheet) {
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return 2;
+    const aValues = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (let i = 0; i < aValues.length; i++) {
+        const v = aValues[i][0];
+        if (v === '' || v === null) return i + 2;
+    }
+    return lastRow + 1;
+}
+
 function appendVentesRow_(sheet, v) {
-    const row = sheet.getLastRow() + 1;
+    const row = firstBlankRowInA_(sheet);
     // A:K (cols 1..11) — skip L (Taxes, auto-calculated)
     sheet.getRange(row, 1, 1, 11).setValues([[
         'ventes',          // A Transaction
@@ -103,7 +121,7 @@ function appendVentesRow_(sheet, v) {
 }
 
 function appendFraisRow_(sheet, v) {
-    const row = sheet.getLastRow() + 1;
+    const row = firstBlankRowInA_(sheet);
     sheet.getRange(row, 1, 1, 11).setValues([[
         'Frais CFB',       // A Transaction
         CATEGORIE_FRAIS,   // B Catégorie

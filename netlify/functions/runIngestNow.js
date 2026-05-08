@@ -36,18 +36,25 @@ export const handler = async (event) => {
             if (!found) {
                 return jsonResponse(404, { error: `No sales-history entry for ${date}.`, date });
             }
-            const entry = {
+            // Reconstruct a Platforms-only payload from the saved entry. Manual outputs
+            // are inventory write-offs and must not show up as ventes.
+            const platformSection = found.bySection?.Platforms || { parts: 0, total: 0, payout: 0 };
+            const platformLotCount = Array.isArray(found.platformDecrements)
+                ? found.platformDecrements.length
+                : 0;
+            const total = Math.round(Number(platformSection.total || 0) * 100) / 100;
+            const payout = Math.round(Number(platformSection.payout || 0) * 100) / 100;
+            const sheetEntry = {
                 date: found.date,
-                parts: found.parts,
-                lots: found.lots,
-                total: found.total,
-                payout: found.payout,
-                fees: found.fees,
-                bySection: found.bySection,
+                parts: Number(platformSection.parts || 0),
+                lots: platformLotCount,
+                total,
+                payout,
+                fees: Math.round((total - payout) * 100) / 100,
             };
-            log.steps.push({ step: 'postOnly_loaded', entry });
+            log.steps.push({ step: 'postOnly_loaded', sheetEntry });
             try {
-                const result = await postDailyEntry(entry, { only: target });
+                const result = await postDailyEntry(sheetEntry, { only: target });
                 log.steps.push({ step: 'sheets_posted', result });
             } catch (e) {
                 log.steps.push({ step: 'sheets_failed', error: e.message });
@@ -86,11 +93,14 @@ export const handler = async (event) => {
         }
 
         const totals = aggregateRows(rows);
+        const platformRows = rows.filter((r) => r.section === 'Platforms');
+        const platformTotals = aggregateRows(platformRows);
         const decrements = decrementsFromRows(rows);
-        const platformDecrements = decrementsFromRows(rows.filter((r) => r.section === 'Platforms'));
+        const platformDecrements = decrementsFromRows(platformRows);
         log.steps.push({
             step: 'aggregated',
             totals,
+            platformTotals,
             decrementCount: decrements.length,
             platformDecrementCount: platformDecrements.length,
         });
@@ -122,8 +132,17 @@ export const handler = async (event) => {
         await appendSalesEntry({ ...entry, applied, missing, platformDecrements });
         log.steps.push({ step: 'sales_history_appended' });
 
+        // Sheets payload is Platforms-only — manual outputs are inventory write-offs, not sales.
+        const sheetEntry = {
+            date,
+            parts: platformTotals.parts,
+            lots: platformTotals.lots,
+            total: platformTotals.total,
+            payout: platformTotals.payout,
+            fees: platformTotals.fees,
+        };
         try {
-            await postDailyEntry(entry);
+            await postDailyEntry(sheetEntry, { only: target });
             log.steps.push({ step: 'sheets_posted' });
         } catch (e) {
             log.steps.push({ step: 'sheets_failed', error: e.message });
