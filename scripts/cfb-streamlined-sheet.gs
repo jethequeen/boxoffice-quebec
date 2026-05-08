@@ -59,10 +59,13 @@ function doPost(e) {
         const payout = round2_(Number(payload.payout || 0));
         const fees = round2_(Number(payload.fees || 0));
 
-        const ventesRow = appendVentesRow_(sheet, { date, lots, parts, total, payout });
+        // Pre-compute both target rows in a single scan so they end up
+        // consecutive, immediately after the last A-populated row.
+        const [vRow, fRow] = nextDataRows_(sheet, 2);
+        const ventesRow = appendVentesRow_(sheet, vRow, { date, lots, parts, total, payout });
         let fraisRow = null;
         if (fees > 0) {
-            fraisRow = appendFraisRow_(sheet, { date, fees });
+            fraisRow = appendFraisRow_(sheet, fRow, { date, fees });
         }
 
         SpreadsheetApp.flush();
@@ -75,28 +78,30 @@ function doPost(e) {
 }
 
 /**
- * Find the first row where column A is empty. We can't trust getLastRow()
- * because other columns hold ARRAYFORMULAs / per-row formulas that extend the
- * "used range" far past the actual transaction data — using getLastRow() would
- * append rows below the formula tail. Scanning column A puts new rows in the
- * first available data slot so the formulas pick them up.
+ * Returns `n` consecutive row numbers immediately after the last A-populated
+ * row. We scan column A from the BOTTOM up — scanning top-down would slot
+ * rows into any historical gap (a blank A cell mid-sheet) instead of
+ * appending after the latest transaction. We can't use getLastRow() either
+ * because formulas in other columns extend the used range past the data.
  */
-function firstBlankRowInA_(sheet) {
+function nextDataRows_(sheet, n) {
     const lastRow = sheet.getLastRow();
-    if (lastRow < 2) return 2;
+    if (lastRow < 2) return Array.from({ length: n }, function (_, i) { return 2 + i; });
     const aValues = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-    for (let i = 0; i < aValues.length; i++) {
+    for (let i = aValues.length - 1; i >= 0; i--) {
         const v = aValues[i][0];
-        if (v === '' || v === null) return i + 2;
+        if (v !== '' && v !== null) {
+            const start = i + 3;  // (i + 2) is the row of the last data; +1 lands on the row below
+            return Array.from({ length: n }, function (_, k) { return start + k; });
+        }
     }
-    return lastRow + 1;
+    return Array.from({ length: n }, function (_, i) { return 2 + i; });
 }
 
-function appendVentesRow_(sheet, v) {
-    const row = firstBlankRowInA_(sheet);
+function appendVentesRow_(sheet, row, v) {
     // A:K (cols 1..11) — skip L (Taxes, auto-calculated)
     sheet.getRange(row, 1, 1, 11).setValues([[
-        'ventes',          // A Transaction
+        'Ventes',          // A Transaction
         '',                // B Catégorie
         '',                // C Dépense
         '',                // D #
@@ -121,8 +126,7 @@ function appendVentesRow_(sheet, v) {
     return row;
 }
 
-function appendFraisRow_(sheet, v) {
-    const row = firstBlankRowInA_(sheet);
+function appendFraisRow_(sheet, row, v) {
     sheet.getRange(row, 1, 1, 11).setValues([[
         'Frais CFB',       // A Transaction
         CATEGORIE_FRAIS,   // B Catégorie
@@ -172,6 +176,7 @@ function testAppendDummy() {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
     if (!sheet) throw new Error('sheet "' + SHEET_NAME + '" not found');
     const date = new Date();
-    appendVentesRow_(sheet, { date, lots: 1, parts: 1, total: 0.01, payout: 0.01 });
-    appendFraisRow_(sheet, { date, fees: 0.01 });
+    const [vRow, fRow] = nextDataRows_(sheet, 2);
+    appendVentesRow_(sheet, vRow, { date, lots: 1, parts: 1, total: 0.01, payout: 0.01 });
+    appendFraisRow_(sheet, fRow, { date, fees: 0.01 });
 }
