@@ -1,5 +1,5 @@
-import { generateReport, parseReportRows, aggregateRows, decrementsFromRows } from '../lib/cfb.js';
-import { readBsx, writeBsx, appendSalesEntry, hasSalesEntryForDate, appendInventorySnapshot, readSalesHistory } from '../lib/blobs.js';
+import { generateReport, parseReportRows, aggregateRows, decrementsFromRows, isSheetableSale } from '../lib/cfb.js';
+import { readBsx, writeBsx, appendSalesEntry, hasSalesEntryForDate, appendInventorySnapshot } from '../lib/blobs.js';
 import { parseBsx, serializeBsx, applyDecrements, inventorySummary } from '../lib/bsx.js';
 import { postDailyEntry } from '../lib/sheets.js';
 import { jsonResponse } from '../lib/http.js';
@@ -31,28 +31,26 @@ export const handler = async (event) => {
 
     try {
         if (postOnly) {
-            const history = await readSalesHistory();
-            const found = history.find((e) => e?.date === date);
-            if (!found) {
-                return jsonResponse(404, { error: `No sales-history entry for ${date}.`, date });
+            // Re-fetch the report from CFB and post the sheetable aggregate
+            // (Platforms + Manual Outputs with payout > 0). No inventory or
+            // sales-history side effects, so this is safe to run any time
+            // for backfills or corrections — including past dates.
+            const { html } = await generateReport({ startDate: date, endDate: date });
+            const { rows } = parseReportRows(html, date);
+            if (!rows.length) {
+                return jsonResponse(404, { error: `No CFB rows for ${date}.`, date });
             }
-            // Reconstruct a Platforms-only payload from the saved entry. Manual outputs
-            // are inventory write-offs and must not show up as ventes.
-            const platformSection = found.bySection?.Platforms || { parts: 0, total: 0, payout: 0 };
-            const platformLotCount = Array.isArray(found.platformDecrements)
-                ? found.platformDecrements.length
-                : 0;
-            const total = Math.round(Number(platformSection.total || 0) * 100) / 100;
-            const payout = Math.round(Number(platformSection.payout || 0) * 100) / 100;
+            const sheetable = rows.filter(isSheetableSale);
+            const t = aggregateRows(sheetable);
             const sheetEntry = {
-                date: found.date,
-                parts: Number(platformSection.parts || 0),
-                lots: platformLotCount,
-                total,
-                payout,
-                fees: Math.round((total - payout) * 100) / 100,
+                date,
+                parts: t.parts,
+                lots: t.lots,
+                total: t.total,
+                payout: t.payout,
+                fees: t.fees,
             };
-            log.steps.push({ step: 'postOnly_loaded', sheetEntry });
+            log.steps.push({ step: 'postOnly_refetched', sheetEntry, sheetableCount: sheetable.length });
             try {
                 const result = await postDailyEntry(sheetEntry, { only: target });
                 log.steps.push({ step: 'sheets_posted', result });
@@ -94,15 +92,17 @@ export const handler = async (event) => {
 
         const totals = aggregateRows(rows);
         const platformRows = rows.filter((r) => r.section === 'Platforms');
-        const platformTotals = aggregateRows(platformRows);
+        const sheetableRows = rows.filter(isSheetableSale);
+        const sheetTotals = aggregateRows(sheetableRows);
         const decrements = decrementsFromRows(rows);
         const platformDecrements = decrementsFromRows(platformRows);
         log.steps.push({
             step: 'aggregated',
             totals,
-            platformTotals,
+            sheetTotals,
             decrementCount: decrements.length,
             platformDecrementCount: platformDecrements.length,
+            sheetableCount: sheetableRows.length,
         });
 
         const bsx = await readBsx();
@@ -132,14 +132,16 @@ export const handler = async (event) => {
         await appendSalesEntry({ ...entry, applied, missing, platformDecrements });
         log.steps.push({ step: 'sales_history_appended' });
 
-        // Sheets payload is Platforms-only — manual outputs are inventory write-offs, not sales.
+        // Sheets payload covers real sales only: Platforms + Manual Outputs
+        // with positive payout. Zero-payout manual outputs are inventory
+        // write-offs (decommissioning / gifts) and must not show up as ventes.
         const sheetEntry = {
             date,
-            parts: platformTotals.parts,
-            lots: platformTotals.lots,
-            total: platformTotals.total,
-            payout: platformTotals.payout,
-            fees: platformTotals.fees,
+            parts: sheetTotals.parts,
+            lots: sheetTotals.lots,
+            total: sheetTotals.total,
+            payout: sheetTotals.payout,
+            fees: sheetTotals.fees,
         };
         try {
             await postDailyEntry(sheetEntry, { only: target });

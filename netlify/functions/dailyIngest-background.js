@@ -1,5 +1,5 @@
 import { schedule } from '@netlify/functions';
-import { generateReport, parseReportRows, aggregateRows, decrementsFromRows } from '../lib/cfb.js';
+import { generateReport, parseReportRows, aggregateRows, decrementsFromRows, isSheetableSale } from '../lib/cfb.js';
 import { readBsx, writeBsx, appendSalesEntry, hasSalesEntryForDate, appendInventorySnapshot } from '../lib/blobs.js';
 import { parseBsx, serializeBsx, applyDecrements, inventorySummary } from '../lib/bsx.js';
 import { postDailyEntry } from '../lib/sheets.js';
@@ -31,15 +31,17 @@ async function run() {
 
     const totals = aggregateRows(rows);
     const platformRows = rows.filter((r) => r.section === 'Platforms');
-    const platformTotals = aggregateRows(platformRows);
+    const sheetableRows = rows.filter(isSheetableSale);
+    const sheetTotals = aggregateRows(sheetableRows);
     const decrements = decrementsFromRows(rows);
     const platformDecrements = decrementsFromRows(platformRows);
     log.steps.push({
         step: 'aggregated',
         totals,
-        platformTotals,
+        sheetTotals,
         decrementCount: decrements.length,
         platformDecrementCount: platformDecrements.length,
+        sheetableCount: sheetableRows.length,
     });
 
     const bsx = await readBsx();
@@ -69,14 +71,16 @@ async function run() {
     await appendSalesEntry({ ...entry, applied, missing, platformDecrements });
     log.steps.push({ step: 'sales_history_appended' });
 
-    // Sheets payload is Platforms-only — manual outputs are inventory write-offs, not sales.
+    // Sheets payload covers real sales only: Platforms + Manual Outputs
+    // with positive payout. Zero-payout manual outputs are inventory
+    // write-offs (decommissioning / gifts) and must not show up as ventes.
     const sheetEntry = {
         date,
-        parts: platformTotals.parts,
-        lots: platformTotals.lots,
-        total: platformTotals.total,
-        payout: platformTotals.payout,
-        fees: platformTotals.fees,
+        parts: sheetTotals.parts,
+        lots: sheetTotals.lots,
+        total: sheetTotals.total,
+        payout: sheetTotals.payout,
+        fees: sheetTotals.fees,
     };
     try {
         await postDailyEntry(sheetEntry);

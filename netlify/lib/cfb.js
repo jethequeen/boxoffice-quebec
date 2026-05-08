@@ -211,6 +211,21 @@ export function parseReportRows(html, dateFilter = null) {
 }
 
 /**
+ * Rows that should appear as sales in the bookkeeping sheet:
+ *   - All Platforms rows (BrickLink/BrickOwl/etc — money in, fees taken).
+ *   - Manual Outputs rows only when payout > 0. Most manual outputs are
+ *     inventory write-offs (decommissioning, gifts) with payout 0; those
+ *     should NOT show up as ventes. But a manual output with a positive
+ *     payout is a direct sale (e.g. paid in cash outside a platform) and
+ *     belongs in the sheet just like a platform sale.
+ */
+export function isSheetableSale(row) {
+    if (row.section === 'Platforms') return true;
+    if (row.section === 'Manual Outputs' && Number(row.payout || 0) > 0) return true;
+    return false;
+}
+
+/**
  * Aggregate parsed rows. There is no taxes column in this report — `fees` is total - payout
  * (platform commissions, BL/BO fees, etc.) and may be useful for the sheet log.
  */
