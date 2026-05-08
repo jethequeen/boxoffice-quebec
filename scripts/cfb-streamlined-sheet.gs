@@ -10,9 +10,10 @@
  *      - Execute as: Me
  *      - Who has access: Anyone
  *   5. Copy the deployment URL.
- *   6. In Netlify → Site settings → Environment variables, add:
- *        GSHEET_WEBHOOK_URL_NEW   = <the deployment URL>
- *        GSHEET_WEBHOOK_TOKEN_NEW = <same value as SECRET_TOKEN below, if set>
+ *   6. In Netlify → Site settings → Environment variables, add ONE of:
+ *        GSHEET_WEBHOOK_URL_OLD   = <deployment URL>   (current legacy sheet)
+ *        GSHEET_WEBHOOK_URL_NEW   = <deployment URL>   (future streamlined sheet)
+ *      Optionally add the matching GSHEET_WEBHOOK_TOKEN_OLD/_NEW if SECRET_TOKEN is set.
  *
  * On every successful ingest, the Netlify backend POSTs JSON like:
  *   { token, date: "2026-05-08", parts, lots, total, payout, fees, ... }

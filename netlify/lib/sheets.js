@@ -3,12 +3,15 @@
  * (Apps Script doPost endpoints).
  *
  * Two destinations are supported during the fiscal-year migration:
- *   - GSHEET_WEBHOOK_URL      (legacy sheet, with optional GSHEET_WEBHOOK_TOKEN)
- *   - GSHEET_WEBHOOK_URL_NEW  (streamlined sheet, with optional GSHEET_WEBHOOK_TOKEN_NEW)
+ *   - GSHEET_WEBHOOK_URL_OLD  (existing legacy sheet, with optional GSHEET_WEBHOOK_TOKEN_OLD)
+ *   - GSHEET_WEBHOOK_URL_NEW  (future streamlined sheet, with optional GSHEET_WEBHOOK_TOKEN_NEW)
  *
  * Both posts run in parallel; one failure does not abort the other. If at least
  * one target is configured and at least one post succeeds, the call resolves.
  * If every configured target fails, the call rejects with a combined error.
+ *
+ * The `opts.only` filter accepts 'old' or 'new' to restrict which webhook fires
+ * (used by the postOnly backfill mode).
  */
 async function postOne(label, url, token, entry) {
     const res = await fetch(url, {
@@ -26,13 +29,13 @@ async function postOne(label, url, token, entry) {
 }
 
 export async function postDailyEntry(entry, opts = {}) {
-    const only = opts.only;  // optional 'legacy' | 'new' to restrict which webhook(s) fire
+    const only = opts.only;
     const targets = [];
-    if (process.env.GSHEET_WEBHOOK_URL && (!only || only === 'legacy')) {
+    if (process.env.GSHEET_WEBHOOK_URL_OLD && (!only || only === 'old')) {
         targets.push({
-            label: 'legacy',
-            url: process.env.GSHEET_WEBHOOK_URL,
-            token: process.env.GSHEET_WEBHOOK_TOKEN,
+            label: 'old',
+            url: process.env.GSHEET_WEBHOOK_URL_OLD,
+            token: process.env.GSHEET_WEBHOOK_TOKEN_OLD,
         });
     }
     if (process.env.GSHEET_WEBHOOK_URL_NEW && (!only || only === 'new')) {
