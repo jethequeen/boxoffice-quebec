@@ -37,9 +37,6 @@ export const handler = async (event) => {
             // for backfills or corrections — including past dates.
             const { html } = await generateReport({ startDate: date, endDate: date });
             const { rows } = parseReportRows(html, date);
-            if (!rows.length) {
-                return jsonResponse(404, { error: `No CFB rows for ${date}.`, date });
-            }
             const sheetable = rows.filter(isSheetableSale);
             const t = aggregateRows(sheetable);
             const sheetEntry = {
@@ -85,11 +82,6 @@ export const handler = async (event) => {
             }
             return jsonResponse(200, log);
         }
-        if (!rows.length) {
-            log.note = 'No rows matched the requested date.';
-            return jsonResponse(200, log);
-        }
-
         const totals = aggregateRows(rows);
         const platformRows = rows.filter((r) => r.section === 'Platforms');
         const sheetableRows = rows.filter(isSheetableSale);
@@ -105,20 +97,26 @@ export const handler = async (event) => {
             sheetableCount: sheetableRows.length,
         });
 
-        const bsx = await readBsx();
-        if (!bsx) return jsonResponse(412, { error: 'No inventory.bsx in blob store. Seed it first.' });
-        const doc = parseBsx(bsx);
-        const { applied, missing } = applyDecrements(doc, decrements);
-        await writeBsx(serializeBsx(doc));
-        log.steps.push({ step: 'bsx_updated', applied: applied.length, missing: missing.length });
+        let applied = [];
+        let missing = [];
+        if (decrements.length) {
+            const bsx = await readBsx();
+            if (!bsx) return jsonResponse(412, { error: 'No inventory.bsx in blob store. Seed it first.' });
+            const doc = parseBsx(bsx);
+            ({ applied, missing } = applyDecrements(doc, decrements));
+            await writeBsx(serializeBsx(doc));
+            log.steps.push({ step: 'bsx_updated', applied: applied.length, missing: missing.length });
 
-        await appendInventorySnapshot({
-            date,
-            timestamp: new Date().toISOString(),
-            source: 'manual_ingest',
-            ...inventorySummary(doc),
-        });
-        if (missing.length) log.missing = missing;
+            await appendInventorySnapshot({
+                date,
+                timestamp: new Date().toISOString(),
+                source: 'manual_ingest',
+                ...inventorySummary(doc),
+            });
+            if (missing.length) log.missing = missing;
+        } else {
+            log.steps.push({ step: 'no_decrements_zero_day' });
+        }
 
         const entry = {
             date,

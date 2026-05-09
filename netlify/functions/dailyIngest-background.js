@@ -24,11 +24,6 @@ async function run() {
     const { rows, sections, dateRange } = parseReportRows(html, date);
     log.steps.push({ step: 'parsed_rows', sections, dateRange, matchedRows: rows.length });
 
-    if (!rows.length) {
-        log.note = 'No rows matched today — nothing to ingest.';
-        return log;
-    }
-
     const totals = aggregateRows(rows);
     const platformRows = rows.filter((r) => r.section === 'Platforms');
     const sheetableRows = rows.filter(isSheetableSale);
@@ -44,20 +39,26 @@ async function run() {
         sheetableCount: sheetableRows.length,
     });
 
-    const bsx = await readBsx();
-    if (!bsx) throw new Error('No inventory.bsx in blob store — seed it first.');
-    const doc = parseBsx(bsx);
-    const { applied, missing } = applyDecrements(doc, decrements);
-    await writeBsx(serializeBsx(doc));
-    log.steps.push({ step: 'bsx_updated', applied: applied.length, missing: missing.length });
+    let applied = [];
+    let missing = [];
+    if (decrements.length) {
+        const bsx = await readBsx();
+        if (!bsx) throw new Error('No inventory.bsx in blob store — seed it first.');
+        const doc = parseBsx(bsx);
+        ({ applied, missing } = applyDecrements(doc, decrements));
+        await writeBsx(serializeBsx(doc));
+        log.steps.push({ step: 'bsx_updated', applied: applied.length, missing: missing.length });
 
-    await appendInventorySnapshot({
-        date,
-        timestamp: new Date().toISOString(),
-        source: 'daily_ingest',
-        ...inventorySummary(doc),
-    });
-    if (missing.length) log.missing = missing;
+        await appendInventorySnapshot({
+            date,
+            timestamp: new Date().toISOString(),
+            source: 'daily_ingest',
+            ...inventorySummary(doc),
+        });
+        if (missing.length) log.missing = missing;
+    } else {
+        log.steps.push({ step: 'no_decrements_zero_day' });
+    }
 
     const entry = {
         date,
