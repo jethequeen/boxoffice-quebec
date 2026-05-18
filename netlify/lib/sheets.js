@@ -10,9 +10,21 @@
  * one target is configured and at least one post succeeds, the call resolves.
  * If every configured target fails, the call rejects with a combined error.
  *
+ * Saturdays and Sundays are skipped: CFB only records a sale once the order
+ * ships, and shipping never happens on weekends, so any weekend total is
+ * either zero or an artefact of a Monday-shipped order. Holidays can't be
+ * detected reliably and just produce a legitimate $0 row.
+ *
  * The `opts.only` filter accepts 'old' or 'new' to restrict which webhook fires
  * (used by the postOnly backfill mode).
  */
+function isWeekendYmd(s) {
+    const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return false;
+    const day = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay();
+    return day === 0 || day === 6;
+}
+
 async function postOne(label, url, token, entry) {
     const res = await fetch(url, {
         method: 'POST',
@@ -29,6 +41,9 @@ async function postOne(label, url, token, entry) {
 }
 
 export async function postDailyEntry(entry, opts = {}) {
+    if (isWeekendYmd(entry?.date)) {
+        return { ok: true, skipped: 'weekend', date: entry?.date };
+    }
     const only = opts.only;
     const targets = [];
     if (process.env.GSHEET_WEBHOOK_URL_OLD && (!only || only === 'old')) {

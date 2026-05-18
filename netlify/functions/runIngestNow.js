@@ -142,8 +142,8 @@ export const handler = async (event) => {
             fees: sheetTotals.fees,
         };
         try {
-            await postDailyEntry(sheetEntry, { only: target });
-            log.steps.push({ step: 'sheets_posted' });
+            const result = await postDailyEntry(sheetEntry, { only: target });
+            log.steps.push({ step: 'sheets_posted', result });
         } catch (e) {
             log.steps.push({ step: 'sheets_failed', error: e.message });
         }

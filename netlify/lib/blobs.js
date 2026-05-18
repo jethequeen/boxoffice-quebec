@@ -86,6 +86,10 @@ export async function readInventoryHistory() {
     return Array.isArray(raw) ? raw : [];
 }
 
+export async function writeInventoryHistory(history) {
+    await store().setJSON(INV_HISTORY_KEY, history);
+}
+
 export async function appendInventorySnapshot(snapshot) {
     const history = await readInventoryHistory();
     history.push(snapshot);

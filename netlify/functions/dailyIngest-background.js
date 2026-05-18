@@ -84,8 +84,8 @@ async function run() {
         fees: sheetTotals.fees,
     };
     try {
-        await postDailyEntry(sheetEntry);
-        log.steps.push({ step: 'sheets_posted' });
+        const result = await postDailyEntry(sheetEntry);
+        log.steps.push({ step: 'sheets_posted', result });
     } catch (e) {
         log.steps.push({ step: 'sheets_failed', error: e.message });
     }
