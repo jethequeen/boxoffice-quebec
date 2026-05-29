@@ -76,9 +76,15 @@ export async function appendSalesEntry(entry) {
     return history;
 }
 
-export async function hasSalesEntryForDate(date) {
+/**
+ * Idempotency check for the daily ingest. We now write one entry per source
+ * (CA + US) per day, so the predicate has to match BOTH date and source. Legacy
+ * entries written before the US flow existed have no `source` field — those are
+ * treated as 'CA' so re-running yesterday's CA ingest still short-circuits.
+ */
+export async function hasSalesEntryForDate(date, source = 'CA') {
     const history = await readSalesHistory();
-    return history.some((e) => e?.date === date);
+    return history.some((e) => e?.date === date && (e?.source || 'CA') === source);
 }
 
 export async function readInventoryHistory() {

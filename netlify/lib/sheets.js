@@ -15,6 +15,12 @@
  * either zero or an artefact of a Monday-shipped order. Holidays can't be
  * detected reliably and just produce a legitimate $0 row.
  *
+ * The payload includes a `source` field ('CA' | 'US') so the Apps Script
+ * downstream can branch tax handling per origin — Canadian and US sales hit
+ * the same sheet but follow different fiscal rules. Callers must pass `source`;
+ * omitting it defaults to 'CA' to preserve pre-US behaviour for any ad-hoc
+ * invocation.
+ *
  * The `opts.only` filter accepts 'old' or 'new' to restrict which webhook fires
  * (used by the postOnly backfill mode).
  */
@@ -42,8 +48,9 @@ async function postOne(label, url, token, entry) {
 
 export async function postDailyEntry(entry, opts = {}) {
     if (isWeekendYmd(entry?.date)) {
-        return { ok: true, skipped: 'weekend', date: entry?.date };
+        return { ok: true, skipped: 'weekend', date: entry?.date, source: entry?.source };
     }
+    const payload = { source: 'CA', ...entry };
     const only = opts.only;
     const targets = [];
     if (process.env.GSHEET_WEBHOOK_URL_OLD && (!only || only === 'old')) {
@@ -65,7 +72,7 @@ export async function postDailyEntry(entry, opts = {}) {
     }
 
     const results = await Promise.allSettled(
-        targets.map((t) => postOne(t.label, t.url, t.token, entry)),
+        targets.map((t) => postOne(t.label, t.url, t.token, payload)),
     );
 
     const ok = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);

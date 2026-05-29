@@ -1,28 +1,46 @@
 import * as cheerio from 'cheerio';
 
-const BASE = 'https://mocs.canadafirstbricks.com';
 const REPORT_NEW_PATH = '/bricklink/inventory_vendor_reports/new';
 const REPORT_POST_PATH = '/bricklink/inventory_vendor_reports';
 
-const cookieHeader = () => {
-    const cookie = process.env.CFB_COOKIE;
-    if (!cookie) throw new Error('CFB_COOKIE env var is required');
+/**
+ * Both the Canadian (mocs.canadafirstbricks.com) and US (usmocs.canadafirstbricks.com)
+ * vendor portals serve the exact same report form / table layout — only the host and
+ * the session cookie differ. We key on a short `source` tag ('CA' | 'US') everywhere
+ * so sales-history entries, sheet payloads and logs can be told apart for tax handling.
+ */
+export const SOURCES = {
+    CA: { base: 'https://mocs.canadafirstbricks.com',   cookieEnv: 'CFB_COOKIE' },
+    US: { base: 'https://usmocs.canadafirstbricks.com', cookieEnv: 'CFB_COOKIE_US' },
+};
+
+const siteConfig = (source) => {
+    const cfg = SOURCES[source];
+    if (!cfg) throw new Error(`Unknown CFB source "${source}" — expected CA or US`);
+    return cfg;
+};
+
+const cookieHeader = (source) => {
+    const { cookieEnv } = siteConfig(source);
+    const cookie = process.env[cookieEnv];
+    if (!cookie) throw new Error(`${cookieEnv} env var is required (source=${source})`);
     return cookie;
 };
 
-const headers = (extra = {}) => ({
-    Cookie: cookieHeader(),
+const headers = (source, extra = {}) => ({
+    Cookie: cookieHeader(source),
     'User-Agent': 'Mozilla/5.0 (compatible; CineStatsInventoryBot/1.0)',
     Accept: 'text/html,application/xhtml+xml',
     ...extra,
 });
 
-async function fetchHtml(path, init = {}) {
-    const url = path.startsWith('http') ? path : `${BASE}${path}`;
-    const res = await fetch(url, { ...init, headers: { ...headers(), ...(init.headers || {}) } });
+async function fetchHtml(source, path, init = {}) {
+    const { base } = siteConfig(source);
+    const url = path.startsWith('http') ? path : `${base}${path}`;
+    const res = await fetch(url, { ...init, headers: { ...headers(source), ...(init.headers || {}) } });
     const text = await res.text();
     if (!res.ok) {
-        throw new Error(`CFB request ${path} failed: ${res.status} ${res.statusText} — ${text.slice(0, 200)}`);
+        throw new Error(`CFB[${source}] request ${path} failed: ${res.status} ${res.statusText} — ${text.slice(0, 200)}`);
     }
     return { text, res };
 }
@@ -31,8 +49,8 @@ async function fetchHtml(path, init = {}) {
  * Loads /new and pulls CSRF, form action, all named inputs (with defaults),
  * and identifies the start/end-date input names heuristically.
  */
-export async function loadReportForm() {
-    const { text } = await fetchHtml(REPORT_NEW_PATH);
+export async function loadReportForm(source = 'CA') {
+    const { text } = await fetchHtml(source, REPORT_NEW_PATH);
     const $ = cheerio.load(text);
 
     const csrf =
@@ -88,21 +106,21 @@ export async function loadReportForm() {
  * a 302 to /bricklink/inventory_vendor_reports/{uuid}; fetch follows it and we get
  * the rendered report HTML.
  */
-export async function generateReport({ startDate, endDate } = {}) {
-    const { csrf, action, fields, startName, endName } = await loadReportForm();
+export async function generateReport({ startDate, endDate, source = 'CA' } = {}) {
+    const { csrf, action, fields, startName, endName } = await loadReportForm(source);
     const body = new URLSearchParams();
     body.set('_csrf_token', csrf);
     for (const [k, v] of Object.entries(fields)) body.set(k, v);
     if (startName && startDate) body.set(startName, startDate);
     if (endName && endDate) body.set(endName, endDate);
 
-    const { text } = await fetchHtml(action, {
+    const { text } = await fetchHtml(source, action, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: body.toString(),
         redirect: 'follow',
     });
-    return { html: text, dateFields: { startName, endName } };
+    return { html: text, dateFields: { startName, endName }, source };
 }
 
 const NB_SPACE = / /g;
