@@ -40,31 +40,17 @@ const parseSources = (raw) => {
     return wanted;
 };
 
-async function postOnly({ date, source, target, log }) {
+// Re-fetch one source's sheetable aggregate without any side effects. Returns
+// its sheet totals so the caller can sum sources and post once.
+async function postOnlyTotals({ date, source, log }) {
     const sub = { source, steps: [] };
     log.sources.push(sub);
     const { html } = await generateReport({ startDate: date, endDate: date, source });
     const { rows } = parseReportRows(html, date);
     const sheetable = rows.filter(isSheetableSale);
     const t = aggregateRows(sheetable);
-    const sheetEntry = {
-        date,
-        source,
-        parts: t.parts,
-        lots: t.lots,
-        total: t.total,
-        payout: t.payout,
-        fees: t.fees,
-    };
-    sub.steps.push({ step: 'postOnly_refetched', sheetEntry, sheetableCount: sheetable.length });
-    try {
-        const result = await postDailyEntry(sheetEntry, { only: target });
-        sub.steps.push({ step: 'sheets_posted', result });
-        return true;
-    } catch (e) {
-        sub.steps.push({ step: 'sheets_failed', error: e.message });
-        return false;
-    }
+    sub.steps.push({ step: 'postOnly_refetched', sheetTotals: t, sheetableCount: sheetable.length });
+    return t;
 }
 
 async function ingestOne({ source, date, startDate, endDate, dryRun, force, log }) {
@@ -144,22 +130,9 @@ async function ingestOne({ source, date, startDate, endDate, dryRun, force, log 
     await appendSalesEntry({ ...entry, applied, missing, platformDecrements });
     sub.steps.push({ step: 'sales_history_appended' });
 
-    const sheetEntry = {
-        date,
-        source,
-        parts: sheetTotals.parts,
-        lots: sheetTotals.lots,
-        total: sheetTotals.total,
-        payout: sheetTotals.payout,
-        fees: sheetTotals.fees,
-    };
-    try {
-        const result = await postDailyEntry(sheetEntry, { only: log.target });
-        sub.steps.push({ step: 'sheets_posted', result });
-    } catch (e) {
-        sub.steps.push({ step: 'sheets_failed', error: e.message });
-    }
-    return { status: 'ok' };
+    // US and CA follow identical tax rules, so the handler sums each source's
+    // sheet totals and posts a single combined entry — no per-source POST here.
+    return { status: 'ok', sheetTotals };
 }
 
 export const handler = async (event) => {
@@ -183,29 +156,52 @@ export const handler = async (event) => {
 
     const log = { date, startDate, endDate, dryRun, force, postOnly: postOnlyMode, target, sources: [] };
 
+    // US and CA share tax rules, so each requested source's sheet totals are
+    // summed and posted to the sheet once per invocation.
+    const combined = { parts: 0, lots: 0, total: 0, payout: 0, fees: 0 };
+    let ingestedAny = false;
+    const addTotals = (t) => {
+        if (!t) return;
+        ingestedAny = true;
+        combined.parts += t.parts;
+        combined.lots += t.lots;
+        combined.total += t.total;
+        combined.payout += t.payout;
+        combined.fees += t.fees;
+    };
+
     try {
         if (postOnlyMode) {
             // Re-fetch each requested source's report from CFB and post the
-            // sheetable aggregate (Platforms + Manual Outputs with payout > 0).
-            // No inventory or sales-history side effects — safe to run any time
-            // for backfills or corrections, including past dates.
-            let anyFailure = false;
+            // combined sheetable aggregate (Platforms + Manual Outputs with
+            // payout > 0). No inventory or sales-history side effects — safe to
+            // run any time for backfills or corrections, including past dates.
             for (const source of sources) {
-                const ok = await postOnly({ date, source, target, log });
-                if (!ok) anyFailure = true;
+                addTotals(await postOnlyTotals({ date, source, log }));
             }
-            return jsonResponse(anyFailure ? 502 : 200, log);
+        } else {
+            for (const source of sources) {
+                try {
+                    const r = await ingestOne({ source, date, startDate, endDate, dryRun, force, log });
+                    if (r.status === 'no_bsx') {
+                        return jsonResponse(412, { error: 'No inventory.bsx in blob store. Seed it first.', log });
+                    }
+                    addTotals(r.sheetTotals);
+                } catch (e) {
+                    log.sources.find((s) => s.source === source).error = e.message;
+                    console.error(`[runIngestNow:${source}] FAIL`, e);
+                }
+            }
         }
 
-        for (const source of sources) {
+        // Dry runs return no totals and never post.
+        if (ingestedAny && !dryRun) {
             try {
-                const r = await ingestOne({ source, date, startDate, endDate, dryRun, force, log });
-                if (r.status === 'no_bsx') {
-                    return jsonResponse(412, { error: 'No inventory.bsx in blob store. Seed it first.', log });
-                }
+                const result = await postDailyEntry({ date, ...combined }, { only: target });
+                log.sheets = { step: 'sheets_posted', combined, result };
             } catch (e) {
-                log.sources.find((s) => s.source === source).error = e.message;
-                console.error(`[runIngestNow:${source}] FAIL`, e);
+                log.sheets = { step: 'sheets_failed', combined, error: e.message };
+                return jsonResponse(502, log);
             }
         }
         return jsonResponse(200, log);

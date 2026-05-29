@@ -32,8 +32,12 @@ const isWeekendYmd = (s) => {
 /**
  * Ingest one source (CA or US) for the given date. Both portals decrement the same
  * shared inventory.bsx blob — caller invokes us sequentially so the second source
- * reads the bsx after the first source's write. Sheet payload is tagged with
- * `source` so the downstream Apps Script can apply tax rules per origin.
+ * reads the bsx after the first source's write.
+ *
+ * Inventory decrements and the sales-history blob stay tagged per source for
+ * internal tracking. The sheet POST is NOT done here: US and CA follow identical
+ * tax rules, so the caller sums each source's sheet totals and posts once.
+ * Returns the source's sheet totals (or null when nothing was ingested).
  */
 async function ingestOne(source, date, parentLog) {
     const log = { source, steps: [] };
@@ -41,7 +45,7 @@ async function ingestOne(source, date, parentLog) {
 
     if (await hasSalesEntryForDate(date, source)) {
         log.note = `Already ingested ${source} for ${date}, skipping.`;
-        return;
+        return null;
     }
 
     const { html } = await generateReport({ startDate: date, endDate: date, source });
@@ -99,24 +103,11 @@ async function ingestOne(source, date, parentLog) {
     await appendSalesEntry({ ...entry, applied, missing, platformDecrements });
     log.steps.push({ step: 'sales_history_appended' });
 
-    // Sheets payload covers real sales only: Platforms + Manual Outputs
-    // with positive payout. Zero-payout manual outputs are inventory
-    // write-offs (decommissioning / gifts) and must not show up as ventes.
-    const sheetEntry = {
-        date,
-        source,
-        parts: sheetTotals.parts,
-        lots: sheetTotals.lots,
-        total: sheetTotals.total,
-        payout: sheetTotals.payout,
-        fees: sheetTotals.fees,
-    };
-    try {
-        const result = await postDailyEntry(sheetEntry);
-        log.steps.push({ step: 'sheets_posted', result });
-    } catch (e) {
-        log.steps.push({ step: 'sheets_failed', error: e.message });
-    }
+    // Sheet totals cover real sales only: Platforms + Manual Outputs with
+    // positive payout. Zero-payout manual outputs are inventory write-offs
+    // (decommissioning / gifts) and must not show up as ventes. The caller
+    // sums these across sources and posts a single combined sheet entry.
+    return sheetTotals;
 }
 
 async function run() {
@@ -131,12 +122,34 @@ async function run() {
         return log;
     }
 
+    const combined = { parts: 0, lots: 0, total: 0, payout: 0, fees: 0 };
+    let ingestedAny = false;
+
     for (const source of Object.keys(SOURCES)) {
         try {
-            await ingestOne(source, date, log);
+            const sheetTotals = await ingestOne(source, date, log);
+            if (sheetTotals) {
+                ingestedAny = true;
+                combined.parts += sheetTotals.parts;
+                combined.lots += sheetTotals.lots;
+                combined.total += sheetTotals.total;
+                combined.payout += sheetTotals.payout;
+                combined.fees += sheetTotals.fees;
+            }
         } catch (e) {
             log.sources.find((s) => s.source === source).error = e.message;
             console.error(`[dailyIngest:${source}] FAIL`, e);
+        }
+    }
+
+    // US and CA follow identical tax rules, so US sales are folded into the
+    // Canadian numbers and the day's combined total is posted to the sheet once.
+    if (ingestedAny) {
+        try {
+            const result = await postDailyEntry({ date, ...combined });
+            log.sheets = { step: 'sheets_posted', combined, result };
+        } catch (e) {
+            log.sheets = { step: 'sheets_failed', combined, error: e.message };
         }
     }
 

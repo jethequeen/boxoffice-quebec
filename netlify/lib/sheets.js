@@ -15,11 +15,10 @@
  * either zero or an artefact of a Monday-shipped order. Holidays can't be
  * detected reliably and just produce a legitimate $0 row.
  *
- * The payload includes a `source` field ('CA' | 'US') so the Apps Script
- * downstream can branch tax handling per origin — Canadian and US sales hit
- * the same sheet but follow different fiscal rules. Callers must pass `source`;
- * omitting it defaults to 'CA' to preserve pre-US behaviour for any ad-hoc
- * invocation.
+ * US and CA sales follow identical tax rules, so the caller sums both origins
+ * into a single daily total before posting — there is one POST per day, not one
+ * per source. The payload still carries a `source` field, defaulting to 'CA',
+ * which the Apps Script records as the country of origin for every row.
  *
  * The `opts.only` filter accepts 'old' or 'new' to restrict which webhook fires
  * (used by the postOnly backfill mode).
