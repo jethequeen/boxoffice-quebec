@@ -482,6 +482,24 @@ export default function InventoryDashboard() {
                                         <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtInt} />
                                         <Tooltip formatter={(v) => fmtInt(v)} labelStyle={{ fontWeight: 700 }} />
                                         <Line type="monotone" dataKey="totalParts" stroke="#10B981" strokeWidth={2} dot={{ r: 3 }} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        )}
+                    </section>
+
+                    <section className="inv-card">
+                        <div className="inv-card__head"><h2>Lots en stock</h2></div>
+                        {invSeries.length === 0 ? (
+                            <div className="inv-empty">Pas encore d'historique.</div>
+                        ) : (
+                            <div className="inv-chart">
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <LineChart data={invSeries} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                                        <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtInt} />
+                                        <Tooltip formatter={(v) => fmtInt(v)} labelStyle={{ fontWeight: 700 }} />
                                         <Line type="monotone" dataKey="totalLots" stroke="#F59E0B" strokeWidth={2} dot={{ r: 3 }} />
                                     </LineChart>
                                 </ResponsiveContainer>
