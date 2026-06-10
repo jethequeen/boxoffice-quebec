@@ -15,6 +15,7 @@ import {
 } from '../lib/blobs.js';
 import { parseBsx, serializeBsx, applyDecrements, inventorySummary } from '../lib/bsx.js';
 import { postDailyEntry } from '../lib/sheets.js';
+import { getUsdCadRate, toCadTotals } from '../lib/fx.js';
 import { jsonResponse } from '../lib/http.js';
 
 const todayInTZ = (tz = 'America/Toronto') => {
@@ -40,20 +41,27 @@ const parseSources = (raw) => {
     return wanted;
 };
 
-// Re-fetch one source's sheetable aggregate without any side effects. Returns
-// its sheet totals so the caller can sum sources and post once.
-async function postOnlyTotals({ date, source, log }) {
+// Re-fetch one source's sheetable aggregate without any side effects. US totals
+// are converted to CAD via `fx`. Returns its CAD sheet totals so the caller can
+// sum sources and post once.
+async function postOnlyTotals({ date, source, fx, log }) {
     const sub = { source, steps: [] };
     log.sources.push(sub);
     const { html } = await generateReport({ startDate: date, endDate: date, source });
     const { rows } = parseReportRows(html, date);
     const sheetable = rows.filter(isSheetableSale);
-    const t = aggregateRows(sheetable);
-    sub.steps.push({ step: 'postOnly_refetched', sheetTotals: t, sheetableCount: sheetable.length });
+    const t = source === 'US' ? toCadTotals(aggregateRows(sheetable), fx.rate) : aggregateRows(sheetable);
+    sub.steps.push({
+        step: 'postOnly_refetched',
+        currency: 'CAD',
+        fx: source === 'US' ? fx : null,
+        sheetTotals: t,
+        sheetableCount: sheetable.length,
+    });
     return t;
 }
 
-async function ingestOne({ source, date, startDate, endDate, dryRun, force, log }) {
+async function ingestOne({ source, date, startDate, endDate, dryRun, force, fx, log }) {
     const sub = { source, steps: [] };
     log.sources.push(sub);
 
@@ -81,14 +89,19 @@ async function ingestOne({ source, date, startDate, endDate, dryRun, force, log 
         return { status: 'dry_run' };
     }
 
-    const totals = aggregateRows(rows);
+    // US reports are in USD — convert every monetary total to CAD so nothing
+    // downstream ever mixes currencies. CA is already CAD and passes through.
+    const toCad = (t) => (source === 'US' ? toCadTotals(t, fx.rate) : t);
+    const totals = toCad(aggregateRows(rows));
     const platformRows = rows.filter((r) => r.section === 'Platforms');
     const sheetableRows = rows.filter(isSheetableSale);
-    const sheetTotals = aggregateRows(sheetableRows);
+    const sheetTotals = toCad(aggregateRows(sheetableRows));
     const decrements = decrementsFromRows(rows);
     const platformDecrements = decrementsFromRows(platformRows);
     sub.steps.push({
         step: 'aggregated',
+        currency: 'CAD',
+        fx: source === 'US' ? fx : null,
         totals,
         sheetTotals,
         decrementCount: decrements.length,
@@ -120,6 +133,8 @@ async function ingestOne({ source, date, startDate, endDate, dryRun, force, log 
     const entry = {
         date,
         source,
+        currency: 'CAD',
+        fx: source === 'US' ? fx : null,
         parts: totals.parts,
         lots: totals.lots,
         total: totals.total,
@@ -156,6 +171,19 @@ export const handler = async (event) => {
 
     const log = { date, startDate, endDate, dryRun, force, postOnly: postOnlyMode, target, sources: [] };
 
+    // US money is in USD — fetch the report date's USD→CAD rate so US totals can
+    // be converted before being summed with CA. Only needed when US is requested
+    // and we'll actually convert (dry runs never reach conversion).
+    let fx = null;
+    if (sources.includes('US') && !dryRun) {
+        try {
+            fx = await getUsdCadRate(date);
+            log.fx = fx;
+        } catch (e) {
+            return jsonResponse(502, { error: `USD→CAD rate unavailable: ${e.message}`, log });
+        }
+    }
+
     // US and CA share tax rules, so each requested source's sheet totals are
     // summed and posted to the sheet once per invocation.
     const combined = { parts: 0, lots: 0, total: 0, payout: 0, fees: 0 };
@@ -177,12 +205,12 @@ export const handler = async (event) => {
             // payout > 0). No inventory or sales-history side effects — safe to
             // run any time for backfills or corrections, including past dates.
             for (const source of sources) {
-                addTotals(await postOnlyTotals({ date, source, log }));
+                addTotals(await postOnlyTotals({ date, source, fx, log }));
             }
         } else {
             for (const source of sources) {
                 try {
-                    const r = await ingestOne({ source, date, startDate, endDate, dryRun, force, log });
+                    const r = await ingestOne({ source, date, startDate, endDate, dryRun, force, fx, log });
                     if (r.status === 'no_bsx') {
                         return jsonResponse(412, { error: 'No inventory.bsx in blob store. Seed it first.', log });
                     }
