@@ -174,10 +174,12 @@ async function run() {
 
     // US and CA follow identical tax rules and are now both in CAD, so US sales
     // are folded into the Canadian numbers and the day's combined total is posted
-    // to the sheet once.
+    // once — to the LEGACY sheet only. The streamlined sheet receives a single
+    // weekly aggregate instead (see weeklyIngest-background.js), so the daily POST
+    // is restricted to 'old' and never writes a per-day row to the new sheet.
     if (ingestedAny) {
         try {
-            const result = await postDailyEntry({ date, ...combined });
+            const result = await postDailyEntry({ date, ...combined }, { only: 'old' });
             log.sheets = { step: 'sheets_posted', combined, result };
         } catch (e) {
             log.sheets = { step: 'sheets_failed', combined, error: e.message };

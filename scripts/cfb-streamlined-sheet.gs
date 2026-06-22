@@ -1,35 +1,48 @@
 /**
- * CFB daily inventory webhook — Apps Script for the streamlined sheet.
+ * CFB daily inventory webhook — Apps Script for the "Journal officiel" sheet
+ * (Comptabilité Binobrick).
  *
  * Deployment:
- *   1. In your new spreadsheet: Extensions → Apps Script.
- *   2. Paste this entire file into the editor (replace any existing code.gs).
- *   3. Edit SHEET_NAME below to match the tab name where rows should land
- *      (e.g. "Transactions"). Optionally set SECRET_TOKEN.
+ *   1. In the spreadsheet: Extensions → Apps Script.
+ *   2. Paste this entire file into the editor (replace any existing Code.gs).
+ *   3. Check SHEET_NAME below matches the tab name ("Journal officiel").
+ *      Optionally set SECRET_TOKEN.
  *   4. Save, then Deploy → New deployment → Type: Web app.
  *      - Execute as: Me
  *      - Who has access: Anyone
  *   5. Copy the deployment URL.
- *   6. In Netlify → Site settings → Environment variables, add ONE of:
- *        GSHEET_WEBHOOK_URL_OLD   = <deployment URL>   (current legacy sheet)
- *        GSHEET_WEBHOOK_URL_NEW   = <deployment URL>   (future streamlined sheet)
- *      Optionally add the matching GSHEET_WEBHOOK_TOKEN_OLD/_NEW if SECRET_TOKEN is set.
+ *   6. In Netlify → Site settings → Environment variables, add:
+ *        GSHEET_WEBHOOK_URL_NEW   = <deployment URL>
+ *      and, if SECRET_TOKEN is set, GSHEET_WEBHOOK_TOKEN_NEW = <token>.
+ *      (The legacy sheet keeps its own GSHEET_WEBHOOK_URL_OLD; both fire in
+ *      parallel during the migration — see netlify/lib/sheets.js.)
  *
  * On every successful ingest, the Netlify backend POSTs JSON like:
- *   { token, date: "2026-05-08", parts, lots, total, payout, fees, ... }
+ *   { token, source, date: "2026-06-15", parts, lots, total, payout, fees }
  *
- * This script appends two rows per call:
- *   1) "ventes" row — Canada First Bricks / CA / QC, lots/parts/total/payout
- *   2) "Frais CFB" row — FT category, dépense = -fees
- * Column L (Taxes) is intentionally not written so any ARRAYFORMULA or
- * per-row tax formula stays intact.
+ * This script appends two rows per call to the journal:
+ *   1) "Ventes"     — catégorie V,  Montant = total (brut), compte CFB, + lots/pièces
+ *   2) "Frais CFB"  — catégorie FT, Montant = -fees,         compte CFB
+ * Net of the two rows (total - fees) equals the CFB payout.
+ *
+ * IMPORTANT — formula columns are never written:
+ *   F  Compte débiteur   (VLOOKUP, only for TF transfers)
+ *   G  Description       (manual)
+ *   J  TPS / K  TVQ      (auto-calculated taxes)
+ *   L  CFB / M  CH / N  CC   (running account balances)
+ * The script only sets A:E (Transaction..Date) and H:I (Lots, Pièces), so any
+ * fill-down / ARRAYFORMULA in those columns stays intact. Make sure those
+ * formula columns are filled down far enough (or are ARRAYFORMULAs) to cover
+ * the rows being appended.
  */
 
-const SHEET_NAME = 'Transactions';   // <-- adjust to your tab name
-const SECRET_TOKEN = '';             // <-- optional; leave '' to disable auth
+const SHEET_NAME = 'Journal officiel';   // <-- tab name in Comptabilité Binobrick
+const SECRET_TOKEN = '';                 // <-- optional; leave '' to disable auth
 
-const NOM_VENTES = 'Canada First Bricks';
+const NOM_VENTES = 'Ventes';
+const NOM_FRAIS = 'Frais CFB';
 const COMPTE = 'CFB';
+const CATEGORIE_VENTES = 'V';
 const CATEGORIE_FRAIS = 'FT';
 
 function doPost(e) {
@@ -56,13 +69,12 @@ function doPost(e) {
         const lots = Number(payload.lots || 0);
         const parts = Number(payload.parts || 0);
         const total = round2_(Number(payload.total || 0));
-        const payout = round2_(Number(payload.payout || 0));
         const fees = round2_(Number(payload.fees || 0));
 
         // Pre-compute both target rows in a single scan so they end up
         // consecutive, immediately after the last A-populated row.
         const [vRow, fRow] = nextDataRows_(sheet, 2);
-        const ventesRow = appendVentesRow_(sheet, vRow, { date, lots, parts, total, payout });
+        const ventesRow = appendVentesRow_(sheet, vRow, { date, lots, parts, total });
         let fraisRow = null;
         if (fees > 0) {
             fraisRow = appendFraisRow_(sheet, fRow, { date, fees });
@@ -99,55 +111,30 @@ function nextDataRows_(sheet, n) {
 }
 
 function appendVentesRow_(sheet, row, v) {
-    // A:K (cols 1..11) — skip L (Taxes, auto-calculated)
-    sheet.getRange(row, 1, 1, 11).setValues([[
-        'Ventes',          // A Transaction
-        '',                // B Catégorie
-        '',                // C Dépense
-        '',                // D #
-        NOM_VENTES,        // E Nom
-        'CA',              // F Pays
-        'QC',              // G Province
+    // A:E (cols 1..5) — skip F (Compte débiteur) and G (Description), both formula/manual
+    sheet.getRange(row, 1, 1, 5).setValues([[
+        NOM_VENTES,        // A Transaction
+        CATEGORIE_VENTES,  // B Catégorie
+        v.total,           // C Montant (brut)
+        COMPTE,            // D Compte
+        v.date,            // E Date
+    ]]);
+    // H:I (cols 8..9) — skip J onward (TPS/TVQ/soldes, all auto-calculated)
+    sheet.getRange(row, 8, 1, 2).setValues([[
         v.lots,            // H Lots
         v.parts,           // I Pièces
-        v.total,           // J Valeur $
-        0,                 // K Shipping
-    ]]);
-    // M:S (cols 13..19)
-    sheet.getRange(row, 13, 1, 7).setValues([[
-        0,                 // M Frais (P ou S)
-        v.payout,          // N Argent reçu
-        '',                // O ID
-        '',                // P (no header)
-        '',                // Q Fait?
-        COMPTE,            // R Compte
-        v.date,            // S Date
     ]]);
     return row;
 }
 
 function appendFraisRow_(sheet, row, v) {
-    sheet.getRange(row, 1, 1, 11).setValues([[
-        'Frais CFB',       // A Transaction
+    // A:E only — Frais carries no lots/pièces, so H:I are left untouched (blank).
+    sheet.getRange(row, 1, 1, 5).setValues([[
+        NOM_FRAIS,         // A Transaction
         CATEGORIE_FRAIS,   // B Catégorie
-        -v.fees,           // C Dépense — negative per accounting convention
-        '',                // D #
-        '',                // E Nom
-        '',                // F Pays
-        '',                // G Province
-        '',                // H Lots
-        '',                // I Pièces
-        '',                // J Valeur $
-        '',                // K Shipping
-    ]]);
-    sheet.getRange(row, 13, 1, 7).setValues([[
-        '',                // M Frais (P ou S)
-        '',                // N Argent reçu
-        '',                // O ID
-        '',                // P
-        '',                // Q Fait?
-        COMPTE,            // R Compte
-        v.date,            // S Date
+        -v.fees,           // C Montant — negative per accounting convention
+        COMPTE,            // D Compte
+        v.date,            // E Date
     ]]);
     return row;
 }
@@ -170,13 +157,13 @@ function jsonOut_(obj) {
 
 /**
  * Optional: run this once from the Apps Script editor to verify the script
- * can find the sheet and append a dummy row. Delete the row afterward.
+ * can find the sheet and append a dummy pair of rows. Delete them afterward.
  */
 function testAppendDummy() {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
     if (!sheet) throw new Error('sheet "' + SHEET_NAME + '" not found');
     const date = new Date();
     const [vRow, fRow] = nextDataRows_(sheet, 2);
-    appendVentesRow_(sheet, vRow, { date, lots: 1, parts: 1, total: 0.01, payout: 0.01 });
+    appendVentesRow_(sheet, vRow, { date, lots: 1, parts: 1, total: 0.01 });
     appendFraisRow_(sheet, fRow, { date, fees: 0.01 });
 }

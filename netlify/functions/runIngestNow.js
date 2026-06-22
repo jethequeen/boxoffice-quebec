@@ -41,6 +41,19 @@ const parseSources = (raw) => {
     return wanted;
 };
 
+// Which sheet(s) the manual post hits. Defaults to 'old' (the legacy sheet) so a
+// backfill never accidentally writes a per-day row to the streamlined sheet — that
+// one now receives a single weekly aggregate instead (weeklyIngest-background.js).
+// Returns the value postDailyEntry's `only` filter expects: 'old' | 'new' | null
+// (null = both). 'legacy' is accepted as a synonym for 'old'.
+const normalizeTarget = (raw) => {
+    const t = String(raw || 'old').trim().toLowerCase();
+    if (t === 'old' || t === 'legacy') return 'old';
+    if (t === 'new') return 'new';
+    if (t === 'both' || t === 'all') return null;
+    throw new Error(`Unknown target "${raw}" — expected old, new, or both`);
+};
+
 // Re-fetch one source's sheetable aggregate without any side effects. US totals
 // are converted to CAD via `fx`. Returns its CAD sheet totals so the caller can
 // sum sources and post once.
@@ -157,14 +170,15 @@ export const handler = async (event) => {
     const dryRun = qs.dryRun === '1';
     const force = qs.force === '1';
     const postOnlyMode = qs.postOnly === '1';
-    const target = qs.target || null;  // 'legacy' | 'new' — restricts which sheets webhook(s) fire
     const date = qs.date || todayInTZ();
     const startDate = qs.startDate || date;
     const endDate = qs.endDate || date;
 
     let sources;
+    let target;  // 'old' | 'new' | null (both) — which sheets webhook(s) fire
     try {
         sources = parseSources(qs.source);
+        target = normalizeTarget(qs.target);
     } catch (e) {
         return jsonResponse(400, { error: e.message });
     }
