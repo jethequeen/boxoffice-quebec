@@ -6,6 +6,8 @@ const STORE_NAME = 'inventory';
 const BSX_KEY = 'inventory.bsx';
 const SALES_KEY = 'sales-history.json';
 const INV_HISTORY_KEY = 'inventory-history.json';
+const COOKIES_KEY = 'cfb-cookies.json';
+const PENDING_BACKFILL_KEY = 'pending-backfill.json';
 
 /**
  * Local filesystem store — used in dev when BLOBS_LOCAL_DIR is set.
@@ -101,4 +103,52 @@ export async function appendInventorySnapshot(snapshot) {
     history.push(snapshot);
     await store().setJSON(INV_HISTORY_KEY, history);
     return history;
+}
+
+/**
+ * CFB session cookies, rotated at runtime via the token-reset flow. Stored as
+ * { CA, US, updatedAt }. The effective cookie for a source is the blob value if
+ * present, else the env var (CFB_COOKIE / CFB_COOKIE_US) — so a fresh deploy with
+ * only env vars still works, and a rotated cookie survives without a redeploy.
+ */
+export async function readCfbCookies() {
+    const raw = await store().get(COOKIES_KEY, { type: 'json' });
+    return raw && typeof raw === 'object' ? raw : {};
+}
+
+export async function writeCfbCookie(source, cookie) {
+    const cookies = await readCfbCookies();
+    cookies[source] = cookie;
+    cookies.updatedAt = new Date().toISOString();
+    await store().setJSON(COOKIES_KEY, cookies);
+    return cookies;
+}
+
+/**
+ * Days that a job could not ingest because the CFB session had expired. Keyed by
+ * `${date}|${source}` so a partial outage (one source down) is tracked precisely.
+ * The token-reset flow drains this once a fresh cookie is accepted.
+ */
+export async function readPendingBackfill() {
+    const raw = await store().get(PENDING_BACKFILL_KEY, { type: 'json' });
+    return Array.isArray(raw) ? raw : [];
+}
+
+export async function addPendingBackfill(date, source) {
+    const pending = await readPendingBackfill();
+    if (!pending.some((p) => p.date === date && p.source === source)) {
+        pending.push({ date, source, addedAt: new Date().toISOString() });
+        await store().setJSON(PENDING_BACKFILL_KEY, pending);
+    }
+    return pending;
+}
+
+/** Remove the given {date, source} pairs from the pending queue. */
+export async function clearPendingBackfill(done) {
+    const doneKeys = new Set(done.map((d) => `${d.date}|${d.source}`));
+    const remaining = (await readPendingBackfill()).filter(
+        (p) => !doneKeys.has(`${p.date}|${p.source}`),
+    );
+    await store().setJSON(PENDING_BACKFILL_KEY, remaining);
+    return remaining;
 }

@@ -6,6 +6,7 @@ import {
     aggregateRows,
     decrementsFromRows,
     isSheetableSale,
+    CfbAuthError,
 } from '../lib/cfb.js';
 import {
     readBsx,
@@ -13,10 +14,13 @@ import {
     appendSalesEntry,
     hasSalesEntryForDate,
     appendInventorySnapshot,
+    addPendingBackfill,
+    readPendingBackfill,
 } from '../lib/blobs.js';
 import { parseBsx, serializeBsx, applyDecrements, inventorySummary } from '../lib/bsx.js';
 import { postDailyEntry } from '../lib/sheets.js';
 import { getUsdCadRate, toCadTotals } from '../lib/fx.js';
+import { sendAuthExpiredEmail } from '../lib/email.js';
 
 const todayInTZ = (tz = 'America/Toronto') => {
     const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -154,6 +158,7 @@ async function run() {
 
     const combined = { parts: 0, lots: 0, total: 0, payout: 0, fees: 0 };
     let ingestedAny = false;
+    const authFailedSources = [];
 
     for (const source of Object.keys(SOURCES)) {
         try {
@@ -169,6 +174,26 @@ async function run() {
         } catch (e) {
             log.sources.find((s) => s.source === source).error = e.message;
             console.error(`[dailyIngest:${source}] FAIL`, e);
+            // An expired session must NOT be recorded as a zero day — queue the date
+            // for backfill and alert so the token can be refreshed. This is the
+            // silent-loss fix (see 2026-07-03).
+            if (e instanceof CfbAuthError || e.authExpired) {
+                await addPendingBackfill(date, source);
+                authFailedSources.push(source);
+            }
+        }
+    }
+
+    // One alert per source whose token expired, each carrying that source's queued
+    // backfill days and a magic link to the reset page.
+    for (const source of authFailedSources) {
+        try {
+            const missed = (await readPendingBackfill()).filter((p) => p.source === source);
+            await sendAuthExpiredEmail({ source, missed });
+            (log.alerts ||= []).push({ source, sent: true });
+        } catch (e) {
+            (log.alerts ||= []).push({ source, sent: false, error: e.message });
+            console.error(`[dailyIngest:${source}] alert failed`, e);
         }
     }
 

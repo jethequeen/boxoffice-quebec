@@ -1,7 +1,34 @@
 import * as cheerio from 'cheerio';
+import { readCfbCookies } from './blobs.js';
 
 const REPORT_NEW_PATH = '/bricklink/inventory_vendor_reports/new';
 const REPORT_POST_PATH = '/bricklink/inventory_vendor_reports';
+
+/**
+ * Thrown when a CFB request lands on the login page — i.e. the session cookie has
+ * expired. Callers must treat this distinctly: an expired token used to silently
+ * yield an empty report (parsed as a legitimate zero day), which is how 2026-07-03
+ * was lost. Now it surfaces so the day can be flagged for backfill and an alert
+ * sent instead of recording a false zero.
+ */
+export class CfbAuthError extends Error {
+    constructor(source, detail) {
+        super(`CFB[${source}] session expired${detail ? ` — ${detail}` : ''}`);
+        this.name = 'CfbAuthError';
+        this.source = source;
+        this.authExpired = true;
+    }
+}
+
+/** Heuristic: did this response bounce us to a login page? Returns a reason or null. */
+function loginReason(res, html) {
+    const finalUrl = (res && res.url) || '';
+    if (/\/(login|sign[_-]?in|sessions|users\/sign_in)\b/i.test(finalUrl)) return 'redirected to login';
+    const hasReportMarker = /inventory_vendor|vendor_report/i.test(html);
+    const hasPasswordField = /<input[^>]+type=["']?password/i.test(html);
+    if (hasPasswordField && !hasReportMarker) return 'login form detected';
+    return null;
+}
 
 /**
  * Both the Canadian (mocs.canadafirstbricks.com) and US (usmocs.canadafirstbricks.com)
@@ -20,15 +47,17 @@ const siteConfig = (source) => {
     return cfg;
 };
 
-const cookieHeader = (source) => {
+// Effective session cookie: the runtime-rotated blob value if present, else the
+// env var. Lets the token-reset flow swap a cookie without a redeploy.
+const cookieHeader = async (source) => {
     const { cookieEnv } = siteConfig(source);
-    const cookie = process.env[cookieEnv];
-    if (!cookie) throw new Error(`${cookieEnv} env var is required (source=${source})`);
+    const cookie = (await readCfbCookies())[source] || process.env[cookieEnv];
+    if (!cookie) throw new Error(`No CFB cookie for source=${source} (blob or ${cookieEnv})`);
     return cookie;
 };
 
-const headers = (source, extra = {}) => ({
-    Cookie: cookieHeader(source),
+const headers = async (source, extra = {}) => ({
+    Cookie: await cookieHeader(source),
     'User-Agent': 'Mozilla/5.0 (compatible; CineStatsInventoryBot/1.0)',
     Accept: 'text/html,application/xhtml+xml',
     ...extra,
@@ -37,8 +66,15 @@ const headers = (source, extra = {}) => ({
 async function fetchHtml(source, path, init = {}) {
     const { base } = siteConfig(source);
     const url = path.startsWith('http') ? path : `${base}${path}`;
-    const res = await fetch(url, { ...init, headers: { ...headers(source), ...(init.headers || {}) } });
+    const res = await fetch(url, { ...init, headers: { ...(await headers(source)), ...(init.headers || {}) } });
     const text = await res.text();
+
+    // An expired session redirects to (or renders) the login page. Surface it as a
+    // typed error instead of letting the parser see zero rows and record a false zero.
+    const reason = loginReason(res, text);
+    if (reason || res.status === 401 || res.status === 403) {
+        throw new CfbAuthError(source, reason || `HTTP ${res.status}`);
+    }
     if (!res.ok) {
         throw new Error(`CFB[${source}] request ${path} failed: ${res.status} ${res.statusText} — ${text.slice(0, 200)}`);
     }
