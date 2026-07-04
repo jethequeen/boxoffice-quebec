@@ -89,6 +89,24 @@ export async function hasSalesEntryForDate(date, source = 'CA') {
     return history.some((e) => e?.date === date && (e?.source || 'CA') === source);
 }
 
+export async function findSalesEntriesForDate(date, source = 'CA') {
+    const history = await readSalesHistory();
+    return history.filter((e) => e?.date === date && (e?.source || 'CA') === source);
+}
+
+/**
+ * Drop every sales-history entry for (date, source). Used by the `replace` ingest
+ * mode to correct a false-zero day (one recorded while the token was expired)
+ * before re-ingesting the real numbers. Returns how many entries were removed.
+ */
+export async function removeSalesEntriesForDate(date, source = 'CA') {
+    const history = await readSalesHistory();
+    const keep = history.filter((e) => !(e?.date === date && (e?.source || 'CA') === source));
+    const removed = history.length - keep.length;
+    if (removed) await writeSalesHistory(keep);
+    return removed;
+}
+
 export async function readInventoryHistory() {
     const raw = await store().get(INV_HISTORY_KEY, { type: 'json' });
     return Array.isArray(raw) ? raw : [];

@@ -190,6 +190,7 @@ function RunIngest() {
         return d.toISOString().slice(0, 10);
     });
     const [source, setSource] = useState('');   // '' = both CA + US
+    const [replace, setReplace] = useState(false);
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);
     const [err, setErr] = useState(null);
@@ -211,6 +212,7 @@ function RunIngest() {
         try {
             const params = new URLSearchParams({ date });
             if (source) params.set('source', source);
+            if (replace) params.set('replace', '1');
             const res = await fetch(`/.netlify/functions/runIngestNow?${params.toString()}`, {
                 method: 'POST',
                 headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -261,6 +263,17 @@ function RunIngest() {
                         </label>
                     </div>
                     <div className="inv-upload__row">
+                        <label>
+                            <input
+                                type="checkbox"
+                                checked={replace}
+                                onChange={(e) => setReplace(e.target.checked)}
+                                disabled={busy}
+                            />
+                            {' '}Remplacer une journée déjà enregistrée (corriger un faux zéro laissé par un token expiré)
+                        </label>
+                    </div>
+                    <div className="inv-upload__row">
                         <input
                             type="password"
                             placeholder="Ingest token (laisse vide si non requis)"
@@ -277,7 +290,7 @@ function RunIngest() {
                             onClick={submit}
                             disabled={!date || busy}
                         >
-                            {busy ? 'Ingestion en cours…' : 'Ingérer cette journée'}
+                            {busy ? 'Ingestion en cours…' : (replace ? 'Remplacer cette journée' : 'Ingérer cette journée')}
                         </button>
                     </div>
                     {result && (

@@ -11,6 +11,8 @@ import {
     writeBsx,
     appendSalesEntry,
     hasSalesEntryForDate,
+    findSalesEntriesForDate,
+    removeSalesEntriesForDate,
     appendInventorySnapshot,
 } from '../lib/blobs.js';
 import { parseBsx, serializeBsx, applyDecrements, inventorySummary } from '../lib/bsx.js';
@@ -75,12 +77,25 @@ async function postOnlyTotals({ date, source, fx, log }) {
     return t;
 }
 
-async function ingestOne({ source, date, startDate, endDate, dryRun, force, fx, log }) {
+async function ingestOne({ source, date, startDate, endDate, dryRun, force, replace, fx, log }) {
     const sub = { source, steps: [] };
     log.sources.push(sub);
 
-    if (!dryRun && !force && await hasSalesEntryForDate(date, source)) {
-        sub.error = `Already ingested ${source} for ${date}. Pass ?force=1 to override (will double-decrement).`;
+    // `replace` corrects a false-zero day (one recorded while the token was
+    // expired): it drops the prior entry and re-ingests the real numbers. It is
+    // only safe when that prior entry decremented NOTHING — otherwise the
+    // inventory was already touched and a blind replace would leave it wrong, so
+    // we refuse and ask for a manual fix.
+    if (!dryRun && replace) {
+        const existing = await findSalesEntriesForDate(date, source);
+        if (existing.some((e) => (e.applied?.length || 0) > 0)) {
+            sub.error = `Refus de remplacer ${source} ${date}: une entrée existante a déjà décrémenté l’inventaire (correction manuelle requise).`;
+            return { status: 'replace_blocked' };
+        }
+    }
+
+    if (!dryRun && !force && !replace && await hasSalesEntryForDate(date, source)) {
+        sub.error = `Already ingested ${source} for ${date}. Pass ?replace=1 to correct a false zero, or ?force=1 to override (will double-decrement).`;
         return { status: 'already_ingested' };
     }
 
@@ -156,6 +171,12 @@ async function ingestOne({ source, date, startDate, endDate, dryRun, force, fx, 
         fees: totals.fees,
         bySection: totals.bySection,
     };
+    // In replace mode, drop the prior (false-zero) entry now that we have real data
+    // — only reached after a successful fetch, so an auth failure never deletes it.
+    if (replace) {
+        const removed = await removeSalesEntriesForDate(date, source);
+        sub.steps.push({ step: 'replaced_prior_entries', removed });
+    }
     await appendSalesEntry({ ...entry, applied, missing, platformDecrements });
     sub.steps.push({ step: 'sales_history_appended' });
 
@@ -170,6 +191,7 @@ export const handler = async (event) => {
     const qs = event.queryStringParameters || {};
     const dryRun = qs.dryRun === '1';
     const force = qs.force === '1';
+    const replace = qs.replace === '1';
     const postOnlyMode = qs.postOnly === '1';
     const date = qs.date || todayInTZ();
     const startDate = qs.startDate || date;
@@ -184,7 +206,7 @@ export const handler = async (event) => {
         return jsonResponse(400, { error: e.message });
     }
 
-    const log = { date, startDate, endDate, dryRun, force, postOnly: postOnlyMode, target, sources: [] };
+    const log = { date, startDate, endDate, dryRun, force, replace, postOnly: postOnlyMode, target, sources: [] };
 
     // US money is in USD — fetch the report date's USD→CAD rate so US totals can
     // be converted before being summed with CA. Only needed when US is requested
@@ -232,7 +254,7 @@ export const handler = async (event) => {
         } else {
             for (const source of sources) {
                 try {
-                    const r = await ingestOne({ source, date, startDate, endDate, dryRun, force, fx, log });
+                    const r = await ingestOne({ source, date, startDate, endDate, dryRun, force, replace, fx, log });
                     if (r.status === 'no_bsx') {
                         return jsonResponse(412, { error: 'No inventory.bsx in blob store. Seed it first.', log });
                     }
