@@ -17,6 +17,7 @@ import { parseBsx, serializeBsx, applyDecrements, inventorySummary } from '../li
 import { postDailyEntry } from '../lib/sheets.js';
 import { getUsdCadRate, toCadTotals } from '../lib/fx.js';
 import { jsonResponse } from '../lib/http.js';
+import { queueAuthFailure, alertAuthFailures } from '../lib/authAlert.js';
 
 const todayInTZ = (tz = 'America/Toronto') => {
     const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -202,6 +203,7 @@ export const handler = async (event) => {
     // summed and posted to the sheet once per invocation.
     const combined = { parts: 0, lots: 0, total: 0, payout: 0, fees: 0 };
     let ingestedAny = false;
+    const authFailedSources = [];
     const addTotals = (t) => {
         if (!t) return;
         ingestedAny = true;
@@ -219,7 +221,13 @@ export const handler = async (event) => {
             // payout > 0). No inventory or sales-history side effects — safe to
             // run any time for backfills or corrections, including past dates.
             for (const source of sources) {
-                addTotals(await postOnlyTotals({ date, source, fx, log }));
+                try {
+                    addTotals(await postOnlyTotals({ date, source, fx, log }));
+                } catch (e) {
+                    (log.sources.find((s) => s.source === source) || {}).error = e.message;
+                    console.error(`[runIngestNow:postOnly:${source}] FAIL`, e);
+                    if (await queueAuthFailure(e, { date, source })) authFailedSources.push(source);
+                }
             }
         } else {
             for (const source of sources) {
@@ -232,9 +240,15 @@ export const handler = async (event) => {
                 } catch (e) {
                     log.sources.find((s) => s.source === source).error = e.message;
                     console.error(`[runIngestNow:${source}] FAIL`, e);
+                    // Parity with the cron jobs: an expired session queues the day
+                    // and alerts (skipped on dry runs, which must stay side-effect-free).
+                    if (!dryRun && await queueAuthFailure(e, { date, source })) authFailedSources.push(source);
                 }
             }
         }
+
+        // Manual runs alert just like the cron so a token expiry surfaces on demand.
+        if (!dryRun) await alertAuthFailures(authFailedSources, log);
 
         // Dry runs return no totals and never post.
         if (ingestedAny && !dryRun) {

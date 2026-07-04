@@ -5,12 +5,10 @@ import {
     parseReportRows,
     aggregateRows,
     isSheetableSale,
-    CfbAuthError,
 } from '../lib/cfb.js';
 import { postDailyEntry } from '../lib/sheets.js';
 import { getUsdCadRate } from '../lib/fx.js';
-import { addPendingBackfill, readPendingBackfill } from '../lib/blobs.js';
-import { sendAuthExpiredEmail } from '../lib/email.js';
+import { queueAuthFailure, alertAuthFailures } from '../lib/authAlert.js';
 
 /**
  * Weekly sheet aggregate for the streamlined "Journal officiel" sheet.
@@ -87,25 +85,14 @@ async function run() {
                 log.errors.push(`${date}/${source}: ${e.message}`);
                 console.error(`[weeklyIngest:${date}:${source}] FAIL`, e);
                 // Expired token — queue the day and flag the source for an alert.
-                if (e instanceof CfbAuthError || e.authExpired) {
-                    await addPendingBackfill(date, source);
-                    authFailedSources.add(source);
-                }
+                if (await queueAuthFailure(e, { date, source })) authFailedSources.add(source);
             }
         }
     }
 
     // If the session expired mid-week, alert (once per source) so the token can be
     // refreshed — the weekly total below is posted anyway from whatever was reachable.
-    for (const source of authFailedSources) {
-        try {
-            const missed = (await readPendingBackfill()).filter((p) => p.source === source);
-            await sendAuthExpiredEmail({ source, missed });
-            (log.alerts ||= []).push({ source, sent: true });
-        } catch (e) {
-            (log.alerts ||= []).push({ source, sent: false, error: e.message });
-        }
-    }
+    await alertAuthFailures(authFailedSources, log);
 
     if (allRows.length === 0) {
         log.note = `No sheetable sales for week ending ${friday}.`;

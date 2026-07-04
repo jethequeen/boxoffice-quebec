@@ -180,6 +180,132 @@ function UploadBsx({ onUploaded }) {
     );
 }
 
+function RunIngest() {
+    const [token, setToken] = useState(() => {
+        try { return localStorage.getItem(TOKEN_STORAGE_KEY) || ''; } catch { return ''; }
+    });
+    const [date, setDate] = useState(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);   // default: yesterday
+        return d.toISOString().slice(0, 10);
+    });
+    const [source, setSource] = useState('');   // '' = both CA + US
+    const [busy, setBusy] = useState(false);
+    const [result, setResult] = useState(null);
+    const [err, setErr] = useState(null);
+    const [open, setOpen] = useState(false);
+
+    const persistToken = (v) => {
+        setToken(v);
+        try {
+            if (v) localStorage.setItem(TOKEN_STORAGE_KEY, v);
+            else localStorage.removeItem(TOKEN_STORAGE_KEY);
+        } catch { /* ignore */ }
+    };
+
+    const submit = async () => {
+        if (!date) return;
+        setBusy(true);
+        setResult(null);
+        setErr(null);
+        try {
+            const params = new URLSearchParams({ date });
+            if (source) params.set('source', source);
+            const res = await fetch(`/.netlify/functions/runIngestNow?${params.toString()}`, {
+                method: 'POST',
+                headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+            setResult(data);
+        } catch (e) {
+            setErr(e.message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const alertSent = result?.alerts?.some((a) => a.sent);
+    const sourceErrors = (result?.sources || []).filter((s) => s.error);
+    const posted = result?.sheets?.step === 'sheets_posted';
+
+    return (
+        <section className="inv-card inv-upload">
+            <div className="inv-card__head">
+                <h2>Ingérer une journée</h2>
+                <button type="button" className="inv-tab" onClick={() => setOpen((v) => !v)}>
+                    {open ? 'Fermer' : 'Ouvrir'}
+                </button>
+            </div>
+            {open && (
+                <div className="inv-upload__body">
+                    <p className="inv-upload__hint">
+                        Relance l'ingestion CFB pour une journée précise (décrémente l'inventaire et poste
+                        la ligne quotidienne dans l'<strong>ancienne</strong> feuille). Utile pour rattraper
+                        un jour manqué ou tester le flux de reset de token.
+                    </p>
+                    <div className="inv-upload__row">
+                        <label>
+                            Journée&nbsp;:{' '}
+                            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={busy} />
+                        </label>
+                    </div>
+                    <div className="inv-upload__row">
+                        <label>
+                            Source&nbsp;:{' '}
+                            <select value={source} onChange={(e) => setSource(e.target.value)} disabled={busy}>
+                                <option value="">Les deux (CA + US)</option>
+                                <option value="CA">CA seulement</option>
+                                <option value="US">US seulement</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div className="inv-upload__row">
+                        <input
+                            type="password"
+                            placeholder="Ingest token (laisse vide si non requis)"
+                            value={token}
+                            onChange={(e) => persistToken(e.target.value)}
+                            disabled={busy}
+                            className="inv-upload__token"
+                        />
+                    </div>
+                    <div className="inv-upload__row">
+                        <button
+                            type="button"
+                            className="inv-upload__submit"
+                            onClick={submit}
+                            disabled={!date || busy}
+                        >
+                            {busy ? 'Ingestion en cours…' : 'Ingérer cette journée'}
+                        </button>
+                    </div>
+                    {result && (
+                        <div className="inv-upload__ok">
+                            {alertSent && (
+                                <div>🔒 Session CFB expirée détectée — courriel d'alerte envoyé. Vérifie ta boîte pour réinitialiser le token.</div>
+                            )}
+                            {!alertSent && posted && (
+                                <div>
+                                    ✓ Journée {result.date} ingérée · {fmtInt(result.sheets.combined.parts)} pièces ·
+                                    {' '}payout {fmtMoney(result.sheets.combined.payout)}
+                                </div>
+                            )}
+                            {!alertSent && !posted && <div>✓ Terminé pour {result.date} (rien à poster).</div>}
+                            {sourceErrors.length > 0 && (
+                                <ul>
+                                    {sourceErrors.map((s) => <li key={s.source}>{s.source} : {s.error}</li>)}
+                                </ul>
+                            )}
+                        </div>
+                    )}
+                    {err && <div className="inv-upload__err">⚠ {err}</div>}
+                </div>
+            )}
+        </section>
+    );
+}
+
 function pickRange(entries, days) {
     if (!entries?.length) return [];
     const cutoff = new Date();
@@ -317,6 +443,7 @@ export default function InventoryDashboard() {
             </header>
 
             <UploadBsx onUploaded={() => setReloadTick((n) => n + 1)} />
+            <RunIngest />
 
             <nav className="inv-tabs-nav">
                 <button
