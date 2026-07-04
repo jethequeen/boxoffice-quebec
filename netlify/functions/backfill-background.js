@@ -7,8 +7,14 @@ import { readPendingBackfill, clearPendingBackfill } from '../lib/blobs.js';
  * missed day SEQUENTIALLY: every ingest does a read-modify-write on the shared
  * inventory.bsx blob, so parallel days would race and lose decrements. It reuses
  * the existing runIngestNow endpoint (source + date, legacy sheet only) rather
- * than duplicating ingest logic; that endpoint is idempotent (hasSalesEntryForDate
- * short-circuits an already-ingested day), so a re-trigger is safe.
+ * than duplicating ingest logic.
+ *
+ * It passes replace=1: a queued day was usually already recorded as a false zero
+ * (by an ingest that ran while the token was expired), so a plain re-ingest would
+ * hit the idempotency check and skip it, leaving the zero in place. replace=1 drops
+ * that false-zero entry and re-ingests the real numbers. It stays safe otherwise —
+ * replace refuses to overwrite an entry that decremented inventory, and a day with
+ * no entry re-ingests normally.
  *
  * Triggered by cfbToken.js on a successful token submit, optionally filtered to
  * the source that was just fixed (?source=CA). Gated by INGEST_TOKEN when set.
@@ -35,7 +41,7 @@ export const handler = async (event) => {
     for (const p of pending) {
         try {
             const res = await fetch(
-                `${base}/api/runIngestNow?source=${p.source}&date=${p.date}&target=old`,
+                `${base}/api/runIngestNow?source=${p.source}&date=${p.date}&target=old&replace=1`,
                 { method: 'POST', headers: authHeader },
             );
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
