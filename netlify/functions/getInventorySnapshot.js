@@ -22,8 +22,8 @@ const monthKey = (dateStr) => dateStr.slice(0, 7);
 const sellerKey = (itemId, colorName, condition) =>
     `${String(itemId).trim()}|${String(colorName).trim().toLowerCase()}|${String(condition).trim().toUpperCase().slice(0, 1)}`;
 
-function accumulate(map, key, totals, bySection) {
-    const cur = map.get(key) || { parts: 0, lots: 0, total: 0, payout: 0, fees: 0, bySection: {} };
+function accumulate(map, key, totals, bySection, source) {
+    const cur = map.get(key) || { parts: 0, lots: 0, total: 0, payout: 0, fees: 0, bySection: {}, bySource: {} };
     cur.parts += totals.parts;
     cur.lots += totals.lots;
     cur.total += totals.total;
@@ -35,6 +35,16 @@ function accumulate(map, key, totals, bySection) {
         c.total += Number(vals.total || 0);
         c.payout += Number(vals.payout || 0);
         cur.bySection[section] = c;
+    }
+    // Per-source (CA/US) split so the dashboard can show UFB vs CFB per day/period.
+    if (source) {
+        const s = cur.bySource[source] || { parts: 0, lots: 0, total: 0, payout: 0, fees: 0 };
+        s.parts += totals.parts;
+        s.lots += totals.lots;
+        s.total += totals.total;
+        s.payout += totals.payout;
+        s.fees += totals.fees;
+        cur.bySource[source] = s;
     }
     map.set(key, cur);
 }
@@ -55,9 +65,10 @@ function bucketSales(history) {
             payout: e.payout || 0,
             fees: e.fees || 0,
         };
-        accumulate(day, date, totals, e.bySection);
-        accumulate(week, isoWeek(date), totals, e.bySection);
-        accumulate(month, monthKey(date), totals, e.bySection);
+        const source = e.source || 'CA';
+        accumulate(day, date, totals, e.bySection, source);
+        accumulate(week, isoWeek(date), totals, e.bySection, source);
+        accumulate(month, monthKey(date), totals, e.bySection, source);
 
         // Only count platform sales — manual withdrawals are inventory write-offs, not sales.
         // Entries written before platformDecrements existed are skipped here (they'd need

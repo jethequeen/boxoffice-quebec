@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-    BarChart, Bar,
+    BarChart, Bar, Legend,
 } from 'recharts';
 import { getInventorySnapshot } from '../utils/api';
 import './InventoryDashboard.css';
@@ -94,8 +94,8 @@ function UploadBsx({ onUploaded }) {
             {open && (
                 <div className="inv-upload__body">
                     <p className="inv-upload__hint">
-                        Téléverse un <code>.bsx</code> pour <strong>fusionner</strong> ses lots dans l'inventaire maître.
-                        Le mode dicte quoi faire quand un lot existe déjà (même <code>ItemID</code> + couleur + état).
+                        Fusionne les lots d'un <code>.bsx</code> dans l'inventaire maître. Le mode gère les collisions
+                        (même <code>ItemID</code> + couleur + état).
                     </p>
 
                     <fieldset className="inv-upload__modes" disabled={busy}>
@@ -242,9 +242,7 @@ function RunIngest() {
             {open && (
                 <div className="inv-upload__body">
                     <p className="inv-upload__hint">
-                        Relance l'ingestion CFB pour une journée précise (décrémente l'inventaire et poste
-                        la ligne quotidienne dans l'<strong>ancienne</strong> feuille). Utile pour rattraper
-                        un jour manqué ou tester le flux de reset de token.
+                        Relance l'ingestion CFB d'une journée (décrémente l'inventaire, poste la ligne quotidienne).
                     </p>
                     <div className="inv-upload__row">
                         <label>
@@ -389,9 +387,8 @@ function InvoiceGenerator() {
             </div>
             <div className="inv-upload__body">
                 <p className="inv-upload__hint">
-                    Produit les <strong>deux factures</strong> (CFB + UFB) pour l'intervalle choisi, adressées à
-                    Canada First Bricks en CAD. Les ventes US sont converties au taux Banque du Canada du jour
-                    moins&nbsp;1&nbsp;%. « Générer et envoyer » expédie les PDF à ton courriel.
+                    Deux factures (CFB + UFB) pour l'intervalle choisi, en CAD. « Générer et envoyer » les
+                    expédie en PDF à ton courriel.
                 </p>
                 <div className="inv-upload__row">
                     <label>
@@ -536,11 +533,69 @@ function dailyInvSeries(snapshots) {
     return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// Look up a single day's sales, split CFB (Canada) vs UFB (USA). Reads the daily
+// buckets already loaded — no extra request. US money is stored in CAD.
+function DaySales({ daily }) {
+    const latest = daily.length ? daily[daily.length - 1].key : '';
+    const [date, setDate] = useState(latest);
+    const day = daily.find((d) => d.key === date) || null;
+    const ca = day?.bySource?.CA || null;
+    const us = day?.bySource?.US || null;
+
+    const col = (s) => (
+        <>
+            <td className="num">{s ? fmtInt(s.parts) : '—'}</td>
+            <td className="num">{s ? fmtMoney(s.total) : '—'}</td>
+            <td className="num">{s ? fmtMoney(s.payout) : '—'}</td>
+        </>
+    );
+
+    return (
+        <section className="inv-card">
+            <div className="inv-card__head">
+                <h2>Ventes d'une journée</h2>
+                <input
+                    type="date"
+                    value={date}
+                    max={latest || undefined}
+                    onChange={(e) => setDate(e.target.value)}
+                />
+            </div>
+            {!day ? (
+                <div className="inv-empty">Aucune vente enregistrée le {date || '—'}.</div>
+            ) : (
+                <table className="inv-day-table">
+                    <thead>
+                        <tr>
+                            <th>Source</th>
+                            <th className="num">Pièces</th>
+                            <th className="num">Ventes brutes</th>
+                            <th className="num">Payout</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>CFB (Canada)</td>{col(ca)}</tr>
+                        <tr><td>UFB (USA)</td>{col(us)}</tr>
+                        <tr className="inv-day-table__total">
+                            <td>Total</td>
+                            <td className="num">{fmtInt(day.parts)}</td>
+                            <td className="num">{fmtMoney(day.total)}</td>
+                            <td className="num">{fmtMoney(day.payout)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            )}
+        </section>
+    );
+}
+
 export default function InventoryDashboard() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState(null);
     const [range, setRange] = useState(30);
+    const [customStart, setCustomStart] = useState('');
+    const [customEnd, setCustomEnd] = useState('');
     const [reloadTick, setReloadTick] = useState(0);
     const [tab, setTab] = useState('sales');
 
@@ -561,7 +616,31 @@ export default function InventoryDashboard() {
         return () => { cancel = true; };
     }, [reloadTick]);
 
-    const dailySeries = useMemo(() => pickRange(data?.sales?.daily || [], range), [data, range]);
+    const dailySeries = useMemo(() => {
+        const all = data?.sales?.daily || [];
+        if (range === 'custom') {
+            if (!customStart || !customEnd) return all;
+            return all.filter((e) => e.key >= customStart && e.key <= customEnd);
+        }
+        return pickRange(all, range);
+    }, [data, range, customStart, customEnd]);
+
+    // Aggregate the currently-displayed range, split by source (CFB = CA, UFB = US).
+    const windowStats = useMemo(() => {
+        const z = () => ({ parts: 0, total: 0, payout: 0, fees: 0 });
+        const acc = { ...z(), CA: z(), US: z() };
+        for (const d of dailySeries) {
+            acc.parts += d.parts || 0; acc.total += d.total || 0;
+            acc.payout += d.payout || 0; acc.fees += d.fees || 0;
+            for (const src of ['CA', 'US']) {
+                const s = d.bySource?.[src];
+                if (!s) continue;
+                acc[src].parts += s.parts || 0; acc[src].total += s.total || 0;
+                acc[src].payout += s.payout || 0; acc[src].fees += s.fees || 0;
+            }
+        }
+        return acc;
+    }, [dailySeries]);
 
     const totals = useMemo(() => {
         const sum = (rows) => rows.reduce((acc, r) => ({
@@ -707,6 +786,8 @@ export default function InventoryDashboard() {
                         />
                     </section>
 
+                    <DaySales daily={sales.daily || []} />
+
                     <section className="inv-card">
                         <div className="inv-card__head">
                             <h2>Ventes quotidiennes</h2>
@@ -720,19 +801,53 @@ export default function InventoryDashboard() {
                                         {d}j
                                     </button>
                                 ))}
+                                <button
+                                    className={`inv-tab ${range === 'custom' ? 'inv-tab--active' : ''}`}
+                                    onClick={() => setRange('custom')}
+                                >
+                                    Intervalle
+                                </button>
                             </div>
                         </div>
+
+                        {range === 'custom' && (
+                            <div className="inv-range-custom">
+                                <label>Du{' '}
+                                    <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} />
+                                </label>
+                                <label>Au{' '}
+                                    <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} />
+                                </label>
+                            </div>
+                        )}
+
+                        <div className="inv-substats">
+                            <div><span>Pièces</span><strong>{fmtInt(windowStats.parts)}</strong></div>
+                            <div><span>Ventes brutes</span><strong>{fmtMoney(windowStats.total)}</strong></div>
+                            <div><span>Payout</span><strong>{fmtMoney(windowStats.payout)}</strong></div>
+                            <div><span>Frais</span><strong>{fmtMoney(windowStats.fees)}</strong></div>
+                            <div>
+                                <span>CFB (Canada)</span>
+                                <strong>{fmtMoney(windowStats.CA.payout)}</strong>
+                                <small>{fmtInt(windowStats.CA.parts)} pièces</small>
+                            </div>
+                            <div>
+                                <span>UFB (USA)</span>
+                                <strong>{fmtMoney(windowStats.US.payout)}</strong>
+                                <small>{fmtInt(windowStats.US.parts)} pièces</small>
+                            </div>
+                        </div>
+
                         <div className="inv-chart">
-                            <ResponsiveContainer width="100%" height={260}>
+                            <ResponsiveContainer width="100%" height={280}>
                                 <LineChart data={dailySeries} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                                     <XAxis dataKey="key" tick={{ fontSize: 11 }} />
                                     <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtMoneyShort} />
-                                    <Tooltip
-                                        formatter={(v, key) => key === 'payout' ? fmtMoney(v) : fmtInt(v)}
-                                        labelStyle={{ fontWeight: 700 }}
-                                    />
-                                    <Line type="monotone" dataKey="payout" stroke="#4F46E5" strokeWidth={2} dot={false} />
+                                    <Tooltip formatter={(v) => fmtMoney(v)} labelStyle={{ fontWeight: 700 }} />
+                                    <Legend />
+                                    <Line type="monotone" dataKey="total" name="Ventes brutes" stroke="#10B981" strokeWidth={2} dot={false} />
+                                    <Line type="monotone" dataKey="payout" name="Payout" stroke="#4F46E5" strokeWidth={2} dot={false} />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>

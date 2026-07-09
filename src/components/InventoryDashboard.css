@@ -164,8 +164,82 @@
 
 .inv-empty {
     color: #9ca3af;
-    font-style: italic;
     padding: 12px 4px;
+}
+
+.inv-range-custom {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 4px 0 12px;
+    font-size: 0.9rem;
+    color: #374151;
+}
+
+.inv-substats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin: 8px 0 16px;
+}
+
+.inv-substats > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 12px;
+    background: #f9fafb;
+    border: 1px solid #eef0f2;
+    border-radius: 8px;
+}
+
+.inv-substats span {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #6b7280;
+}
+
+.inv-substats strong {
+    font-size: 1.05rem;
+    color: #111827;
+}
+
+.inv-substats small {
+    font-size: 0.75rem;
+    color: #9ca3af;
+}
+
+.inv-day-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+}
+
+.inv-day-table th {
+    text-align: left;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #6b7280;
+    padding: 6px 12px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.inv-day-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f1f1;
+}
+
+.inv-day-table .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.inv-day-table__total td {
+    font-weight: 700;
+    border-top: 2px solid #e5e7eb;
+    border-bottom: none;
 }
 
 .inv-page-loading,
