@@ -3,6 +3,10 @@
  * pdfkit. Uses the built-in Helvetica standard fonts (WinAnsi — full French accent
  * support), so no font files ship with the function. Output is a single A4-ish page.
  *
+ * Layout separates the COMMISSION CALCULATION (gross sales + FX detail, shown as a
+ * muted basis) from the BILLING lines (commission → subtotal → taxes → total), so it
+ * is unambiguous that only the commission — not the gross sales — is being charged.
+ *
  * Returns Promise<Buffer> so callers can attach it to a Resend email (base64).
  */
 
@@ -12,6 +16,8 @@ const cad = (n) =>
     new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD' }).format(Number(n) || 0);
 const usd = (n) =>
     new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'USD' }).format(Number(n) || 0);
+const int = (n) => new Intl.NumberFormat('fr-CA').format(Number(n) || 0);
+const rate = (x) => String(x).replace('.', ',');   // exchange rates: French decimal comma
 const pct = (r) => `${(Number(r) * 100).toFixed(3).replace(/\.?0+$/, '').replace('.', ',')} %`;
 const frDate = (ymd) =>
     new Intl.DateTimeFormat('fr-CA', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -71,82 +77,75 @@ export function renderInvoicePdf(inv) {
             .text(`Ventes réalisées chez : ${inv.store}`, left, doc.y + 4);
         doc.text(`Du ${frDate(inv.period.start)} au ${frDate(inv.period.end)}`);
 
-        // ---- Line-item table ------------------------------------------------
-        y = 260;
-        const col = { desc: left, qty: left + contentWidth * 0.58, amt: right };
-        doc.font('Helvetica-Bold').fontSize(9).fillColor(MUTED);
-        doc.text('DESCRIPTION', col.desc, y);
-        doc.text('DÉTAIL', col.qty, y, { width: contentWidth * 0.2, align: 'right' });
-        doc.text('MONTANT (CAD)', col.qty + contentWidth * 0.2, y, { width: right - (col.qty + contentWidth * 0.2), align: 'right' });
-        y += 14;
-        doc.moveTo(left, y).lineTo(right, y).strokeColor(RULE).lineWidth(1).stroke();
-        y += 10;
+        // Column geometry shared by the calc + billing rows.
+        const amtW = contentWidth * 0.24;
+        const amtX = right - amtW;
+        const detW = contentWidth * 0.18;
+        const detX = amtX - detW;
+        const labelW = detX - left;
 
-        // Gross-sales row (context for the commission)
-        const grossDetail = inv.conversion
-            ? usd(inv.conversion.grossUsd)
-            : `${inv.sales.parts} pièces`;
-        doc.font('Helvetica').fontSize(10).fillColor(INK);
-        doc.text('Ventes brutes de la période', col.desc, y, { width: contentWidth * 0.55 });
-        doc.text(grossDetail, col.qty, y, { width: contentWidth * 0.2, align: 'right' });
-        doc.text(cad(inv.sales.grossCad), col.qty + contentWidth * 0.2, y, { width: right - (col.qty + contentWidth * 0.2), align: 'right' });
-        y = doc.y + 6;
+        // A single row: label (left), optional detail (middle, right-aligned),
+        // amount (right). `muted` renders the whole row grey (used for the basis).
+        const row = (label, detail, amount, opts = {}) => {
+            const color = opts.muted ? MUTED : INK;
+            const font = opts.bold ? 'Helvetica-Bold' : 'Helvetica';
+            doc.font(font).fontSize(opts.size || 10).fillColor(color);
+            doc.text(label, left, y, { width: labelW });
+            const rowTop = y;                       // labels can wrap; anchor detail/amount to the top
+            if (detail) doc.fillColor(MUTED).font('Helvetica').fontSize(opts.size || 10)
+                .text(detail, detX, rowTop, { width: detW, align: 'right' });
+            doc.font(font).fontSize(opts.size || 10).fillColor(opts.bold ? INK : color)
+                .text(amount, amtX, rowTop, { width: amtW, align: 'right' });
+            y = doc.y + 7;
+        };
+        const rule = (x0 = left, x1 = right, gap = 8) => {
+            doc.moveTo(x0, y).lineTo(x1, y).strokeColor(RULE).lineWidth(1).stroke();
+            y += gap;
+        };
 
-        // FX explanation row (UFB only)
+        // ---- Calcul de la commission (basis — NOT the amount charged) --------
+        y = 248;
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(MUTED).text('CALCUL DE LA COMMISSION', left, y);
+        y += 18;
+
         if (inv.conversion) {
-            doc.font('Helvetica-Oblique').fontSize(8.5).fillColor(MUTED);
             const c = inv.conversion;
-            doc.text(
-                `Conversion USD vers CAD : taux Banque du Canada ${c.bocRate}`
-                + (c.bocRateDate ? ` (${c.bocRateDate})` : '')
-                + ` moins ${pct(c.spread)} = ${c.effectiveRate}`,
-                col.desc, y, { width: contentWidth },
-            );
-            y = doc.y + 8;
+            row('Ventes brutes de la période', `${int(inv.sales.parts)} pièces`, usd(c.grossUsd), { muted: true });
+            row(`Taux Banque du Canada${c.bocRateDate ? ` (${c.bocRateDate})` : ''}`, '', rate(c.bocRate), { muted: true });
+            row(`Taux appliqué (moins ${pct(c.spread)})`, '', rate(c.effectiveRate), { muted: true });
+            row('Ventes brutes converties (CAD)', '', cad(inv.sales.grossCad), { muted: true });
+        } else {
+            row('Ventes brutes de la période', `${int(inv.sales.parts)} pièces`, cad(inv.sales.grossCad), { muted: true });
         }
+        y += 4;
+        rule(left, right, 16);
 
-        // Commission row
-        doc.font('Helvetica').fontSize(10).fillColor(INK);
-        doc.text(
-            `Commission de gestion (${pct(inv.commissionRate)} des ventes brutes, taxes incluses)`,
-            col.desc, y, { width: contentWidth * 0.55 },
-        );
-        doc.text(`${inv.sales.parts} pièces`, col.qty, y, { width: contentWidth * 0.2, align: 'right' });
-        doc.text(cad(inv.amounts.total), col.qty + contentWidth * 0.2, y, { width: right - (col.qty + contentWidth * 0.2), align: 'right' });
-        y = doc.y + 14;
+        // ---- Facturation (the commission is the only charged amount) ---------
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(MUTED).text('FACTURATION', left, y);
+        y += 18;
+        row(`Commission de gestion (${pct(inv.commissionRate)} des ventes brutes)`, '', cad(inv.amounts.subtotal));
+        rule(left, right, 10);
 
-        doc.moveTo(left, y).lineTo(right, y).strokeColor(RULE).lineWidth(1).stroke();
-        y += 12;
-
-        // ---- Totals (right-aligned block) -----------------------------------
-        const labelX = left + contentWidth * 0.5;
-        const labelW = contentWidth * 0.28;
-        const valX = labelX + labelW;
-        const valW = right - valX;
+        // Totals block, right-aligned under the amount column.
         const totalLine = (label, value, opts = {}) => {
             doc.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(opts.bold ? 12 : 10)
                 .fillColor(opts.bold ? INK : MUTED);
-            doc.text(label, labelX, y, { width: labelW, align: 'right' });
-            doc.fillColor(INK).text(value, valX, y, { width: valW, align: 'right' });
-            y = doc.y + (opts.bold ? 2 : 4);
+            doc.text(label, detX - contentWidth * 0.1, y, { width: detW + contentWidth * 0.1, align: 'right' });
+            doc.fillColor(INK).text(value, amtX, y, { width: amtW, align: 'right' });
+            y = doc.y + (opts.bold ? 2 : 5);
         };
         totalLine('Sous-total', cad(inv.amounts.subtotal));
         totalLine(`TPS (${pct(inv.taxRates.tps)})`, cad(inv.amounts.tps));
         totalLine(`TVQ (${pct(inv.taxRates.tvq)})`, cad(inv.amounts.tvq));
         y += 4;
-        doc.moveTo(labelX, y).lineTo(right, y).strokeColor(RULE).lineWidth(1).stroke();
+        doc.moveTo(detX - contentWidth * 0.1, y).lineTo(right, y).strokeColor(RULE).lineWidth(1).stroke();
         y += 8;
         totalLine('TOTAL', cad(inv.amounts.total), { bold: true });
 
         // ---- Footer ---------------------------------------------------------
         doc.font('Helvetica').fontSize(8).fillColor(MUTED)
-            .text(
-                'Le montant de la commission inclut la TPS et la TVQ, ventilées ci-dessus. '
-                + (inv.conversion
-                    ? 'Les ventes sont réalisées en USD chez USA First Bricks et refacturées en CAD à Canada First Bricks.'
-                    : 'Ventes réalisées en CAD chez Canada First Bricks.'),
-                left, page.height - 90, { width: contentWidth, align: 'center' },
-            );
+            .text('Toutes les sommes sont en dollars canadiens (CAD). Commission taxes incluses.',
+                left, page.height - 80, { width: contentWidth, align: 'center' });
 
         doc.end();
     });
