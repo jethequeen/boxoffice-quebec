@@ -319,6 +319,186 @@ function RunIngest() {
     );
 }
 
+const ymdLocal = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};
+
+// Default period = the whole previous calendar month (what the monthly cron bills).
+const defaultInvoiceRange = () => {
+    const now = new Date();
+    const firstThis = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastPrev = new Date(firstThis.getTime() - 86400000);
+    const firstPrev = new Date(lastPrev.getFullYear(), lastPrev.getMonth(), 1);
+    return { start: ymdLocal(firstPrev), end: ymdLocal(lastPrev) };
+};
+
+function InvoiceGenerator() {
+    const [token, setToken] = useState(() => {
+        try { return localStorage.getItem(TOKEN_STORAGE_KEY) || ''; } catch { return ''; }
+    });
+    const initial = defaultInvoiceRange();
+    const [start, setStart] = useState(initial.start);
+    const [end, setEnd] = useState(initial.end);
+    const [to, setTo] = useState('');
+    const [dryRun, setDryRun] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [result, setResult] = useState(null);
+    const [err, setErr] = useState(null);
+
+    const persistToken = (v) => {
+        setToken(v);
+        try {
+            if (v) localStorage.setItem(TOKEN_STORAGE_KEY, v);
+            else localStorage.removeItem(TOKEN_STORAGE_KEY);
+        } catch { /* ignore */ }
+    };
+
+    const submit = async () => {
+        if (!start || !end) return;
+        if (start > end) { setErr('La date de début est après la date de fin.'); return; }
+        setBusy(true);
+        setResult(null);
+        setErr(null);
+        try {
+            const params = new URLSearchParams({ start, end });
+            if (to) params.set('to', to);
+            if (dryRun) params.set('dryRun', '1');
+            const res = await fetch(`/.netlify/functions/runInvoiceNow?${params.toString()}`, {
+                method: 'POST',
+                headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+            setResult(data);
+        } catch (e) {
+            setErr(e.message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const invoices = result?.invoices ? [result.invoices.CFB, result.invoices.UFB] : [];
+
+    return (
+        <section className="inv-card inv-upload">
+            <div className="inv-card__head">
+                <h2>Générer les factures</h2>
+            </div>
+            <div className="inv-upload__body">
+                <p className="inv-upload__hint">
+                    Produit les <strong>deux factures</strong> (CFB + UFB) pour l'intervalle choisi, adressées à
+                    Canada First Bricks en CAD. Les ventes US sont converties au taux Banque du Canada du jour
+                    moins&nbsp;1&nbsp;%. « Générer et envoyer » expédie les PDF à ton courriel.
+                </p>
+                <div className="inv-upload__row">
+                    <label>
+                        Du&nbsp;:{' '}
+                        <input type="date" value={start} onChange={(e) => setStart(e.target.value)} disabled={busy} />
+                    </label>
+                    {'  '}
+                    <label>
+                        Au&nbsp;:{' '}
+                        <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} disabled={busy} />
+                    </label>
+                </div>
+                <div className="inv-upload__row">
+                    <label>
+                        Envoyer à (optionnel)&nbsp;:{' '}
+                        <input
+                            type="email"
+                            placeholder="par défaut : ton courriel configuré"
+                            value={to}
+                            onChange={(e) => setTo(e.target.value)}
+                            disabled={busy}
+                            style={{ minWidth: 260 }}
+                        />
+                    </label>
+                </div>
+                <div className="inv-upload__row">
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={dryRun}
+                            onChange={(e) => setDryRun(e.target.checked)}
+                            disabled={busy}
+                        />
+                        {' '}Aperçu seulement (calcule et génère les PDF sans envoyer le courriel)
+                    </label>
+                </div>
+                <div className="inv-upload__row">
+                    <input
+                        type="password"
+                        placeholder="Ingest token (laisse vide si non requis)"
+                        value={token}
+                        onChange={(e) => persistToken(e.target.value)}
+                        disabled={busy}
+                        className="inv-upload__token"
+                    />
+                </div>
+                <div className="inv-upload__row">
+                    <button
+                        type="button"
+                        className="inv-upload__submit"
+                        onClick={submit}
+                        disabled={!start || !end || busy}
+                    >
+                        {busy ? 'Génération en cours…' : (dryRun ? 'Générer l\'aperçu' : 'Générer et envoyer')}
+                    </button>
+                </div>
+
+                {result && (
+                    <div className="inv-upload__ok">
+                        {result.draft && (
+                            <div style={{ color: '#7a5b00', marginBottom: 8 }}>
+                                ⚠ Coordonnées légales incomplètes — les PDF portent la mention « BROUILLON ».
+                            </div>
+                        )}
+                        <div style={{ marginBottom: 8 }}>
+                            {result.emailed
+                                ? `✓ Factures envoyées à ${result.recipient}`
+                                : '✓ Aperçu généré (courriel non envoyé)'}
+                            {result.fx?.rate && (
+                                <span> · taux BoC {result.fx.rate}
+                                    {result.fx.rateDate ? ` (${result.fx.rateDate})` : ''}</span>
+                            )}
+                        </div>
+                        <table className="inv-invoice-table">
+                            <thead>
+                                <tr>
+                                    <th>No</th><th>Ventes</th>
+                                    <th style={{ textAlign: 'right' }}>Pièces</th>
+                                    <th style={{ textAlign: 'right' }}>Ventes brutes</th>
+                                    <th style={{ textAlign: 'right' }}>Total (taxes incl.)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {invoices.map((inv) => (
+                                    <tr key={inv.number}>
+                                        <td>{inv.number}</td>
+                                        <td>{inv.store}</td>
+                                        <td style={{ textAlign: 'right' }}>{fmtInt(inv.parts)}</td>
+                                        <td style={{ textAlign: 'right' }}>
+                                            {fmtMoney(inv.grossCad)}
+                                            {inv.grossUsd != null && (
+                                                <span style={{ color: '#888' }}> ({fmtInt(inv.grossUsd)} USD)</span>
+                                            )}
+                                        </td>
+                                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmtMoney(inv.total)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+                {err && <div className="inv-upload__err">⚠ {err}</div>}
+            </div>
+        </section>
+    );
+}
+
 function pickRange(entries, days) {
     if (!entries?.length) return [];
     const cutoff = new Date();
@@ -472,6 +652,13 @@ export default function InventoryDashboard() {
                     onClick={() => setTab('inventory')}
                 >
                     Inventaire
+                </button>
+                <button
+                    type="button"
+                    className={`inv-tabs-nav__btn ${tab === 'invoice' ? 'inv-tabs-nav__btn--active' : ''}`}
+                    onClick={() => setTab('invoice')}
+                >
+                    Factures
                 </button>
             </nav>
 
@@ -648,6 +835,8 @@ export default function InventoryDashboard() {
                     </section>
                 </>
             )}
+
+            {tab === 'invoice' && <InvoiceGenerator />}
         </div>
     );
 }

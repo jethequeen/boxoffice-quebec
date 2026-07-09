@@ -358,3 +358,24 @@
     color: #4F46E5;
     border-bottom-color: #4F46E5;
 }
+
+.inv-invoice-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin-top: 6px;
+}
+
+.inv-invoice-table th {
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7280;
+    padding: 4px 10px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.inv-invoice-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #f1f1f1;
+}

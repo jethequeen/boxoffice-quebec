@@ -2,25 +2,45 @@ import { sign } from './signing.js';
 
 /**
  * Transactional email via the Resend HTTP API (no SDK — a single fetch).
- * Requires RESEND_API_KEY, ALERT_EMAIL_FROM (a Resend-verified sender) and
- * ALERT_EMAIL_TO (recipient).
+ * Requires RESEND_API_KEY and ALERT_EMAIL_FROM (a Resend-verified sender). `to`
+ * defaults to ALERT_EMAIL_TO when omitted.
+ *
+ * `attachments` is an optional array of { filename, content } where `content` is a
+ * Buffer or a base64 string — Resend takes attachments as base64 in the JSON body.
  */
-async function sendEmail({ subject, html }) {
+async function sendEmail({ subject, html, to, attachments } = {}) {
     const apiKey = process.env.RESEND_API_KEY;
     const from = process.env.ALERT_EMAIL_FROM;
-    const to = process.env.ALERT_EMAIL_TO;
-    if (!apiKey || !from || !to) {
-        throw new Error('Email not configured (RESEND_API_KEY / ALERT_EMAIL_FROM / ALERT_EMAIL_TO)');
+    const recipient = to || process.env.ALERT_EMAIL_TO;
+    if (!apiKey || !from || !recipient) {
+        throw new Error('Email not configured (RESEND_API_KEY / ALERT_EMAIL_FROM / recipient)');
+    }
+
+    const payload = { from, to: recipient, subject, html };
+    if (Array.isArray(attachments) && attachments.length) {
+        payload.attachments = attachments.map((a) => ({
+            filename: a.filename,
+            content: Buffer.isBuffer(a.content) ? a.content.toString('base64') : a.content,
+        }));
     }
 
     const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from, to, subject, html }),
+        body: JSON.stringify(payload),
     });
     const body = await res.text();
     if (!res.ok) throw new Error(`Resend ${res.status} — ${body.slice(0, 200)}`);
     return { ok: true };
+}
+
+/**
+ * Email the monthly invoices with their PDFs attached. `attachments` is an array of
+ * { filename, content:Buffer }. Recipient defaults to ALERT_EMAIL_TO when `to` is
+ * falsy (the invoiceConfig resolves the intended recipient before calling).
+ */
+export async function sendInvoiceEmail({ to, subject, html, attachments }) {
+    return sendEmail({ to, subject, html, attachments });
 }
 
 const siteUrl = () =>

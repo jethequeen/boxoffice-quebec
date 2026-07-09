@@ -3,7 +3,9 @@
 
 [functions]
   node_bundler = "esbuild"
-  external_node_modules = ["pg"]
+  # pdfkit reads its built-in .afm font-metric files from disk at runtime, so it
+  # must ship as a whole package rather than be bundled by esbuild.
+  external_node_modules = ["pg", "pdfkit"]
 
 [dev]
   framework = "vite"

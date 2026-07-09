@@ -74,7 +74,8 @@ async function ingestOne(source, date, parentLog, fx) {
     // US reports are in USD — convert every monetary total to CAD so nothing
     // downstream ever mixes currencies. CA is already CAD and passes through.
     const toCad = (t) => (source === 'US' ? toCadTotals(t, fx.rate) : t);
-    const totals = toCad(aggregateRows(rows));
+    const rawTotals = aggregateRows(rows);       // pre-conversion (USD for source 'US')
+    const totals = toCad(rawTotals);
     const platformRows = rows.filter((r) => r.section === 'Platforms');
     const sheetableRows = rows.filter(isSheetableSale);
     const sheetTotals = toCad(aggregateRows(sheetableRows));
@@ -123,6 +124,9 @@ async function ingestOne(source, date, parentLog, fx) {
         payout: totals.payout,
         fees: totals.fees,
         bySection: totals.bySection,
+        // Preserve the native pre-conversion amounts for US so invoices can re-convert
+        // at a different (invoice-day) rate without reversing the stored CAD figure.
+        ...(source === 'US' ? { origCurrency: 'USD', origTotal: rawTotals.total, origPayout: rawTotals.payout } : {}),
     };
     await appendSalesEntry({ ...entry, applied, missing, platformDecrements });
     log.steps.push({ step: 'sales_history_appended' });
