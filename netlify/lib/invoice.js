@@ -145,12 +145,14 @@ export function extractTaxIncluded(grandTotal, rates = TAX_RATES) {
  * @param {object}   [fx]      { rate, rateDate } BoC USD→CAD — REQUIRED for 'UFB'
  * @returns invoice model consumed by invoicePdf.js
  */
-export function buildInvoice({ history, kind, start, end, issueDate, fx }) {
+export function buildInvoice({ history, sales, kind, start, end, issueDate, fx }) {
     const spec = INVOICE_KINDS[kind];
     if (!spec) throw new Error(`Unknown invoice kind: ${kind}`);
 
     const period = periodForRange(start, end);
-    const sales = collectSales(history, { source: spec.source, start, end });
+    // `sales` may be supplied directly (e.g. from a live report fetch); otherwise it
+    // is collected from the sales-history array. Either way: { parts, grossNative }.
+    const collected = sales || collectSales(history, { source: spec.source, start, end });
 
     // CFB buys the pieces from us for their gross sale value LESS its own 25%
     // commission — so we bill the net (≈75%), not the commission. For US sales the
@@ -163,9 +165,9 @@ export function buildInvoice({ history, kind, start, end, issueDate, fx }) {
     let conversion = null;
     if (spec.native === 'USD') {
         if (!fx?.rate) throw new Error(`UFB invoice needs a USD→CAD rate (fx.rate)`);
-        grossCad = round2(sales.grossNative * fx.rate);
+        grossCad = round2(collected.grossNative * fx.rate);
     } else {
-        grossCad = sales.grossNative;
+        grossCad = collected.grossNative;
     }
 
     const commissionKept = round2(grossCad * COMMISSION_RATE);   // CFB's cut (not billed)
@@ -177,7 +179,7 @@ export function buildInvoice({ history, kind, start, end, issueDate, fx }) {
         billedTotal = round2(netAfterCommission - conversionFee);
         conversion = {
             fromCurrency: 'USD',
-            grossUsd: sales.grossNative,
+            grossUsd: collected.grossNative,
             bocRate: fx.rate,
             bocRateDate: fx.rateDate || null,
             feeRate: FX_SPREAD,
@@ -202,8 +204,8 @@ export function buildInvoice({ history, kind, start, end, issueDate, fx }) {
         commissionRate: COMMISSION_RATE,
         taxRates: { ...TAX_RATES },
         sales: {
-            parts: sales.parts,
-            days: sales.days,
+            parts: collected.parts,
+            days: collected.days || [],
             grossCad,                       // gross sale value in CAD (before commission)
         },
         commissionKept,                     // the 25% CFB keeps (shown as a deduction)
@@ -213,11 +215,15 @@ export function buildInvoice({ history, kind, start, end, issueDate, fx }) {
     };
 }
 
-/** Build both invoices for an inclusive [start, end] range. `fx` is required for UFB. */
-export function buildInvoices({ history, start, end, issueDate, fx }) {
+/**
+ * Build both invoices for an inclusive [start, end] range. `fx` is required for UFB.
+ * `salesBySource` (optional) supplies pre-computed per-source sales — { CA: {...},
+ * US: {...} } — e.g. from a live report fetch; otherwise sales come from `history`.
+ */
+export function buildInvoices({ history, salesBySource, start, end, issueDate, fx }) {
     return {
-        CFB: buildInvoice({ history, kind: 'CFB', start, end, issueDate }),
-        UFB: buildInvoice({ history, kind: 'UFB', start, end, issueDate, fx }),
+        CFB: buildInvoice({ history, sales: salesBySource?.CA, kind: 'CFB', start, end, issueDate }),
+        UFB: buildInvoice({ history, sales: salesBySource?.US, kind: 'UFB', start, end, issueDate, fx }),
     };
 }
 

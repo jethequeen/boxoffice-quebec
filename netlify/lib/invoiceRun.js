@@ -12,6 +12,7 @@
 import { readSalesHistory } from './blobs.js';
 import { getUsdCadRate } from './fx.js';
 import { buildInvoices, monthRange } from './invoice.js';
+import { fetchInvoiceSales } from './invoiceData.js';
 import { renderInvoicePdf } from './invoicePdf.js';
 import { sendInvoiceEmail } from './email.js';
 import { INVOICE_EMAIL_TO, isDraftConfig } from './invoiceConfig.js';
@@ -78,20 +79,31 @@ function emailHtml({ label, period, invoices, draft }) {
  * @param {string}  opts.start      'YYYY-MM-DD' first day covered (inclusive)
  * @param {string}  opts.end        'YYYY-MM-DD' last day covered (inclusive)
  * @param {string}  opts.issueDate  'YYYY-MM-DD' the invoices are dated (drives the FX rate)
- * @param {string}  [opts.to]       recipient override (defaults to INVOICE_EMAIL_TO)
- * @param {boolean} [opts.dryRun]   compute + render but do not email
+ * @param {string}  [opts.to]         recipient override (defaults to INVOICE_EMAIL_TO)
+ * @param {boolean} [opts.dryRun]     compute + render but do not email
+ * @param {string}  [opts.dataSource] 'live' (fetch the CFB reports for the range —
+ *                                    default, most accurate) or 'history' (sum the
+ *                                    sales-history blob — offline fallback)
  */
-export async function runInvoices({ start, end, issueDate, to, dryRun = false }) {
-    const log = { start, end, issueDate, dryRun, draft: isDraftConfig() };
-
-    const history = await readSalesHistory();
+export async function runInvoices({ start, end, issueDate, to, dryRun = false, dataSource = 'live' }) {
+    const log = { start, end, issueDate, dryRun, dataSource, draft: isDraftConfig() };
 
     // The UFB invoice converts USD sales at the invoice-day rate. Fetch it up front
     // so a missing rate aborts before we build a half-invoice.
     const fx = await getUsdCadRate(issueDate);
     log.fx = fx;
 
-    const invoices = buildInvoices({ history, start, end, issueDate, fx });
+    // Source the sales either live from the vendor reports (accurate, covers the
+    // exact range, US in native USD) or from the accumulated sales-history blob.
+    let salesBySource = null;
+    let history = null;
+    if (dataSource === 'history') {
+        history = await readSalesHistory();
+    } else {
+        salesBySource = await fetchInvoiceSales({ start, end, log });
+    }
+
+    const invoices = buildInvoices({ history, salesBySource, start, end, issueDate, fx });
     log.invoices = { CFB: summarize(invoices.CFB), UFB: summarize(invoices.UFB) };
 
     // Render both PDFs (needed for dry-run byte-size reporting too).

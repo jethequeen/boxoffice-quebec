@@ -28,6 +28,8 @@ const isYmd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s);
  *   issueDate=YYYY-MM-DD   invoice date, drives the USD→CAD rate (default: today in Toronto)
  *   to=email               recipient override (default: INVOICE_EMAIL_TO)
  *   dryRun=1               compute + render PDFs but do not email
+ *   data=live|history      source the sales live from the CFB reports (default) or
+ *                          from the accumulated sales-history blob
  */
 export const handler = async (event) => {
     if (!auth(event)) return jsonResponse(401, { error: 'unauthorized' });
@@ -36,6 +38,7 @@ export const handler = async (event) => {
     const issueDate = qs.issueDate || todayInTZ();
     const dryRun = qs.dryRun === '1';
     const to = qs.to || undefined;
+    const dataSource = qs.data === 'history' ? 'history' : 'live';
 
     if (!isYmd(issueDate)) return jsonResponse(400, { error: `Invalid issueDate "${issueDate}" — expected YYYY-MM-DD` });
 
@@ -54,10 +57,10 @@ export const handler = async (event) => {
     }
 
     try {
-        const log = await runInvoices({ start, end, issueDate, to, dryRun });
+        const log = await runInvoices({ start, end, issueDate, to, dryRun, dataSource });
         return jsonResponse(200, log);
     } catch (e) {
         console.error('[runInvoiceNow] FAIL', e);
-        return jsonResponse(500, { error: e.message, start, end, issueDate });
+        return jsonResponse(500, { error: e.message, start, end, issueDate, dataSource });
     }
 };
