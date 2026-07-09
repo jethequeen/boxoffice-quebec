@@ -297,6 +297,41 @@
     box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
 }
 
+/* Consistent styling for every input/select in the inventory cards. */
+.inv-upload__body input[type="text"],
+.inv-upload__body input[type="email"],
+.inv-upload__body input[type="password"],
+.inv-upload__body input[type="date"],
+.inv-upload__body select,
+.inv-range-custom input[type="date"],
+.inv-card__head input[type="date"] {
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: #111827;
+    background: #fff;
+    font-family: inherit;
+    line-height: 1.2;
+}
+
+.inv-upload__body input:focus,
+.inv-upload__body select:focus,
+.inv-range-custom input:focus,
+.inv-card__head input[type="date"]:focus {
+    outline: none;
+    border-color: #4F46E5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.inv-upload__row label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: #374151;
+}
+
 .inv-upload__submit {
     background: #4F46E5;
     color: #fff;

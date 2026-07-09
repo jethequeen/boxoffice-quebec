@@ -386,10 +386,6 @@ function InvoiceGenerator() {
                 <h2>Générer les factures</h2>
             </div>
             <div className="inv-upload__body">
-                <p className="inv-upload__hint">
-                    Deux factures (CFB + UFB) pour l'intervalle choisi, en CAD. « Générer et envoyer » les
-                    expédie en PDF à ton courriel.
-                </p>
                 <div className="inv-upload__row">
                     <label>
                         Du&nbsp;:{' '}
@@ -625,6 +621,16 @@ export default function InventoryDashboard() {
         return pickRange(all, range);
     }, [data, range, customStart, customEnd]);
 
+    // Flatten per-source gross sales for the daily chart (CFB = CA, UFB = US).
+    const chartData = useMemo(
+        () => dailySeries.map((d) => ({
+            key: d.key,
+            cfb: d.bySource?.CA?.total || 0,
+            ufb: d.bySource?.US?.total || 0,
+        })),
+        [dailySeries],
+    );
+
     // Aggregate the currently-displayed range, split by source (CFB = CA, UFB = US).
     const windowStats = useMemo(() => {
         const z = () => ({ parts: 0, total: 0, payout: 0, fees: 0 });
@@ -840,14 +846,14 @@ export default function InventoryDashboard() {
 
                         <div className="inv-chart">
                             <ResponsiveContainer width="100%" height={280}>
-                                <LineChart data={dailySeries} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                                <LineChart data={chartData} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                                     <XAxis dataKey="key" tick={{ fontSize: 11 }} />
                                     <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtMoneyShort} />
                                     <Tooltip formatter={(v) => fmtMoney(v)} labelStyle={{ fontWeight: 700 }} />
                                     <Legend />
-                                    <Line type="monotone" dataKey="total" name="Ventes brutes" stroke="#10B981" strokeWidth={2} dot={false} />
-                                    <Line type="monotone" dataKey="payout" name="Payout" stroke="#4F46E5" strokeWidth={2} dot={false} />
+                                    <Line type="monotone" dataKey="cfb" name="CFB (Canada)" stroke="#10B981" strokeWidth={2} dot={false} />
+                                    <Line type="monotone" dataKey="ufb" name="UFB (USA)" stroke="#4F46E5" strokeWidth={2} dot={false} />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>

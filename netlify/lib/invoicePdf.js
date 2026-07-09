@@ -129,7 +129,7 @@ export function renderInvoicePdf(inv) {
         // ---- Facturation (we sell the pieces to CFB, net of its commission) --
         doc.font('Helvetica-Bold').fontSize(9).fillColor(MUTED).text('FACTURATION', left, y);
         y += 18;
-        row('Vente de pièces (net de commission)', '', cad(inv.amounts.subtotal));
+        row('Pièces de LEGO', '', cad(inv.amounts.subtotal));
         rule(left, right, 10);
 
         // Totals block, right-aligned under the amount column.
