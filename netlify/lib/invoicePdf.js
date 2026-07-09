@@ -18,6 +18,7 @@ const usd = (n) =>
     new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'USD' }).format(Number(n) || 0);
 const int = (n) => new Intl.NumberFormat('fr-CA').format(Number(n) || 0);
 const rate = (x) => String(x).replace('.', ',');   // exchange rates: French decimal comma
+const neg = (n) => `-${cad(n)}`;                    // a deduction, e.g. "-35,25 $"
 const pct = (r) => `${(Number(r) * 100).toFixed(3).replace(/\.?0+$/, '').replace('.', ',')} %`;
 const frDate = (ymd) =>
     new Intl.DateTimeFormat('fr-CA', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -103,27 +104,32 @@ export function renderInvoicePdf(inv) {
             y += gap;
         };
 
-        // ---- Calcul de la commission (basis — NOT the amount charged) --------
+        // ---- Calcul du montant facturé (gross − commission − conversion fee) -
         y = 248;
-        doc.font('Helvetica-Bold').fontSize(9).fillColor(MUTED).text('CALCUL DE LA COMMISSION', left, y);
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(MUTED).text('CALCUL DU MONTANT FACTURÉ', left, y);
         y += 18;
 
         if (inv.conversion) {
             const c = inv.conversion;
             row('Ventes brutes de la période', `${int(inv.sales.parts)} pièces`, usd(c.grossUsd), { muted: true });
             row(`Taux Banque du Canada${c.bocRateDate ? ` (${c.bocRateDate})` : ''}`, '', rate(c.bocRate), { muted: true });
-            row(`Taux appliqué (moins ${pct(c.spread)})`, '', rate(c.effectiveRate), { muted: true });
-            row('Ventes brutes converties (CAD)', '', cad(inv.sales.grossCad), { muted: true });
+            row('Ventes brutes (CAD)', '', cad(inv.sales.grossCad), { muted: true });
+            row(`Commission CFB (${pct(inv.commissionRate)})`, '', neg(inv.commissionKept), { muted: true });
+            row('Montant net à virer', '', cad(inv.netAfterCommission), { muted: true });
+            row(`Frais de conversion (${pct(c.feeRate)})`, '', neg(c.conversionFee), { muted: true });
+            row('Montant facturé', '', cad(inv.amounts.total), { muted: true, bold: true });
         } else {
             row('Ventes brutes de la période', `${int(inv.sales.parts)} pièces`, cad(inv.sales.grossCad), { muted: true });
+            row(`Commission CFB (${pct(inv.commissionRate)})`, '', neg(inv.commissionKept), { muted: true });
+            row('Montant facturé', '', cad(inv.amounts.total), { muted: true, bold: true });
         }
         y += 4;
         rule(left, right, 16);
 
-        // ---- Facturation (the commission is the only charged amount) ---------
+        // ---- Facturation (we sell the pieces to CFB, net of its commission) --
         doc.font('Helvetica-Bold').fontSize(9).fillColor(MUTED).text('FACTURATION', left, y);
         y += 18;
-        row(`Commission de gestion (${pct(inv.commissionRate)} des ventes brutes)`, '', cad(inv.amounts.subtotal));
+        row('Vente de pièces (net de commission)', '', cad(inv.amounts.subtotal));
         rule(left, right, 10);
 
         // Totals block, right-aligned under the amount column.
@@ -144,7 +150,7 @@ export function renderInvoicePdf(inv) {
 
         // ---- Footer ---------------------------------------------------------
         doc.font('Helvetica').fontSize(8).fillColor(MUTED)
-            .text('Toutes les sommes sont en dollars canadiens (CAD). Commission taxes incluses.',
+            .text('Toutes les sommes sont en dollars canadiens (CAD). Vente de pièces à Canada First Bricks, taxes incluses.',
                 left, page.height - 80, { width: contentWidth, align: 'center' });
 
         doc.end();

@@ -152,27 +152,42 @@ export function buildInvoice({ history, kind, start, end, issueDate, fx }) {
     const period = periodForRange(start, end);
     const sales = collectSales(history, { source: spec.source, start, end });
 
-    // Gross sales expressed in CAD (the invoice's settlement currency).
+    // CFB buys the pieces from us for their gross sale value LESS its own 25%
+    // commission — so we bill the net (≈75%), not the commission. For US sales the
+    // gross is converted to CAD at the full BoC rate, then the commission is taken,
+    // then a 1% conversion fee is applied on the net CAD amount actually wired
+    // (per Sylvain: "1% de frais de conversion après la commission").
+    //   USD:  grossUsd × rate → −25% commission → −1% conversion fee = billed (tax incl.)
+    //   CAD:  gross           → −25% commission                      = billed (tax incl.)
     let grossCad;
     let conversion = null;
     if (spec.native === 'USD') {
         if (!fx?.rate) throw new Error(`UFB invoice needs a USD→CAD rate (fx.rate)`);
-        const effectiveRate = round2(fx.rate * (1 - FX_SPREAD) * 1e6) / 1e6; // keep 6 dp on the rate
-        grossCad = round2(sales.grossNative * effectiveRate);
+        grossCad = round2(sales.grossNative * fx.rate);
+    } else {
+        grossCad = sales.grossNative;
+    }
+
+    const commissionKept = round2(grossCad * COMMISSION_RATE);   // CFB's cut (not billed)
+    const netAfterCommission = round2(grossCad - commissionKept);
+
+    let billedTotal;
+    if (spec.native === 'USD') {
+        const conversionFee = round2(netAfterCommission * FX_SPREAD);
+        billedTotal = round2(netAfterCommission - conversionFee);
         conversion = {
             fromCurrency: 'USD',
             grossUsd: sales.grossNative,
             bocRate: fx.rate,
             bocRateDate: fx.rateDate || null,
-            spread: FX_SPREAD,
-            effectiveRate,
+            feeRate: FX_SPREAD,
+            conversionFee,
         };
     } else {
-        grossCad = sales.grossNative;
+        billedTotal = netAfterCommission;
     }
 
-    const commissionTotal = round2(grossCad * COMMISSION_RATE);
-    const amounts = extractTaxIncluded(commissionTotal, TAX_RATES);
+    const amounts = extractTaxIncluded(billedTotal, TAX_RATES);
 
     return {
         kind,
@@ -189,10 +204,12 @@ export function buildInvoice({ history, kind, start, end, issueDate, fx }) {
         sales: {
             parts: sales.parts,
             days: sales.days,
-            grossCad,
+            grossCad,                       // gross sale value in CAD (before commission)
         },
-        conversion,      // null for CFB, {grossUsd, bocRate, spread, effectiveRate} for UFB
-        amounts,         // { subtotal, tps, tvq, total }
+        commissionKept,                     // the 25% CFB keeps (shown as a deduction)
+        netAfterCommission,                 // gross − commission
+        conversion,                         // null for CFB; {grossUsd, bocRate, conversionFee} for UFB
+        amounts,                            // { subtotal, tps, tvq, total } — total = billed (tax incl.)
     };
 }
 

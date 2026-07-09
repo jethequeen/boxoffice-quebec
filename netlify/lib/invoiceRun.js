@@ -26,7 +26,7 @@ const summarize = (inv) => ({
     parts: inv.sales.parts,
     grossCad: inv.sales.grossCad,
     grossUsd: inv.conversion?.grossUsd ?? null,
-    effectiveRate: inv.conversion?.effectiveRate ?? null,
+    commissionKept: inv.commissionKept,
     total: inv.amounts.total,
 });
 
@@ -62,10 +62,10 @@ function emailHtml({ label, period, invoices, draft }) {
           <tbody>${row(invoices.CFB)}${row(invoices.UFB)}</tbody>
         </table>
         ${invoices.UFB.conversion ? `<p style="color:#666;font-size:13px">
-           Facture UFB : ${cad(invoices.UFB.conversion.grossUsd).replace('CA','')} converti de l’USD au taux
-           Banque du Canada ${invoices.UFB.conversion.bocRate}
-           ${invoices.UFB.conversion.bocRateDate ? `(${invoices.UFB.conversion.bocRateDate})` : ''}
-           moins ${(invoices.UFB.conversion.spread * 100).toFixed(2)} % = ${invoices.UFB.conversion.effectiveRate}.
+           Facture UFB : ventes US converties au taux Banque du Canada
+           ${invoices.UFB.conversion.bocRate}${invoices.UFB.conversion.bocRateDate ? ` (${invoices.UFB.conversion.bocRateDate})` : ''},
+           moins la commission de ${(invoices.UFB.commissionRate * 100).toFixed(0)} % puis
+           ${(invoices.UFB.conversion.feeRate * 100).toFixed(2)} % de frais de conversion.
          </p>` : ''}
       </div>`;
 }

@@ -46,18 +46,18 @@ const EMAIL_TO = '';
 //  RÈGLES DE CALCUL — à ajuster si Sylvain change d'idée
 // ════════════════════════════════════════════════════════════════════════════
 
-// Taxes du Québec. La commission de 25% est TAXES INCLUSES, donc ces taux servent
-// à EXTRAIRE la TPS/TVQ du 25% (voir extractTaxIncluded()).
+// Taxes du Québec. Le montant facturé (les pièces, net de commission) est TAXES
+// INCLUSES, donc ces taux servent à EXTRAIRE la TPS/TVQ (voir extractTaxIncluded()).
 const TPS_RATE = 0.05;       // TPS / GST
 const TVQ_RATE = 0.09975;    // TVQ / QST
 
-// Commission facturée à CFB, en fraction des ventes brutes. Taxes incluses.
-// Si la facture UFB doit plutôt rapporter la VALEUR COMPLÈTE des ventes plutôt que
-// seulement la commission, mets 1 ici (100%).
+// Commission que CFB RETIENT (leur part pour gérer la plateforme). On ne facture PAS
+// la commission : CFB nous achète les pièces au brut MOINS cette commission, donc on
+// facture le net = ventes brutes × (1 - COMMISSION). 0.25 → on facture 75%.
 const COMMISSION = 0.25;
 
-// Écart appliqué contre le taux USD→CAD de la Banque du Canada pour la facture UFB.
-// « taux du jour -1% » → 0.01. Taux effectif = tauxBoC * (1 - ÉCART).
+// Frais de conversion appliqué APRÈS la commission, sur le montant net à virer en CAD
+// (facture UFB seulement — les ventes US doivent être converties). net × (1 - FRAIS).
 const FX_SPREAD_RATE = 0.01;
 
 // Préfixes des numéros de facture → « CFB-2026-06 », « UFB-2026-06 ».
