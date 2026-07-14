@@ -8,6 +8,10 @@ const SALES_KEY = 'sales-history.json';
 const INV_HISTORY_KEY = 'inventory-history.json';
 const COOKIES_KEY = 'cfb-cookies.json';
 const PENDING_BACKFILL_KEY = 'pending-backfill.json';
+const INVOICE_HISTORY_KEY = 'invoice-history.json';
+// PDFs are stored base64-encoded as text so the local-filesystem dev store (which
+// only round-trips text) works the same as Netlify Blobs.
+const invoicePdfKey = (number) => `invoice-pdf/${number}.b64`;
 
 /**
  * Local filesystem store — used in dev when BLOBS_LOCAL_DIR is set.
@@ -169,4 +173,32 @@ export async function clearPendingBackfill(done) {
     );
     await store().setJSON(PENDING_BACKFILL_KEY, remaining);
     return remaining;
+}
+
+/**
+ * Ledger of issued invoices (one record appended per emitted invoice — dry runs are
+ * not recorded). Each record carries the number, period, amounts, fx and recipient
+ * so the dashboard can show a history without re-parsing the PDFs.
+ */
+export async function readInvoiceHistory() {
+    const raw = await store().get(INVOICE_HISTORY_KEY, { type: 'json' });
+    return Array.isArray(raw) ? raw : [];
+}
+
+export async function appendInvoiceRecord(record) {
+    const history = await readInvoiceHistory();
+    history.push(record);
+    await store().setJSON(INVOICE_HISTORY_KEY, history);
+    return history;
+}
+
+/** Store an emitted invoice PDF (Buffer) so it can be re-downloaded from the history. */
+export async function writeInvoicePdf(number, buffer) {
+    const b64 = Buffer.isBuffer(buffer) ? buffer.toString('base64') : String(buffer);
+    await store().set(invoicePdfKey(number), b64);
+}
+
+/** Read a stored invoice PDF back as a base64 string (or null if absent). */
+export async function readInvoicePdfBase64(number) {
+    return (await store().get(invoicePdfKey(number), { type: 'text' })) ?? null;
 }

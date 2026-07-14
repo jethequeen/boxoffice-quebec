@@ -9,7 +9,7 @@
  * send the email (and still returns the computed amounts + PDF byte sizes).
  */
 
-import { readSalesHistory } from './blobs.js';
+import { readSalesHistory, appendInvoiceRecord, writeInvoicePdf } from './blobs.js';
 import { getUsdCadRate } from './fx.js';
 import { buildInvoice, monthRange } from './invoice.js';
 import { fetchInvoiceSales } from './invoiceData.js';
@@ -153,6 +153,38 @@ export async function runInvoices({
         attachments,
     });
     log.emailed = true;
+
+    // Archive each emitted invoice (metadata + PDF) so it shows in the history and
+    // can be re-downloaded. A storage hiccup must not fail a run whose email already
+    // went out, so this is best-effort.
+    try {
+        const pdfByNumber = Object.fromEntries(attachments.map((a) => [a.filename.replace(/\.pdf$/, ''), a.content]));
+        const generatedAt = new Date().toISOString();
+        for (const inv of invoices) {
+            await writeInvoicePdf(inv.number, pdfByNumber[inv.number]);
+            await appendInvoiceRecord({
+                number: inv.number,
+                kind: inv.kind,
+                period: { start: period.start, end: period.end, label, key: period.key },
+                issueDate: inv.issueDate,
+                client: inv.client.name,
+                store: inv.store,
+                parts: inv.sales.parts,
+                grossCad: inv.sales.grossCad,
+                total: inv.amounts.total,
+                taxable: inv.taxable,
+                spread: inv.conversion?.feeRate ?? null,
+                bocRate: inv.conversion?.bocRate ?? null,
+                draft: log.draft,
+                recipient,
+                generatedAt,
+            });
+        }
+        log.archived = invoices.map((inv) => inv.number);
+    } catch (e) {
+        log.archiveError = e.message;
+        console.error('[runInvoices] archive failed', e);
+    }
     return log;
 }
 

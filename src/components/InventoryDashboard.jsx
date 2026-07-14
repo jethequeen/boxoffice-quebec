@@ -333,7 +333,7 @@ const defaultInvoiceRange = () => {
     return { start: ymdLocal(firstPrev), end: ymdLocal(lastPrev) };
 };
 
-function InvoiceGenerator() {
+function InvoiceGenerator({ onGenerated }) {
     const [token, setToken] = useState(() => {
         try { return localStorage.getItem(TOKEN_STORAGE_KEY) || ''; } catch { return ''; }
     });
@@ -378,6 +378,7 @@ function InvoiceGenerator() {
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
             setResult(data);
+            if (data?.emailed) onGenerated?.();
         } catch (e) {
             setErr(e.message);
         } finally {
@@ -385,7 +386,7 @@ function InvoiceGenerator() {
         }
     };
 
-    const invoices = result?.invoices ? [result.invoices.CFB, result.invoices.UFB] : [];
+    const invoices = result?.invoices ? Object.values(result.invoices) : [];
 
     return (
         <section className="inv-card inv-upload">
@@ -522,6 +523,99 @@ function InvoiceGenerator() {
                 )}
                 {err && <div className="inv-upload__err">⚠ {err}</div>}
             </div>
+        </section>
+    );
+}
+
+// History of emitted invoices, read from the ledger blob (token-gated). Each row
+// can re-download the archived PDF.
+function InvoiceHistory({ reloadTick }) {
+    const [token] = useState(() => {
+        try { return localStorage.getItem(TOKEN_STORAGE_KEY) || ''; } catch { return ''; }
+    });
+    const [rows, setRows] = useState(null);
+    const [err, setErr] = useState(null);
+    const [busy, setBusy] = useState(false);
+
+    useEffect(() => {
+        let cancel = false;
+        (async () => {
+            setBusy(true);
+            setErr(null);
+            try {
+                const res = await fetch('/.netlify/functions/getInvoiceHistory', {
+                    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+                if (!cancel) setRows(data.history || []);
+            } catch (e) {
+                if (!cancel) setErr(e.message);
+            } finally {
+                if (!cancel) setBusy(false);
+            }
+        })();
+        return () => { cancel = true; };
+    }, [token, reloadTick]);
+
+    const download = async (number) => {
+        try {
+            const res = await fetch(`/.netlify/functions/getInvoicePdf?number=${encodeURIComponent(number)}`, {
+                headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            });
+            if (!res.ok) {
+                const d = await res.json().catch(() => ({}));
+                throw new Error(d?.error || `HTTP ${res.status}`);
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${number}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            setErr(e.message);
+        }
+    };
+
+    return (
+        <section className="inv-card">
+            <div className="inv-card__head"><h2>Historique des factures</h2></div>
+            {err && <div className="inv-upload__err">⚠ {err}</div>}
+            {busy && !rows && <div className="inv-empty">Chargement…</div>}
+            {rows && rows.length === 0 && <div className="inv-empty">Aucune facture émise pour l'instant.</div>}
+            {rows && rows.length > 0 && (
+                <table className="inv-invoice-table">
+                    <thead>
+                        <tr>
+                            <th>No</th><th>Période</th><th>Émise le</th><th>Client</th>
+                            <th style={{ textAlign: 'right' }}>Total</th>
+                            <th style={{ textAlign: 'right' }}>Conv.</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((r, i) => (
+                            <tr key={`${r.number}-${r.generatedAt || i}`}>
+                                <td>{r.number}</td>
+                                <td>{r.period?.label || r.period?.key || '—'}</td>
+                                <td>{(r.generatedAt || r.issueDate || '').slice(0, 10)}</td>
+                                <td>{r.client}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmtMoney(r.total)}</td>
+                                <td style={{ textAlign: 'right' }}>
+                                    {r.spread != null ? `${(r.spread * 100).toLocaleString('fr-CA', { maximumFractionDigits: 2 })} %` : '—'}
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                    <button type="button" className="inv-tab" onClick={() => download(r.number)}>PDF</button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
         </section>
     );
 }
@@ -708,6 +802,7 @@ export default function InventoryDashboard() {
     const [customStart, setCustomStart] = useState('');
     const [customEnd, setCustomEnd] = useState('');
     const [reloadTick, setReloadTick] = useState(0);
+    const [invoiceTick, setInvoiceTick] = useState(0);
     const [tab, setTab] = useState('sales');
 
     useEffect(() => {
@@ -1073,7 +1168,12 @@ export default function InventoryDashboard() {
                 </>
             )}
 
-            {tab === 'invoice' && <InvoiceGenerator />}
+            {tab === 'invoice' && (
+                <>
+                    <InvoiceGenerator onGenerated={() => setInvoiceTick((n) => n + 1)} />
+                    <InvoiceHistory reloadTick={invoiceTick} />
+                </>
+            )}
         </div>
     );
 }
