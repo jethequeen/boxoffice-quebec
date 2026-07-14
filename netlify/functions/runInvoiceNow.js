@@ -30,6 +30,8 @@ const isYmd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s);
  *   dryRun=1               compute + render PDFs but do not email
  *   data=live|history      source the sales live from the CFB reports (default) or
  *                          from the accumulated sales-history blob
+ *   spread=0.01            UFB conversion-fee spread as a fraction (0.01 = 1%, the %
+ *                          Manon provides). Default: config FX_SPREAD.
  */
 export const handler = async (event) => {
     if (!auth(event)) return jsonResponse(401, { error: 'unauthorized' });
@@ -39,9 +41,12 @@ export const handler = async (event) => {
     const dryRun = qs.dryRun === '1';
     const to = qs.to || undefined;
     const dataSource = qs.data === 'history' ? 'history' : 'live';
-    const rate = qs.rate ? Number(qs.rate) : undefined;
+    // Conversion-fee spread as a fraction (0.01 = 1%) — the % Manon provides for UFB.
+    const spread = qs.spread != null && qs.spread !== '' ? Number(qs.spread) : undefined;
 
-    if (rate != null && !(rate > 0)) return jsonResponse(400, { error: `Invalid rate "${qs.rate}" — expected a positive number` });
+    if (spread != null && !(spread >= 0 && spread < 1)) {
+        return jsonResponse(400, { error: `Invalid spread "${qs.spread}" — expected a fraction between 0 and 1 (e.g. 0.01 for 1%)` });
+    }
 
     if (!isYmd(issueDate)) return jsonResponse(400, { error: `Invalid issueDate "${issueDate}" — expected YYYY-MM-DD` });
 
@@ -60,7 +65,7 @@ export const handler = async (event) => {
     }
 
     try {
-        const log = await runInvoices({ start, end, issueDate, to, dryRun, dataSource, rate });
+        const log = await runInvoices({ start, end, issueDate, to, dryRun, dataSource, spread });
         return jsonResponse(200, log);
     } catch (e) {
         console.error('[runInvoiceNow] FAIL', e);

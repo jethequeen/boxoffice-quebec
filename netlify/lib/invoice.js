@@ -145,7 +145,7 @@ export function extractTaxIncluded(grandTotal, rates = TAX_RATES) {
  * @param {object}   [fx]      { rate, rateDate } BoC USD→CAD — REQUIRED for 'UFB'
  * @returns invoice model consumed by invoicePdf.js
  */
-export function buildInvoice({ history, sales, kind, start, end, issueDate, fx }) {
+export function buildInvoice({ history, sales, kind, start, end, issueDate, fx, spread }) {
     const spec = INVOICE_KINDS[kind];
     if (!spec) throw new Error(`Unknown invoice kind: ${kind}`);
 
@@ -173,16 +173,19 @@ export function buildInvoice({ history, sales, kind, start, end, issueDate, fx }
     const commissionKept = round2(grossCad * COMMISSION_RATE);   // CFB's cut (not billed)
     const netAfterCommission = round2(grossCad - commissionKept);
 
+    // Conversion-fee spread: caller override (Manon's %) wins, else the config default.
+    const feeRate = Number.isFinite(spread) ? spread : FX_SPREAD;
+
     let billedTotal;
     if (spec.native === 'USD') {
-        const conversionFee = round2(netAfterCommission * FX_SPREAD);
+        const conversionFee = round2(netAfterCommission * feeRate);
         billedTotal = round2(netAfterCommission - conversionFee);
         conversion = {
             fromCurrency: 'USD',
             grossUsd: collected.grossNative,
             bocRate: fx.rate,
             bocRateDate: fx.rateDate || null,
-            feeRate: FX_SPREAD,
+            feeRate,
             conversionFee,
         };
     } else {
@@ -226,10 +229,10 @@ export function buildInvoice({ history, sales, kind, start, end, issueDate, fx }
  * `salesBySource` (optional) supplies pre-computed per-source sales — { CA: {...},
  * US: {...} } — e.g. from a live report fetch; otherwise sales come from `history`.
  */
-export function buildInvoices({ history, salesBySource, start, end, issueDate, fx }) {
+export function buildInvoices({ history, salesBySource, start, end, issueDate, fx, spread }) {
     return {
         CFB: buildInvoice({ history, sales: salesBySource?.CA, kind: 'CFB', start, end, issueDate }),
-        UFB: buildInvoice({ history, sales: salesBySource?.US, kind: 'UFB', start, end, issueDate, fx }),
+        UFB: buildInvoice({ history, sales: salesBySource?.US, kind: 'UFB', start, end, issueDate, fx, spread }),
     };
 }
 

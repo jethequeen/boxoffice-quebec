@@ -341,7 +341,7 @@ function InvoiceGenerator() {
     const [start, setStart] = useState(initial.start);
     const [end, setEnd] = useState(initial.end);
     const [to, setTo] = useState('');
-    const [rate, setRate] = useState('');
+    const [spreadPct, setSpreadPct] = useState('');   // conversion fee %, e.g. "1" = 1%
     const [dryRun, setDryRun] = useState(false);
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);
@@ -364,7 +364,7 @@ function InvoiceGenerator() {
         try {
             const params = new URLSearchParams({ start, end });
             if (to) params.set('to', to);
-            if (rate) params.set('rate', rate);
+            if (spreadPct !== '') params.set('spread', String(Number(spreadPct) / 100));
             if (dryRun) params.set('dryRun', '1');
             const res = await fetch(`/.netlify/functions/runInvoiceNow?${params.toString()}`, {
                 method: 'POST',
@@ -414,16 +414,16 @@ function InvoiceGenerator() {
                 </div>
                 <div className="inv-upload__row">
                     <label>
-                        Taux USD→CAD (optionnel, UFB)&nbsp;:{' '}
+                        Frais de conversion % (optionnel, UFB)&nbsp;:{' '}
                         <input
                             type="number"
-                            step="0.0001"
+                            step="0.01"
                             min="0"
-                            placeholder="par défaut : taux Banque du Canada"
-                            value={rate}
-                            onChange={(e) => setRate(e.target.value)}
+                            placeholder="défaut : 1 %"
+                            value={spreadPct}
+                            onChange={(e) => setSpreadPct(e.target.value)}
                             disabled={busy}
-                            style={{ minWidth: 220 }}
+                            style={{ minWidth: 160 }}
                         />
                     </label>
                 </div>

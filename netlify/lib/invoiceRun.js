@@ -84,19 +84,17 @@ function emailHtml({ label, period, invoices, draft }) {
  * @param {string}  [opts.dataSource] 'live' (fetch the CFB reports for the range —
  *                                    default, most accurate) or 'history' (sum the
  *                                    sales-history blob — offline fallback)
- * @param {number}  [opts.rate]       explicit USD→CAD rate to use for the UFB
- *                                    conversion (e.g. the one Manon provides).
- *                                    Omitted → the invoice-day Bank-of-Canada rate.
+ * @param {number}  [opts.spread]     UFB conversion-fee spread as a fraction (e.g.
+ *                                    0.01 = 1%), the % Manon provides. Omitted →
+ *                                    the config default (FX_SPREAD).
  */
-export async function runInvoices({ start, end, issueDate, to, dryRun = false, dataSource = 'live', rate }) {
+export async function runInvoices({ start, end, issueDate, to, dryRun = false, dataSource = 'live', spread }) {
     const log = { start, end, issueDate, dryRun, dataSource, draft: isDraftConfig() };
+    if (Number.isFinite(spread)) log.spread = spread;
 
-    // The UFB invoice converts USD sales at the invoice-day rate. A caller-supplied
-    // rate (Manon's) wins; otherwise fetch the day's Bank-of-Canada rate up front so
-    // a missing rate aborts before we build a half-invoice.
-    const fx = Number(rate) > 0
-        ? { rate: Number(rate), rateDate: issueDate, source: 'manual' }
-        : await getUsdCadRate(issueDate);
+    // The UFB invoice converts USD sales at the invoice-day Bank-of-Canada rate.
+    // Fetch it up front so a missing rate aborts before we build a half-invoice.
+    const fx = await getUsdCadRate(issueDate);
     log.fx = fx;
 
     // Source the sales either live from the vendor reports (accurate, covers the
@@ -109,7 +107,7 @@ export async function runInvoices({ start, end, issueDate, to, dryRun = false, d
         salesBySource = await fetchInvoiceSales({ start, end, log });
     }
 
-    const invoices = buildInvoices({ history, salesBySource, start, end, issueDate, fx });
+    const invoices = buildInvoices({ history, salesBySource, start, end, issueDate, fx, spread });
     log.invoices = { CFB: summarize(invoices.CFB), UFB: summarize(invoices.UFB) };
 
     // Render both PDFs (needed for dry-run byte-size reporting too).
