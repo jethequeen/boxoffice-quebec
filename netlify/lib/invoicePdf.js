@@ -140,18 +140,24 @@ export function renderInvoicePdf(inv) {
             doc.fillColor(INK).text(value, amtX, y, { width: amtW, align: 'right' });
             y = doc.y + (opts.bold ? 2 : 5);
         };
-        totalLine('Sous-total', cad(inv.amounts.subtotal));
-        totalLine(`TPS (${pct(inv.taxRates.tps)})`, cad(inv.amounts.tps));
-        totalLine(`TVQ (${pct(inv.taxRates.tvq)})`, cad(inv.amounts.tvq));
-        y += 4;
-        doc.moveTo(detX - contentWidth * 0.1, y).lineTo(right, y).strokeColor(RULE).lineWidth(1).stroke();
-        y += 8;
+        // Taxable client (CFB) → show the TPS/TVQ breakdown. UFB is an export sale
+        // to USA First Bricks → zero-rated, so no tax lines at all.
+        if (inv.taxable) {
+            totalLine('Sous-total', cad(inv.amounts.subtotal));
+            totalLine(`TPS (${pct(inv.taxRates.tps)})`, cad(inv.amounts.tps));
+            totalLine(`TVQ (${pct(inv.taxRates.tvq)})`, cad(inv.amounts.tvq));
+            y += 4;
+            doc.moveTo(detX - contentWidth * 0.1, y).lineTo(right, y).strokeColor(RULE).lineWidth(1).stroke();
+            y += 8;
+        }
         totalLine('TOTAL', cad(inv.amounts.total), { bold: true });
 
         // ---- Footer ---------------------------------------------------------
+        const footer = inv.taxable
+            ? `Toutes les sommes sont en dollars canadiens (CAD). Vente de pièces à ${inv.client.name}, taxes incluses.`
+            : `Toutes les sommes sont en dollars canadiens (CAD). Vente de pièces à ${inv.client.name} — exportation hors Canada, exonérée de TPS/TVQ.`;
         doc.font('Helvetica').fontSize(8).fillColor(MUTED)
-            .text('Toutes les sommes sont en dollars canadiens (CAD). Vente de pièces à Canada First Bricks, taxes incluses.',
-                left, page.height - 80, { width: contentWidth, align: 'center' });
+            .text(footer, left, page.height - 80, { width: contentWidth, align: 'center' });
 
         doc.end();
     });

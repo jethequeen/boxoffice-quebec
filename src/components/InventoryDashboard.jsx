@@ -341,6 +341,7 @@ function InvoiceGenerator() {
     const [start, setStart] = useState(initial.start);
     const [end, setEnd] = useState(initial.end);
     const [to, setTo] = useState('');
+    const [rate, setRate] = useState('');
     const [dryRun, setDryRun] = useState(false);
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);
@@ -363,6 +364,7 @@ function InvoiceGenerator() {
         try {
             const params = new URLSearchParams({ start, end });
             if (to) params.set('to', to);
+            if (rate) params.set('rate', rate);
             if (dryRun) params.set('dryRun', '1');
             const res = await fetch(`/.netlify/functions/runInvoiceNow?${params.toString()}`, {
                 method: 'POST',
@@ -407,6 +409,21 @@ function InvoiceGenerator() {
                             onChange={(e) => setTo(e.target.value)}
                             disabled={busy}
                             style={{ minWidth: 260 }}
+                        />
+                    </label>
+                </div>
+                <div className="inv-upload__row">
+                    <label>
+                        Taux USD→CAD (optionnel, UFB)&nbsp;:{' '}
+                        <input
+                            type="number"
+                            step="0.0001"
+                            min="0"
+                            placeholder="par défaut : taux Banque du Canada"
+                            value={rate}
+                            onChange={(e) => setRate(e.target.value)}
+                            disabled={busy}
+                            style={{ minWidth: 220 }}
                         />
                     </label>
                 </div>

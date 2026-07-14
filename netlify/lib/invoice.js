@@ -189,7 +189,12 @@ export function buildInvoice({ history, sales, kind, start, end, issueDate, fx }
         billedTotal = netAfterCommission;
     }
 
-    const amounts = extractTaxIncluded(billedTotal, TAX_RATES);
+    // CFB (Canadian client) is taxable → back TPS/TVQ out of the billed total.
+    // UFB is billed to USA First Bricks (export, out-of-Canada) → zero-rated, no tax.
+    const taxable = spec.taxable !== false;
+    const amounts = taxable
+        ? extractTaxIncluded(billedTotal, TAX_RATES)
+        : { subtotal: billedTotal, tps: 0, tvq: 0, total: billedTotal };
 
     return {
         kind,
@@ -200,7 +205,8 @@ export function buildInvoice({ history, sales, kind, start, end, issueDate, fx }
         period,
         store: spec.store,
         issuer: { ...ISSUER },
-        client: { ...CLIENT },
+        client: { ...(spec.client || CLIENT) },
+        taxable,
         commissionRate: COMMISSION_RATE,
         taxRates: { ...TAX_RATES },
         sales: {

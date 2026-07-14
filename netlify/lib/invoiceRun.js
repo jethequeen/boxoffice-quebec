@@ -84,13 +84,19 @@ function emailHtml({ label, period, invoices, draft }) {
  * @param {string}  [opts.dataSource] 'live' (fetch the CFB reports for the range —
  *                                    default, most accurate) or 'history' (sum the
  *                                    sales-history blob — offline fallback)
+ * @param {number}  [opts.rate]       explicit USD→CAD rate to use for the UFB
+ *                                    conversion (e.g. the one Manon provides).
+ *                                    Omitted → the invoice-day Bank-of-Canada rate.
  */
-export async function runInvoices({ start, end, issueDate, to, dryRun = false, dataSource = 'live' }) {
+export async function runInvoices({ start, end, issueDate, to, dryRun = false, dataSource = 'live', rate }) {
     const log = { start, end, issueDate, dryRun, dataSource, draft: isDraftConfig() };
 
-    // The UFB invoice converts USD sales at the invoice-day rate. Fetch it up front
-    // so a missing rate aborts before we build a half-invoice.
-    const fx = await getUsdCadRate(issueDate);
+    // The UFB invoice converts USD sales at the invoice-day rate. A caller-supplied
+    // rate (Manon's) wins; otherwise fetch the day's Bank-of-Canada rate up front so
+    // a missing rate aborts before we build a half-invoice.
+    const fx = Number(rate) > 0
+        ? { rate: Number(rate), rateDate: issueDate, source: 'manual' }
+        : await getUsdCadRate(issueDate);
     log.fx = fx;
 
     // Source the sales either live from the vendor reports (accurate, covers the

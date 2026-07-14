@@ -32,9 +32,17 @@ const ISSUER_INFO = {
     qst: '1228939028 TQ0001',                  // TVQ / QST
 };
 
-// Le client facturé : Canada First Bricks (les deux factures lui sont adressées).
+// Client de la facture CFB (ventes canadiennes) — Canada First Bricks.
 const CLIENT_INFO = {
     name: 'Canada First Bricks',
+    address: '5525, chemin de la Côte-de-Liesse\nSaint-Laurent (Québec) H4P 1A1',
+};
+
+// Client de la facture UFB (ventes américaines) — USA First Bricks. Facturé en CAD,
+// SANS taxes (exportation vers une entité hors Canada). L'adresse est par défaut la
+// même que CFB — à corriger si USA First Bricks a une adresse distincte.
+const CLIENT_UFB_INFO = {
+    name: 'USA First Bricks',
     address: '5525, chemin de la Côte-de-Liesse\nSaint-Laurent (Québec) H4P 1A1',
 };
 
@@ -96,18 +104,27 @@ export const CLIENT = {
     address: env('INVOICE_CLIENT_ADDRESS', CLIENT_INFO.address),
 };
 
+export const CLIENT_UFB = {
+    name: env('INVOICE_CLIENT_UFB_NAME', CLIENT_UFB_INFO.name),
+    address: env('INVOICE_CLIENT_UFB_ADDRESS', CLIENT_UFB_INFO.address),
+};
+
 export const INVOICE_KINDS = {
     CFB: {
         source: 'CA',
         store: 'Canada First Bricks',
+        client: CLIENT,
         numberPrefix: env('INVOICE_PREFIX_CFB', PREFIX_CFB),
         native: 'CAD',        // ventes déjà en CAD, aucune conversion
+        taxable: true,        // client canadien → TPS/TVQ incluses
     },
     UFB: {
         source: 'US',
         store: 'USA First Bricks',
+        client: CLIENT_UFB,
         numberPrefix: env('INVOICE_PREFIX_UFB', PREFIX_UFB),
         native: 'USD',        // ventes en USD, converties en CAD à tauxBoC*(1-écart)
+        taxable: false,       // client hors Canada (exportation) → aucune taxe
     },
 };
 

@@ -302,6 +302,7 @@
 .inv-upload__body input[type="email"],
 .inv-upload__body input[type="password"],
 .inv-upload__body input[type="date"],
+.inv-upload__body input[type="number"],
 .inv-upload__body select,
 .inv-range-custom input[type="date"],
 .inv-card__head input[type="date"] {

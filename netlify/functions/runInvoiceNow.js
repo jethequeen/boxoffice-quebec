@@ -39,6 +39,9 @@ export const handler = async (event) => {
     const dryRun = qs.dryRun === '1';
     const to = qs.to || undefined;
     const dataSource = qs.data === 'history' ? 'history' : 'live';
+    const rate = qs.rate ? Number(qs.rate) : undefined;
+
+    if (rate != null && !(rate > 0)) return jsonResponse(400, { error: `Invalid rate "${qs.rate}" — expected a positive number` });
 
     if (!isYmd(issueDate)) return jsonResponse(400, { error: `Invalid issueDate "${issueDate}" — expected YYYY-MM-DD` });
 
@@ -57,7 +60,7 @@ export const handler = async (event) => {
     }
 
     try {
-        const log = await runInvoices({ start, end, issueDate, to, dryRun, dataSource });
+        const log = await runInvoices({ start, end, issueDate, to, dryRun, dataSource, rate });
         return jsonResponse(200, log);
     } catch (e) {
         console.error('[runInvoiceNow] FAIL', e);
