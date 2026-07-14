@@ -138,6 +138,21 @@ export async function loadReportForm(source = 'CA') {
 }
 
 /**
+ * Cheap liveness probe for a source's session: load the report form (a GET). A valid
+ * session returns the form; an expired one throws CfbAuthError. Returns a plain
+ * result object (never throws) so callers can report per-source status.
+ */
+export async function checkSession(source) {
+    try {
+        await loadReportForm(source);
+        return { source, ok: true };
+    } catch (e) {
+        const authExpired = e instanceof CfbAuthError || e?.authExpired === true;
+        return { source, ok: false, authExpired, error: e.message };
+    }
+}
+
+/**
  * POST the form. Always passes startDate/endDate when provided. The server returns
  * a 302 to /bricklink/inventory_vendor_reports/{uuid}; fetch follows it and we get
  * the rendered report HTML.

@@ -10,7 +10,9 @@ const todayInTZ = (tz = 'America/Toronto') => {
 async function run() {
     const issueDate = todayInTZ();          // the 1st, when the cron fires
     const ym = previousMonthYm(issueDate);  // invoice the month that just closed
-    return runMonthlyInvoices({ ym, issueDate });
+    // CFB only: it needs no external input. The UFB invoice waits for Manon's
+    // conversion % and is generated manually (UI / runInvoiceNow).
+    return runMonthlyInvoices({ ym, issueDate, kinds: ['CFB'] });
 }
 
 // 12:00 UTC on the 1st of each month ≈ 08:00 Toronto (EDT) — the previous month is

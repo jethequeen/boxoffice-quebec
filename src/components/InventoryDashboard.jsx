@@ -342,6 +342,8 @@ function InvoiceGenerator() {
     const [end, setEnd] = useState(initial.end);
     const [to, setTo] = useState('');
     const [spreadPct, setSpreadPct] = useState('');   // conversion fee %, e.g. "1" = 1%
+    const [genCfb, setGenCfb] = useState(true);
+    const [genUfb, setGenUfb] = useState(true);
     const [dryRun, setDryRun] = useState(false);
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);
@@ -358,11 +360,14 @@ function InvoiceGenerator() {
     const submit = async () => {
         if (!start || !end) return;
         if (start > end) { setErr('La date de début est après la date de fin.'); return; }
+        const kinds = [genCfb && 'CFB', genUfb && 'UFB'].filter(Boolean);
+        if (!kinds.length) { setErr('Choisis au moins une facture (CFB ou UFB).'); return; }
         setBusy(true);
         setResult(null);
         setErr(null);
         try {
             const params = new URLSearchParams({ start, end });
+            params.set('kinds', kinds.join(','));
             if (to) params.set('to', to);
             if (spreadPct !== '') params.set('spread', String(Number(spreadPct) / 100));
             if (dryRun) params.set('dryRun', '1');
@@ -397,6 +402,18 @@ function InvoiceGenerator() {
                     <label>
                         Au&nbsp;:{' '}
                         <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} disabled={busy} />
+                    </label>
+                </div>
+                <div className="inv-upload__row">
+                    Factures&nbsp;:{' '}
+                    <label>
+                        <input type="checkbox" checked={genCfb} onChange={(e) => setGenCfb(e.target.checked)} disabled={busy} />
+                        {' '}CFB (Canada)
+                    </label>
+                    {'   '}
+                    <label>
+                        <input type="checkbox" checked={genUfb} onChange={(e) => setGenUfb(e.target.checked)} disabled={busy} />
+                        {' '}UFB (USA)
                     </label>
                 </div>
                 <div className="inv-upload__row">
@@ -544,6 +561,87 @@ function dailyInvSeries(snapshots) {
         }
     }
     return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Probe both CFB sessions; an expired one triggers the reset-email flow server-side.
+function CookieCheck() {
+    const [token, setToken] = useState(() => {
+        try { return localStorage.getItem(TOKEN_STORAGE_KEY) || ''; } catch { return ''; }
+    });
+    const [busy, setBusy] = useState(false);
+    const [result, setResult] = useState(null);
+    const [err, setErr] = useState(null);
+    const [open, setOpen] = useState(false);
+
+    const persistToken = (v) => {
+        setToken(v);
+        try {
+            if (v) localStorage.setItem(TOKEN_STORAGE_KEY, v);
+            else localStorage.removeItem(TOKEN_STORAGE_KEY);
+        } catch { /* ignore */ }
+    };
+
+    const test = async () => {
+        setBusy(true);
+        setResult(null);
+        setErr(null);
+        try {
+            const res = await fetch('/.netlify/functions/checkCookies', {
+                method: 'POST',
+                headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+            setResult(data);
+        } catch (e) {
+            setErr(e.message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <section className="inv-card inv-upload">
+            <div className="inv-card__head">
+                <h2>Tester les sessions CFB</h2>
+                <button type="button" className="inv-tab" onClick={() => setOpen((v) => !v)}>
+                    {open ? 'Fermer' : 'Ouvrir'}
+                </button>
+            </div>
+            {open && (
+                <div className="inv-upload__body">
+                    <div className="inv-upload__row">
+                        <input
+                            type="password"
+                            placeholder="Ingest token (laisse vide si non requis)"
+                            value={token}
+                            onChange={(e) => persistToken(e.target.value)}
+                            disabled={busy}
+                            className="inv-upload__token"
+                        />
+                    </div>
+                    <div className="inv-upload__row">
+                        <button type="button" className="inv-upload__submit" onClick={test} disabled={busy}>
+                            {busy ? 'Test en cours…' : 'Tester les cookies (CA + US)'}
+                        </button>
+                    </div>
+                    {result && (
+                        <div className="inv-upload__ok">
+                            {result.results.map((r) => (
+                                <div key={r.source}>
+                                    {r.ok ? '✓' : '⚠'} {r.source} :{' '}
+                                    {r.ok ? 'session valide' : (r.authExpired ? 'session expirée' : 'erreur')}
+                                    {r.resetEmailSent && ' — courriel de réinitialisation envoyé'}
+                                    {!r.ok && !r.authExpired && r.error ? ` (${r.error})` : ''}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {err && <div className="inv-upload__err">⚠ {err}</div>}
+                </div>
+            )}
+        </section>
+    );
 }
 
 // Look up a single day's sales, split CFB (Canada) vs UFB (USA). Reads the daily
@@ -739,6 +837,7 @@ export default function InventoryDashboard() {
 
             <UploadBsx onUploaded={() => setReloadTick((n) => n + 1)} />
             <RunIngest />
+            <CookieCheck />
 
             <nav className="inv-tabs-nav">
                 <button

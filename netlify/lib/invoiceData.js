@@ -38,9 +38,9 @@ export async function fetchRangeSales({ start, end, source }) {
  * token-reset alert for that source and throw — an invoice must not go out with a
  * platform silently missing. Records per-source detail on `log.fetched`.
  */
-export async function fetchInvoiceSales({ start, end, log = {} }) {
+export async function fetchInvoiceSales({ start, end, sources = Object.keys(SOURCES), log = {} }) {
     const bySource = {};
-    for (const source of Object.keys(SOURCES)) {
+    for (const source of sources) {
         try {
             const s = await fetchRangeSales({ start, end, source });
             bySource[source] = s;

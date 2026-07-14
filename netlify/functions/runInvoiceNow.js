@@ -48,6 +48,14 @@ export const handler = async (event) => {
         return jsonResponse(400, { error: `Invalid spread "${qs.spread}" — expected a fraction between 0 and 1 (e.g. 0.01 for 1%)` });
     }
 
+    // Which invoices to produce (default both). e.g. ?kinds=UFB after Manon's %.
+    let kinds = ['CFB', 'UFB'];
+    if (qs.kinds) {
+        kinds = qs.kinds.split(',').map((k) => k.trim().toUpperCase()).filter(Boolean);
+        const bad = kinds.filter((k) => k !== 'CFB' && k !== 'UFB');
+        if (bad.length) return jsonResponse(400, { error: `Unknown kind(s): ${bad.join(', ')} — expected CFB, UFB, or CFB,UFB` });
+    }
+
     if (!isYmd(issueDate)) return jsonResponse(400, { error: `Invalid issueDate "${issueDate}" — expected YYYY-MM-DD` });
 
     // Resolve the [start, end] range from the params.
@@ -65,7 +73,7 @@ export const handler = async (event) => {
     }
 
     try {
-        const log = await runInvoices({ start, end, issueDate, to, dryRun, dataSource, spread });
+        const log = await runInvoices({ start, end, issueDate, to, dryRun, dataSource, spread, kinds });
         return jsonResponse(200, log);
     } catch (e) {
         console.error('[runInvoiceNow] FAIL', e);
