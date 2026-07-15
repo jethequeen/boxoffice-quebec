@@ -333,6 +333,25 @@
     color: #374151;
 }
 
+.inv-fieldset {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 10px 14px 6px;
+    margin: 2px 0;
+}
+
+.inv-fieldset legend {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #4F46E5;
+    padding: 0 6px;
+}
+
+.inv-fieldset .inv-upload__row {
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
 .inv-upload__submit {
     background: #4F46E5;
     color: #fff;

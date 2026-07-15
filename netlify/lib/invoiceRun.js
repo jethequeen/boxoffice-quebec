@@ -1,17 +1,12 @@
 /**
- * Orchestration for the monthly invoice run — shared by the scheduled function
- * (monthlyInvoice-background.js) and the on-demand endpoint (runInvoiceNow.js) so
- * the two behave identically.
- *
- * Reads the sales-history blob, fetches the invoice-day USD→CAD rate (for the UFB
- * conversion), builds both invoice models, renders their PDFs, and emails them to
- * the configured recipient with the PDFs attached. `dryRun` does everything except
- * send the email (and still returns the computed amounts + PDF byte sizes).
+ * Orchestration for the invoice run — shared by the on-demand endpoint
+ * (runInvoiceNow.js) and the UI. Builds the requested invoice models from the payouts
+ * (entered manually from the report emails, or fetched live), renders their PDFs, and
+ * emails them with the PDFs attached. `dryRun` does everything except send the email.
  */
 
 import { readSalesHistory, appendInvoiceRecord, writeInvoicePdf } from './blobs.js';
-import { getUsdCadRate } from './fx.js';
-import { buildInvoice, monthRange } from './invoice.js';
+import { buildInvoice } from './invoice.js';
 import { fetchInvoiceSales } from './invoiceData.js';
 import { renderInvoicePdf } from './invoicePdf.js';
 import { sendInvoiceEmail } from './email.js';
@@ -27,22 +22,26 @@ const KIND_SOURCE = { CFB: 'CA', UFB: 'US' };
 const summarize = (inv) => ({
     number: inv.number,
     store: inv.store,
+    client: inv.client.name,
     parts: inv.sales.parts,
-    grossCad: inv.sales.grossCad,
-    grossUsd: inv.conversion?.grossUsd ?? null,
-    commissionKept: inv.commissionKept,
+    netNative: inv.sales.netNative,
+    currencyNative: inv.currencyNative,
+    rate: inv.conversion?.rate ?? null,
     total: inv.amounts.total,
 });
 
 function emailHtml({ label, period, invoiceList, draft }) {
     const ufb = invoiceList.find((i) => i.kind === 'UFB');
     const clients = [...new Set(invoiceList.map((i) => i.client.name))].join(' et ');
+    const nativeMoney = (inv) => new Intl.NumberFormat('fr-CA', {
+        style: 'currency', currency: inv.currencyNative === 'USD' ? 'USD' : 'CAD',
+    }).format(Number(inv.sales.netNative) || 0);
     const row = (inv) => `
         <tr>
           <td style="padding:6px 12px;border-bottom:1px solid #eee">${inv.number}</td>
-          <td style="padding:6px 12px;border-bottom:1px solid #eee">${inv.store}</td>
-          <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right">${inv.sales.parts}</td>
-          <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right">${cad(inv.sales.grossCad)}</td>
+          <td style="padding:6px 12px;border-bottom:1px solid #eee">${inv.client.name}</td>
+          <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right">${inv.sales.parts ?? '—'}</td>
+          <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right">${nativeMoney(inv)}</td>
           <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right"><strong>${cad(inv.amounts.total)}</strong></td>
         </tr>`;
     const draftWarn = draft
@@ -61,17 +60,14 @@ function emailHtml({ label, period, invoiceList, draft }) {
             <tr style="text-align:left;color:#666;font-size:12px">
               <th style="padding:6px 12px">No</th><th style="padding:6px 12px">Ventes</th>
               <th style="padding:6px 12px;text-align:right">Pièces</th>
-              <th style="padding:6px 12px;text-align:right">Ventes brutes</th>
-              <th style="padding:6px 12px;text-align:right">Total (taxes incl.)</th>
+              <th style="padding:6px 12px;text-align:right">Montant net (payout)</th>
+              <th style="padding:6px 12px;text-align:right">Total facturé</th>
             </tr>
           </thead>
           <tbody>${invoiceList.map(row).join('')}</tbody>
         </table>
         ${ufb?.conversion ? `<p style="color:#666;font-size:13px">
-           Facture UFB : ventes US converties au taux Banque du Canada
-           ${ufb.conversion.bocRate}${ufb.conversion.bocRateDate ? ` (${ufb.conversion.bocRateDate})` : ''},
-           moins la commission de ${(ufb.commissionRate * 100).toFixed(0)} % puis
-           ${(ufb.conversion.feeRate * 100).toFixed(2)} % de frais de conversion.
+           Facture UFB : payout de ${nativeMoney(ufb)} converti au taux ${ufb.conversion.rate}.
          </p>` : ''}
       </div>`;
 }
@@ -86,44 +82,36 @@ function emailHtml({ label, period, invoiceList, draft }) {
  * @param {string}  opts.issueDate  'YYYY-MM-DD' the invoices are dated (drives the FX rate)
  * @param {string}  [opts.to]         recipient override (defaults to INVOICE_EMAIL_TO)
  * @param {boolean} [opts.dryRun]     compute + render but do not email
- * @param {string}  [opts.dataSource] 'live' (fetch the CFB reports for the range —
- *                                    default, most accurate) or 'history' (sum the
- *                                    sales-history blob — offline fallback)
- * @param {number}  [opts.spread]     UFB conversion-fee spread as a fraction (e.g.
- *                                    0.01 = 1%), the % Manon provides. Omitted →
- *                                    the config default (FX_SPREAD).
- * @param {string[]}[opts.kinds]      which invoices to produce — subset of
- *                                    ['CFB','UFB']. Default both. The monthly cron
- *                                    passes ['CFB'] only (UFB waits for Manon's %).
+ * @param {string}  [opts.dataSource] 'manual' (default — amounts come from `salesBySource`,
+ *                                    entered from the report emails), 'live' (fetch the
+ *                                    CFB reports for the range) or 'history' (sales blob)
+ * @param {object}  [opts.salesBySource] manual payouts, e.g.
+ *                                    { CA:{netNative, grossNative?, parts?}, US:{…} }
+ * @param {number}  [opts.rate]       final USD→CAD rate from Manon (REQUIRED for UFB)
+ * @param {string[]}[opts.kinds]      which invoices to produce — subset of ['CFB','UFB'].
  */
 export async function runInvoices({
-    start, end, issueDate, to, dryRun = false, dataSource = 'live', spread, kinds = ['CFB', 'UFB'],
+    start, end, issueDate, to, dryRun = false, dataSource = 'manual', salesBySource = null, rate, kinds = ['CFB', 'UFB'],
 }) {
     const wanted = ['CFB', 'UFB'].filter((k) => kinds.includes(k));
     if (!wanted.length) throw new Error(`No valid invoice kinds in ${JSON.stringify(kinds)}`);
 
     const log = { start, end, issueDate, dryRun, dataSource, kinds: wanted, draft: isDraftConfig() };
-    if (Number.isFinite(spread)) log.spread = spread;
+    if (Number.isFinite(rate)) log.rate = rate;
 
-    // The UFB invoice converts USD sales at the invoice-day Bank-of-Canada rate —
-    // only needed when UFB is requested. Fetch up front so a missing rate aborts early.
-    const fx = wanted.includes('UFB') ? await getUsdCadRate(issueDate) : null;
-    if (fx) log.fx = fx;
-
-    // Source the sales either live from the vendor reports (accurate, covers the
-    // exact range, US in native USD) or from the accumulated sales-history blob.
-    // Only the sources backing the requested kinds are fetched.
+    // Source the payouts. Default 'manual' — the caller passes them (entered from the
+    // report emails). 'live'/'history' still available to derive them from CFB.
     const sources = wanted.map((k) => KIND_SOURCE[k]);
-    let salesBySource = null;
     let history = null;
+    let sbs = salesBySource;
     if (dataSource === 'history') {
         history = await readSalesHistory();
-    } else {
-        salesBySource = await fetchInvoiceSales({ start, end, sources, log });
+    } else if (dataSource === 'live') {
+        sbs = await fetchInvoiceSales({ start, end, sources, log });
     }
 
     const invoices = wanted.map((kind) => buildInvoice({
-        history, sales: salesBySource?.[KIND_SOURCE[kind]], kind, start, end, issueDate, fx, spread,
+        history, sales: sbs?.[KIND_SOURCE[kind]], kind, start, end, issueDate, rate,
     }));
     log.invoices = Object.fromEntries(invoices.map((inv) => [inv.kind, summarize(inv)]));
 
@@ -170,11 +158,11 @@ export async function runInvoices({
                 client: inv.client.name,
                 store: inv.store,
                 parts: inv.sales.parts,
-                grossCad: inv.sales.grossCad,
+                netNative: inv.sales.netNative,
+                currencyNative: inv.currencyNative,
                 total: inv.amounts.total,
                 taxable: inv.taxable,
-                spread: inv.conversion?.feeRate ?? null,
-                bocRate: inv.conversion?.bocRate ?? null,
+                rate: inv.conversion?.rate ?? null,
                 draft: log.draft,
                 recipient,
                 generatedAt,
@@ -186,10 +174,4 @@ export async function runInvoices({
         console.error('[runInvoices] archive failed', e);
     }
     return log;
-}
-
-/** Convenience wrapper: invoice a whole calendar month 'YYYY-MM'. */
-export async function runMonthlyInvoices({ ym, issueDate, to, dryRun = false, spread, kinds }) {
-    const { start, end } = monthRange(ym);
-    return runInvoices({ start, end, issueDate, to, dryRun, spread, kinds });
 }

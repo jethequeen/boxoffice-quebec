@@ -9,11 +9,11 @@
  * │  « BROUILLON » pour éviter d'envoyer une facture incomplète par erreur.     │
  * └──────────────────────────────────────────────────────────────────────────┘
  *
- * Deux factures sont produites chaque mois, toutes deux au nom de CFB, en CAD :
- *   - 'CFB' — commission sur les pièces vendues sur la boutique canadienne (CA).
- *   - 'UFB' — commission sur les pièces vendues sur la boutique américaine (US),
- *     dont le brut USD est converti en CAD au taux Banque du Canada du jour de la
- *     facture MOINS un écart (1% par défaut), selon la consigne de Sylvain.
+ * Deux factures, en CAD, saisies manuellement à partir des rapports (le « payout »
+ * du mois) reçus par courriel :
+ *   - 'CFB' — vente des pièces à Canada First Bricks (montant CAD), taxes incluses.
+ *   - 'UFB' — vente des pièces à USA First Bricks (montant US × le taux final fourni
+ *     par Manon), SANS taxes (exportation hors Canada).
  *
  * (Chaque champ accepte une surcharge par variable d'environnement du même nom si
  *  un jour tu préfères la gérer dans Netlify, mais ce n'est pas nécessaire.)
@@ -54,19 +54,11 @@ const EMAIL_TO = '';
 //  RÈGLES DE CALCUL — à ajuster si Sylvain change d'idée
 // ════════════════════════════════════════════════════════════════════════════
 
-// Taxes du Québec. Le montant facturé (les pièces, net de commission) est TAXES
-// INCLUSES, donc ces taux servent à EXTRAIRE la TPS/TVQ (voir extractTaxIncluded()).
+// Taxes du Québec. Sur la facture CFB (client canadien), le montant facturé est
+// TAXES INCLUSES → ces taux servent à EXTRAIRE la TPS/TVQ (voir extractTaxIncluded()).
+// La facture UFB (exportation) n'a pas de taxes.
 const TPS_RATE = 0.05;       // TPS / GST
 const TVQ_RATE = 0.09975;    // TVQ / QST
-
-// Commission que CFB RETIENT (leur part pour gérer la plateforme). On ne facture PAS
-// la commission : CFB nous achète les pièces au brut MOINS cette commission, donc on
-// facture le net = ventes brutes × (1 - COMMISSION). 0.25 → on facture 75%.
-const COMMISSION = 0.25;
-
-// Frais de conversion appliqué APRÈS la commission, sur le montant net à virer en CAD
-// (facture UFB seulement — les ventes US doivent être converties). net × (1 - FRAIS).
-const FX_SPREAD_RATE = 0.01;
 
 // Préfixes des numéros de facture → « CFB-2026-06 », « UFB-2026-06 ».
 const PREFIX_CFB = 'CFB';
@@ -86,10 +78,6 @@ export const TAX_RATES = {
     tps: Number(env('INVOICE_TPS_RATE', String(TPS_RATE))),
     tvq: Number(env('INVOICE_TVQ_RATE', String(TVQ_RATE))),
 };
-
-export const COMMISSION_RATE = Number(env('INVOICE_COMMISSION_RATE', String(COMMISSION)));
-
-export const FX_SPREAD = Number(env('INVOICE_FX_SPREAD', String(FX_SPREAD_RATE)));
 
 export const ISSUER = {
     name: env('INVOICE_ISSUER_NAME', ISSUER_INFO.name),

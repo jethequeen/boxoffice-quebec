@@ -30,7 +30,9 @@ export async function fetchRangeSales({ start, end, source }) {
     const sheetable = rows.filter(isSheetableSale);
     const agg = aggregateRows(sheetable);
     const days = [...new Set(sheetable.map((r) => r.date))].sort();
-    return { parts: agg.parts, grossNative: agg.total, days, rowCount: sheetable.length, dateRange };
+    // netNative = payout (the amount owed, already net of commission); grossNative
+    // = total sales (before commission) for the optional gross line on the invoice.
+    return { parts: agg.parts, netNative: agg.payout, grossNative: agg.total, days, rowCount: sheetable.length, dateRange };
 }
 
 /**

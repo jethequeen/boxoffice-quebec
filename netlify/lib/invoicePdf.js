@@ -18,7 +18,6 @@ const usd = (n) =>
     new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'USD' }).format(Number(n) || 0);
 const int = (n) => new Intl.NumberFormat('fr-CA').format(Number(n) || 0);
 const rate = (x) => String(x).replace('.', ',');   // exchange rates: French decimal comma
-const neg = (n) => `-${cad(n)}`;                    // a deduction, e.g. "-35,25 $"
 const pct = (r) => `${(Number(r) * 100).toFixed(3).replace(/\.?0+$/, '').replace('.', ',')} %`;
 const frDate = (ymd) =>
     new Intl.DateTimeFormat('fr-CA', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -104,27 +103,33 @@ export function renderInvoicePdf(inv) {
             y += gap;
         };
 
-        // ---- Calcul du montant facturé (gross − commission − conversion fee) -
-        y = 248;
-        doc.font('Helvetica-Bold').fontSize(9).fillColor(MUTED).text('CALCUL DU MONTANT FACTURÉ', left, y);
-        y += 18;
+        // ---- Calcul du montant facturé (payout → [× taux pour UFB]) ----------
+        // Native-currency formatter for the payout/gross rows (USD for UFB, CAD for CFB).
+        const money = inv.currencyNative === 'USD' ? usd : cad;
+        const partsDetail = inv.sales.parts != null ? `${int(inv.sales.parts)} pièces` : '';
+        const hasGross = inv.sales.grossNative != null;
+        const showCalc = inv.conversion || hasGross;
 
-        if (inv.conversion) {
-            const c = inv.conversion;
-            row('Ventes brutes de la période', `${int(inv.sales.parts)} pièces`, usd(c.grossUsd), { muted: true });
-            row(`Taux Banque du Canada${c.bocRateDate ? ` (${c.bocRateDate})` : ''}`, '', rate(c.bocRate), { muted: true });
-            row('Ventes brutes (CAD)', '', cad(inv.sales.grossCad), { muted: true });
-            row(`Commission CFB (${pct(inv.commissionRate)})`, '', neg(inv.commissionKept), { muted: true });
-            row('Montant net à virer', '', cad(inv.netAfterCommission), { muted: true });
-            row(`Frais de conversion (${pct(c.feeRate)})`, '', neg(c.conversionFee), { muted: true });
-            row('Montant facturé', '', cad(inv.amounts.total), { muted: true, bold: true });
+        if (showCalc) {
+            doc.font('Helvetica-Bold').fontSize(9).fillColor(MUTED).text('CALCUL DU MONTANT FACTURÉ', left, y = 248);
+            y += 18;
+
+            if (hasGross) {
+                row('Ventes brutes de la période', partsDetail, money(inv.sales.grossNative), { muted: true });
+                row('Commission de la plateforme', '', `-${money(inv.commissionNative)}`, { muted: true });
+                row('Montant net (payout)', '', money(inv.sales.netNative), { muted: true });
+            } else {
+                row('Montant net (payout)', partsDetail, money(inv.sales.netNative), { muted: true });
+            }
+            if (inv.conversion) {
+                row('Taux de conversion appliqué', '', rate(inv.conversion.rate), { muted: true });
+                row('Montant facturé (CAD)', '', cad(inv.amounts.total), { muted: true, bold: true });
+            }
+            y += 4;
+            rule(left, right, 16);
         } else {
-            row('Ventes brutes de la période', `${int(inv.sales.parts)} pièces`, cad(inv.sales.grossCad), { muted: true });
-            row(`Commission CFB (${pct(inv.commissionRate)})`, '', neg(inv.commissionKept), { muted: true });
-            row('Montant facturé', '', cad(inv.amounts.total), { muted: true, bold: true });
+            y = 248;
         }
-        y += 4;
-        rule(left, right, 16);
 
         // ---- Facturation (we sell the pieces to CFB, net of its commission) --
         doc.font('Helvetica-Bold').fontSize(9).fillColor(MUTED).text('FACTURATION', left, y);

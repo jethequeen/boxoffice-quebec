@@ -341,10 +341,15 @@ function InvoiceGenerator({ onGenerated }) {
     const [start, setStart] = useState(initial.start);
     const [end, setEnd] = useState(initial.end);
     const [to, setTo] = useState('');
-    const [spreadPct, setSpreadPct] = useState('');   // conversion fee %, e.g. "1" = 1%
-    const [genCfb, setGenCfb] = useState(true);
-    const [genUfb, setGenUfb] = useState(true);
     const [dryRun, setDryRun] = useState(false);
+    // Manual amounts entered from the report emails (payouts).
+    const [cfbNet, setCfbNet] = useState('');
+    const [cfbGross, setCfbGross] = useState('');
+    const [cfbParts, setCfbParts] = useState('');
+    const [ufbNet, setUfbNet] = useState('');
+    const [ufbGross, setUfbGross] = useState('');
+    const [ufbParts, setUfbParts] = useState('');
+    const [rate, setRate] = useState('');   // Manon's final USD→CAD rate
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);
     const [err, setErr] = useState(null);
@@ -360,16 +365,25 @@ function InvoiceGenerator({ onGenerated }) {
     const submit = async () => {
         if (!start || !end) return;
         if (start > end) { setErr('La date de début est après la date de fin.'); return; }
-        const kinds = [genCfb && 'CFB', genUfb && 'UFB'].filter(Boolean);
-        if (!kinds.length) { setErr('Choisis au moins une facture (CFB ou UFB).'); return; }
+        if (cfbNet === '' && ufbNet === '') {
+            setErr('Entre au moins un montant (CFB en CAD et/ou UFB en US).'); return;
+        }
+        if (ufbNet !== '' && rate === '') {
+            setErr('Le taux (de Manon) est requis pour la facture UFB.'); return;
+        }
         setBusy(true);
         setResult(null);
         setErr(null);
         try {
             const params = new URLSearchParams({ start, end });
-            params.set('kinds', kinds.join(','));
             if (to) params.set('to', to);
-            if (spreadPct !== '') params.set('spread', String(Number(spreadPct) / 100));
+            if (cfbNet !== '') params.set('cfbNet', cfbNet);
+            if (cfbGross !== '') params.set('cfbGross', cfbGross);
+            if (cfbParts !== '') params.set('cfbParts', cfbParts);
+            if (ufbNet !== '') params.set('ufbNet', ufbNet);
+            if (ufbGross !== '') params.set('ufbGross', ufbGross);
+            if (ufbParts !== '') params.set('ufbParts', ufbParts);
+            if (rate !== '') params.set('rate', rate);
             if (dryRun) params.set('dryRun', '1');
             const res = await fetch(`/.netlify/functions/runInvoiceNow?${params.toString()}`, {
                 method: 'POST',
@@ -396,27 +410,51 @@ function InvoiceGenerator({ onGenerated }) {
             <div className="inv-upload__body">
                 <div className="inv-upload__row">
                     <label>
-                        Du&nbsp;:{' '}
+                        Période — du&nbsp;:{' '}
                         <input type="date" value={start} onChange={(e) => setStart(e.target.value)} disabled={busy} />
                     </label>
                     {'  '}
                     <label>
-                        Au&nbsp;:{' '}
+                        au&nbsp;:{' '}
                         <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} disabled={busy} />
                     </label>
                 </div>
-                <div className="inv-upload__row">
-                    Factures&nbsp;:{' '}
-                    <label>
-                        <input type="checkbox" checked={genCfb} onChange={(e) => setGenCfb(e.target.checked)} disabled={busy} />
-                        {' '}CFB (Canada)
-                    </label>
-                    {'   '}
-                    <label>
-                        <input type="checkbox" checked={genUfb} onChange={(e) => setGenUfb(e.target.checked)} disabled={busy} />
-                        {' '}UFB (USA)
-                    </label>
-                </div>
+
+                <fieldset className="inv-fieldset" disabled={busy}>
+                    <legend>CFB — Canada First Bricks (CAD, taxes incluses)</legend>
+                    <div className="inv-upload__row">
+                        <label>Montant net (payout) CAD&nbsp;:{' '}
+                            <input type="number" step="0.01" min="0" placeholder="ex. 1234,56" value={cfbNet} onChange={(e) => setCfbNet(e.target.value)} />
+                        </label>
+                        <label>Ventes brutes CAD (opt.)&nbsp;:{' '}
+                            <input type="number" step="0.01" min="0" value={cfbGross} onChange={(e) => setCfbGross(e.target.value)} style={{ maxWidth: 130 }} />
+                        </label>
+                        <label>Pièces (opt.)&nbsp;:{' '}
+                            <input type="number" step="1" min="0" value={cfbParts} onChange={(e) => setCfbParts(e.target.value)} style={{ maxWidth: 100 }} />
+                        </label>
+                    </div>
+                </fieldset>
+
+                <fieldset className="inv-fieldset" disabled={busy}>
+                    <legend>UFB — USA First Bricks (US → CAD, sans taxes)</legend>
+                    <div className="inv-upload__row">
+                        <label>Montant net (payout) US&nbsp;:{' '}
+                            <input type="number" step="0.01" min="0" placeholder="ex. 713,15" value={ufbNet} onChange={(e) => setUfbNet(e.target.value)} />
+                        </label>
+                        <label>Taux USD→CAD (Manon)&nbsp;:{' '}
+                            <input type="number" step="0.0001" min="0" placeholder="ex. 1,3786" value={rate} onChange={(e) => setRate(e.target.value)} style={{ maxWidth: 120 }} />
+                        </label>
+                    </div>
+                    <div className="inv-upload__row">
+                        <label>Ventes brutes US (opt.)&nbsp;:{' '}
+                            <input type="number" step="0.01" min="0" value={ufbGross} onChange={(e) => setUfbGross(e.target.value)} style={{ maxWidth: 130 }} />
+                        </label>
+                        <label>Pièces (opt.)&nbsp;:{' '}
+                            <input type="number" step="1" min="0" value={ufbParts} onChange={(e) => setUfbParts(e.target.value)} style={{ maxWidth: 100 }} />
+                        </label>
+                    </div>
+                </fieldset>
+
                 <div className="inv-upload__row">
                     <label>
                         Envoyer à (optionnel)&nbsp;:{' '}
@@ -427,21 +465,6 @@ function InvoiceGenerator({ onGenerated }) {
                             onChange={(e) => setTo(e.target.value)}
                             disabled={busy}
                             style={{ minWidth: 260 }}
-                        />
-                    </label>
-                </div>
-                <div className="inv-upload__row">
-                    <label>
-                        Frais de conversion % (optionnel, UFB)&nbsp;:{' '}
-                        <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="défaut : 1 %"
-                            value={spreadPct}
-                            onChange={(e) => setSpreadPct(e.target.value)}
-                            disabled={busy}
-                            style={{ minWidth: 160 }}
                         />
                     </label>
                 </div>
@@ -471,7 +494,7 @@ function InvoiceGenerator({ onGenerated }) {
                         type="button"
                         className="inv-upload__submit"
                         onClick={submit}
-                        disabled={!start || !end || busy}
+                        disabled={busy}
                     >
                         {busy ? 'Génération en cours…' : (dryRun ? 'Générer l\'aperçu' : 'Générer et envoyer')}
                     </button>
@@ -488,31 +511,25 @@ function InvoiceGenerator({ onGenerated }) {
                             {result.emailed
                                 ? `✓ Factures envoyées à ${result.recipient}`
                                 : '✓ Aperçu généré (courriel non envoyé)'}
-                            {result.fx?.rate && (
-                                <span> · taux BoC {result.fx.rate}
-                                    {result.fx.rateDate ? ` (${result.fx.rateDate})` : ''}</span>
-                            )}
                         </div>
                         <table className="inv-invoice-table">
                             <thead>
                                 <tr>
-                                    <th>No</th><th>Ventes</th>
+                                    <th>No</th><th>Client</th>
                                     <th style={{ textAlign: 'right' }}>Pièces</th>
-                                    <th style={{ textAlign: 'right' }}>Ventes brutes</th>
-                                    <th style={{ textAlign: 'right' }}>Total (taxes incl.)</th>
+                                    <th style={{ textAlign: 'right' }}>Net (payout)</th>
+                                    <th style={{ textAlign: 'right' }}>Total</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {invoices.map((inv) => (
                                     <tr key={inv.number}>
                                         <td>{inv.number}</td>
-                                        <td>{inv.store}</td>
-                                        <td style={{ textAlign: 'right' }}>{fmtInt(inv.parts)}</td>
+                                        <td>{inv.client}</td>
+                                        <td style={{ textAlign: 'right' }}>{inv.parts != null ? fmtInt(inv.parts) : '—'}</td>
                                         <td style={{ textAlign: 'right' }}>
-                                            {fmtMoney(inv.grossCad)}
-                                            {inv.grossUsd != null && (
-                                                <span style={{ color: '#888' }}> ({fmtInt(inv.grossUsd)} USD)</span>
-                                            )}
+                                            {fmtInt(inv.netNative)} {inv.currencyNative}
+                                            {inv.rate ? <span style={{ color: '#888' }}> × {inv.rate}</span> : null}
                                         </td>
                                         <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmtMoney(inv.total)}</td>
                                     </tr>
@@ -606,7 +623,7 @@ function InvoiceHistory({ reloadTick }) {
                                 <td>{r.client}</td>
                                 <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmtMoney(r.total)}</td>
                                 <td style={{ textAlign: 'right' }}>
-                                    {r.spread != null ? `${(r.spread * 100).toLocaleString('fr-CA', { maximumFractionDigits: 2 })} %` : '—'}
+                                    {r.rate != null ? r.rate : '—'}
                                 </td>
                                 <td style={{ textAlign: 'right' }}>
                                     <button type="button" className="inv-tab" onClick={() => download(r.number)}>PDF</button>

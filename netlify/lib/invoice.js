@@ -15,8 +15,6 @@
 
 import {
     TAX_RATES,
-    COMMISSION_RATE,
-    FX_SPREAD,
     ISSUER,
     CLIENT,
     INVOICE_KINDS,
@@ -96,6 +94,13 @@ export function nativeGross(entry) {
     return round2(entry?.total);
 }
 
+/** Same recovery as nativeGross, but for the PAYOUT (the amount actually owed). */
+export function nativeNet(entry) {
+    if (entry?.origCurrency === 'USD' && entry?.origPayout != null) return round2(entry.origPayout);
+    if ((entry?.source || 'CA') === 'US' && entry?.fx?.rate) return round2(entry.payout / entry.fx.rate);
+    return round2(entry?.payout);
+}
+
 /**
  * Sum one source's sales over an inclusive [start, end] range. Returns
  * native-currency gross (USD for US, CAD for CA), piece count, and contributing days.
@@ -106,15 +111,18 @@ export function collectSales(history, { source, start, end }) {
 
     let parts = 0;
     let grossNative = 0;
+    let netNative = 0;
     const days = new Set();
     for (const e of rows) {
         parts += Number(e.parts) || 0;
         grossNative += nativeGross(e);
+        netNative += nativeNet(e);
         if (e.date) days.add(e.date);
     }
     return {
         parts,
         grossNative: round2(grossNative),
+        netNative: round2(netNative),
         days: [...days].sort(),
         entryCount: rows.length,
     };
@@ -137,59 +145,40 @@ export function extractTaxIncluded(grandTotal, rates = TAX_RATES) {
 /**
  * Build one invoice model (kind 'CFB' or 'UFB') for the inclusive range [start, end].
  *
- * @param {object[]} history   sales-history array
- * @param {string}   kind      'CFB' | 'UFB'
- * @param {string}   start     'YYYY-MM-DD' first day covered (inclusive)
- * @param {string}   end       'YYYY-MM-DD' last day covered (inclusive)
- * @param {string}   issueDate 'YYYY-MM-DD' the invoice is dated/issued
- * @param {object}   [fx]      { rate, rateDate } BoC USD→CAD — REQUIRED for 'UFB'
+ * We bill the PAYOUT — the amount the vendor report says CFB owes the vendor, already
+ * net of the platform commission. No commission or conversion fee is re-derived here.
+ *   CFB (CAD): billed = payout (taxes INCLUDED — Canadian client).
+ *   UFB (USD): billed = payout × `rate` (the final rate Manon provides, already −1%),
+ *              no taxes (export to USA First Bricks).
+ *
+ * @param {object}  sales      { netNative (payout, REQUIRED), grossNative?, parts? }.
+ *                             Falls back to collectSales(history) when omitted.
+ * @param {number}  [rate]     final USD→CAD rate — REQUIRED for 'UFB'.
  * @returns invoice model consumed by invoicePdf.js
  */
-export function buildInvoice({ history, sales, kind, start, end, issueDate, fx, spread }) {
+export function buildInvoice({ history, sales, kind, start, end, issueDate, rate }) {
     const spec = INVOICE_KINDS[kind];
     if (!spec) throw new Error(`Unknown invoice kind: ${kind}`);
 
     const period = periodForRange(start, end);
-    // `sales` may be supplied directly (e.g. from a live report fetch); otherwise it
-    // is collected from the sales-history array. Either way: { parts, grossNative }.
     const collected = sales || collectSales(history, { source: spec.source, start, end });
 
-    // CFB buys the pieces from us for their gross sale value LESS its own 25%
-    // commission — so we bill the net (≈75%), not the commission. For US sales the
-    // gross is converted to CAD at the full BoC rate, then the commission is taken,
-    // then a 1% conversion fee is applied on the net CAD amount actually wired
-    // (per Sylvain: "1% de frais de conversion après la commission").
-    //   USD:  grossUsd × rate → −25% commission → −1% conversion fee = billed (tax incl.)
-    //   CAD:  gross           → −25% commission                      = billed (tax incl.)
-    let grossCad;
-    let conversion = null;
-    if (spec.native === 'USD') {
-        if (!fx?.rate) throw new Error(`UFB invoice needs a USD→CAD rate (fx.rate)`);
-        grossCad = round2(collected.grossNative * fx.rate);
-    } else {
-        grossCad = collected.grossNative;
-    }
-
-    const commissionKept = round2(grossCad * COMMISSION_RATE);   // CFB's cut (not billed)
-    const netAfterCommission = round2(grossCad - commissionKept);
-
-    // Conversion-fee spread: caller override (Manon's %) wins, else the config default.
-    const feeRate = Number.isFinite(spread) ? spread : FX_SPREAD;
+    const parts = collected.parts ?? null;
+    const netNative = round2(collected.netNative);                          // payout (amount owed)
+    const grossNative = collected.grossNative != null ? round2(collected.grossNative) : null;
+    // Shown only when a gross is supplied. It is the platform's actual cut, NOT a
+    // fixed 25% — the report's gross can include inventory write-offs.
+    const commissionNative = grossNative != null ? round2(grossNative - netNative) : null;
 
     let billedTotal;
+    let conversion = null;
     if (spec.native === 'USD') {
-        const conversionFee = round2(netAfterCommission * feeRate);
-        billedTotal = round2(netAfterCommission - conversionFee);
-        conversion = {
-            fromCurrency: 'USD',
-            grossUsd: collected.grossNative,
-            bocRate: fx.rate,
-            bocRateDate: fx.rateDate || null,
-            feeRate,
-            conversionFee,
-        };
+        const r = Number(rate);
+        if (!(r > 0)) throw new Error('La facture UFB requiert le taux de conversion (fourni par Manon).');
+        billedTotal = round2(netNative * r);
+        conversion = { fromCurrency: 'USD', netUsd: netNative, rate: r, grossUsd: grossNative };
     } else {
-        billedTotal = netAfterCommission;
+        billedTotal = netNative;
     }
 
     // CFB (Canadian client) is taxable → back TPS/TVQ out of the billed total.
@@ -204,40 +193,23 @@ export function buildInvoice({ history, sales, kind, start, end, issueDate, fx, 
         number: `${spec.numberPrefix}-${period.key}`,
         issueDate,
         currency: 'CAD',
+        currencyNative: spec.native,        // 'USD' (UFB) or 'CAD' (CFB)
         draft: isDraftConfig(),
         period,
         store: spec.store,
         issuer: { ...ISSUER },
         client: { ...(spec.client || CLIENT) },
         taxable,
-        commissionRate: COMMISSION_RATE,
         taxRates: { ...TAX_RATES },
         sales: {
-            parts: collected.parts,
+            parts,
             days: collected.days || [],
-            grossCad,                       // gross sale value in CAD (before commission)
+            grossNative,                    // gross sale value, native currency (optional display)
+            netNative,                      // payout — the billed base, native currency
         },
-        commissionKept,                     // the 25% CFB keeps (shown as a deduction)
-        netAfterCommission,                 // gross − commission
-        conversion,                         // null for CFB; {grossUsd, bocRate, conversionFee} for UFB
-        amounts,                            // { subtotal, tps, tvq, total } — total = billed (tax incl.)
+        commissionNative,                   // gross − payout (shown only if gross supplied)
+        conversion,                         // null for CFB; { netUsd, rate, grossUsd } for UFB
+        amounts,                            // { subtotal, tps, tvq, total } — total = billed
     };
 }
 
-/**
- * Build both invoices for an inclusive [start, end] range. `fx` is required for UFB.
- * `salesBySource` (optional) supplies pre-computed per-source sales — { CA: {...},
- * US: {...} } — e.g. from a live report fetch; otherwise sales come from `history`.
- */
-export function buildInvoices({ history, salesBySource, start, end, issueDate, fx, spread }) {
-    return {
-        CFB: buildInvoice({ history, sales: salesBySource?.CA, kind: 'CFB', start, end, issueDate }),
-        UFB: buildInvoice({ history, sales: salesBySource?.US, kind: 'UFB', start, end, issueDate, fx, spread }),
-    };
-}
-
-/** Build both invoices for a whole calendar month 'YYYY-MM'. */
-export function buildMonthlyInvoices({ history, ym, issueDate, fx }) {
-    const { start, end } = monthRange(ym);
-    return buildInvoices({ history, start, end, issueDate, fx });
-}

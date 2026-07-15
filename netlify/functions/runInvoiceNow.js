@@ -16,22 +16,22 @@ const auth = (event) => {
 };
 
 const isYmd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+const num = (v) => (v != null && v !== '' ? Number(v) : undefined);
 
 /**
- * On-demand invoice generation / resend for an arbitrary date range.
+ * On-demand invoice generation. The amounts are entered from the report emails
+ * (the "Total payout for the month"); Manon's final USD→CAD rate is entered for UFB.
  *
- * Query params (pick ONE way to set the period; defaults to the previous month):
- *   start=YYYY-MM-DD & end=YYYY-MM-DD   explicit inclusive range
- *   ym=YYYY-MM                          whole calendar month
- *   (neither)                           the month before issueDate
+ * Period (default: previous month): start&end=YYYY-MM-DD | ym=YYYY-MM.
+ * Common params: issueDate, to, dryRun=1.
  *
- *   issueDate=YYYY-MM-DD   invoice date, drives the USD→CAD rate (default: today in Toronto)
- *   to=email               recipient override (default: INVOICE_EMAIL_TO)
- *   dryRun=1               compute + render PDFs but do not email
- *   data=live|history      source the sales live from the CFB reports (default) or
- *                          from the accumulated sales-history blob
- *   spread=0.01            UFB conversion-fee spread as a fraction (0.01 = 1%, the %
- *                          Manon provides). Default: config FX_SPREAD.
+ * Manual amounts (payouts):
+ *   cfbNet=…   CFB payout in CAD           → produces the CFB invoice (taxes incl.)
+ *   ufbNet=…   UFB payout in USD           → produces the UFB invoice (no taxes)
+ *   rate=…     final USD→CAD rate (Manon)  → REQUIRED when ufbNet is given
+ *   cfbGross=… / ufbGross=…   optional gross (shows the commission line)
+ *   cfbParts=… / ufbParts=…   optional piece counts
+ * (data=live|history still available to derive the payouts from CFB instead.)
  */
 export const handler = async (event) => {
     if (!auth(event)) return jsonResponse(401, { error: 'unauthorized' });
@@ -40,25 +40,15 @@ export const handler = async (event) => {
     const issueDate = qs.issueDate || todayInTZ();
     const dryRun = qs.dryRun === '1';
     const to = qs.to || undefined;
-    const dataSource = qs.data === 'history' ? 'history' : 'live';
-    // Conversion-fee spread as a fraction (0.01 = 1%) — the % Manon provides for UFB.
-    const spread = qs.spread != null && qs.spread !== '' ? Number(qs.spread) : undefined;
+    const dataSource = qs.data === 'live' ? 'live' : (qs.data === 'history' ? 'history' : 'manual');
+    const rate = num(qs.rate);
 
-    if (spread != null && !(spread >= 0 && spread < 1)) {
-        return jsonResponse(400, { error: `Invalid spread "${qs.spread}" — expected a fraction between 0 and 1 (e.g. 0.01 for 1%)` });
+    if (rate != null && !(rate > 0)) {
+        return jsonResponse(400, { error: `Invalid rate "${qs.rate}" — expected a positive number` });
     }
-
-    // Which invoices to produce (default both). e.g. ?kinds=UFB after Manon's %.
-    let kinds = ['CFB', 'UFB'];
-    if (qs.kinds) {
-        kinds = qs.kinds.split(',').map((k) => k.trim().toUpperCase()).filter(Boolean);
-        const bad = kinds.filter((k) => k !== 'CFB' && k !== 'UFB');
-        if (bad.length) return jsonResponse(400, { error: `Unknown kind(s): ${bad.join(', ')} — expected CFB, UFB, or CFB,UFB` });
-    }
-
     if (!isYmd(issueDate)) return jsonResponse(400, { error: `Invalid issueDate "${issueDate}" — expected YYYY-MM-DD` });
 
-    // Resolve the [start, end] range from the params.
+    // Resolve the [start, end] range.
     let start;
     let end;
     if (qs.start || qs.end) {
@@ -72,8 +62,34 @@ export const handler = async (event) => {
         ({ start, end } = monthRange(ym));
     }
 
+    // Build the manual payouts and infer which kinds to produce.
+    let salesBySource = null;
+    let kinds;
+    if (dataSource === 'manual') {
+        salesBySource = {};
+        if (num(qs.cfbNet) != null) {
+            salesBySource.CA = { netNative: num(qs.cfbNet), grossNative: num(qs.cfbGross), parts: num(qs.cfbParts) };
+        }
+        if (num(qs.ufbNet) != null) {
+            salesBySource.US = { netNative: num(qs.ufbNet), grossNative: num(qs.ufbGross), parts: num(qs.ufbParts) };
+        }
+        kinds = [salesBySource.CA && 'CFB', salesBySource.US && 'UFB'].filter(Boolean);
+        if (!kinds.length) {
+            return jsonResponse(400, { error: 'Manual mode needs cfbNet (CAD) and/or ufbNet (USD).' });
+        }
+        if (salesBySource.US && !(rate > 0)) {
+            return jsonResponse(400, { error: 'ufbNet requires the rate (from Manon).' });
+        }
+    } else if (qs.kinds) {
+        kinds = qs.kinds.split(',').map((k) => k.trim().toUpperCase()).filter(Boolean);
+        const bad = kinds.filter((k) => k !== 'CFB' && k !== 'UFB');
+        if (bad.length) return jsonResponse(400, { error: `Unknown kind(s): ${bad.join(', ')}` });
+    } else {
+        kinds = ['CFB', 'UFB'];
+    }
+
     try {
-        const log = await runInvoices({ start, end, issueDate, to, dryRun, dataSource, spread, kinds });
+        const log = await runInvoices({ start, end, issueDate, to, dryRun, dataSource, salesBySource, rate, kinds });
         return jsonResponse(200, log);
     } catch (e) {
         console.error('[runInvoiceNow] FAIL', e);
