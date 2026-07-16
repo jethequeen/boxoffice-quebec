@@ -19,11 +19,20 @@
  *
  * On every successful ingest, the Netlify backend POSTs JSON like:
  *   { token, source, date: "2026-06-15", parts, lots, total, payout, fees }
+ * The weekly job POSTs TWICE — once with source "CA" and once with source "US" —
+ * because the two do NOT share tax rules: the CA payout is taxable (TPS/TVQ added
+ * on top) while US sales are zero-rated exports.
  *
- * This script appends two rows per call to the journal:
- *   1) "Ventes"     — catégorie V,  Montant = total (brut), compte CFB, + lots/pièces
- *   2) "Frais CFB"  — catégorie FT, Montant = -fees,         compte CFB
- * Net of the two rows (total - fees) equals the CFB payout.
+ * This script appends two rows per call to the journal, suffixed by the source:
+ *   1) "Ventes - CA"    — catégorie V,  Montant = total (brut, HORS TAXES), + lots/pièces
+ *   2) "Frais CFB - CA" — catégorie FT, Montant = -fees
+ * (or "… - US" for the US POST). Net of each pair (total - fees) = that source's
+ * payout, hors taxes.
+ *
+ * TAX FORMULAS (columns J/K, owned by the sheet): compute the taxes ON TOP of the
+ * CA payout — i.e. 15% (TPS 5% + TVQ 9.975%) of the NET of the CA pair
+ * (Ventes - CA + Frais CFB - CA), and 0% for the US rows. Do NOT extract taxes
+ * from the Montant: every amount posted here is already hors taxes.
  *
  * IMPORTANT — formula columns are never written:
  *   F  Compte débiteur   (VLOOKUP, only for TF transfers)
@@ -70,14 +79,19 @@ function doPost(e) {
         const parts = Number(payload.parts || 0);
         const total = round2_(Number(payload.total || 0));
         const fees = round2_(Number(payload.fees || 0));
+        // Source suffix so the sheet's tax formulas can tell CA (taxable) from US
+        // (zero-rated export) rows apart. Defaults to CA for older callers.
+        const source = String(payload.source || 'CA').toUpperCase();
+        const nomVentes = NOM_VENTES + ' - ' + source;
+        const nomFrais = NOM_FRAIS + ' - ' + source;
 
         // Pre-compute both target rows in a single scan so they end up
         // consecutive, immediately after the last A-populated row.
         const [vRow, fRow] = nextDataRows_(sheet, 2);
-        const ventesRow = appendVentesRow_(sheet, vRow, { date, lots, parts, total });
+        const ventesRow = appendVentesRow_(sheet, vRow, { date, lots, parts, total, nom: nomVentes });
         let fraisRow = null;
         if (fees > 0) {
-            fraisRow = appendFraisRow_(sheet, fRow, { date, fees });
+            fraisRow = appendFraisRow_(sheet, fRow, { date, fees, nom: nomFrais });
         }
 
         SpreadsheetApp.flush();
@@ -113,11 +127,11 @@ function nextDataRows_(sheet, n) {
 function appendVentesRow_(sheet, row, v) {
     // A:E (cols 1..5) — skip F (Compte débiteur) and G (Description), both formula/manual
     sheet.getRange(row, 1, 1, 5).setValues([[
-        NOM_VENTES,        // A Transaction
-        CATEGORIE_VENTES,  // B Catégorie
-        v.total,           // C Montant (brut)
-        COMPTE,            // D Compte
-        v.date,            // E Date
+        v.nom || NOM_VENTES,   // A Transaction ("Ventes - CA" / "Ventes - US")
+        CATEGORIE_VENTES,      // B Catégorie
+        v.total,               // C Montant (brut, hors taxes)
+        COMPTE,                // D Compte
+        v.date,                // E Date
     ]]);
     // H:I (cols 8..9) — skip J onward (TPS/TVQ/soldes, all auto-calculated)
     sheet.getRange(row, 8, 1, 2).setValues([[
@@ -130,11 +144,11 @@ function appendVentesRow_(sheet, row, v) {
 function appendFraisRow_(sheet, row, v) {
     // A:E only — Frais carries no lots/pièces, so H:I are left untouched (blank).
     sheet.getRange(row, 1, 1, 5).setValues([[
-        NOM_FRAIS,         // A Transaction
-        CATEGORIE_FRAIS,   // B Catégorie
-        -v.fees,           // C Montant — negative per accounting convention
-        COMPTE,            // D Compte
-        v.date,            // E Date
+        v.nom || NOM_FRAIS,    // A Transaction ("Frais CFB - CA" / "Frais CFB - US")
+        CATEGORIE_FRAIS,       // B Catégorie
+        -v.fees,               // C Montant — negative per accounting convention
+        COMPTE,                // D Compte
+        v.date,                // E Date
     ]]);
     return row;
 }

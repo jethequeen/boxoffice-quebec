@@ -22,14 +22,21 @@ import { queueAuthFailure, alertAuthFailures } from '../lib/authAlert.js';
  * trickle in through Friday evening — same reason the daily job ingests with a
  * one-day lag). It re-fetches each weekday's report (Mon→Fri) read-only, with
  * NO inventory or sales-history writes, filters to sheetable sales
- * (Platforms + Manual Outputs with payout > 0), and posts the week's aggregate
+ * (Platforms + Manual Outputs with payout > 0), and posts the week's aggregates
  * to the new sheet only ({ only: 'new' }).
  *
+ * ONE POST PER SOURCE: CA and US do NOT share tax rules — the CA payout is
+ * taxable (TPS/TVQ added on top by the sheet's formula columns) while US sales
+ * are zero-rated exports. The webhook therefore receives two entries per week,
+ * tagged source 'CA' and 'US', which the Apps Script writes as separate
+ * "Ventes - CA" / "Ventes - US" (and matching "Frais CFB - …") rows so the tax
+ * formulas can apply 15% to CA and 0% to US. Every Montant stays HORS TAXES.
+ *
  * Currency: US reports are USD, so each day's US rows are converted with that
- * day's USD→CAD rate before being pooled with CA rows. Aggregating all rows once
- * at the end (rather than summing per-day aggregates) keeps the weekly "Lots"
- * count distinct across the whole week instead of double-counting a lot sold on
- * more than one day.
+ * day's USD→CAD rate before being pooled. Aggregating each source's rows once at
+ * the end (rather than summing per-day aggregates) keeps the weekly "Lots" count
+ * distinct across the whole week instead of double-counting a lot sold on more
+ * than one day.
  */
 
 const todayInTZ = (tz = 'America/Toronto') => {
@@ -62,9 +69,9 @@ async function run() {
     const days = weekdaysEndingFriday(friday);
     const log = { weekEnding: friday, days, errors: [] };
 
-    // Pool every sheetable sale of the week (all sources, all days) into a single
-    // CAD-denominated row array, then aggregate once.
-    const allRows = [];
+    // Pool every sheetable sale of the week PER SOURCE (US converted to CAD),
+    // then aggregate each source once.
+    const rowsBySource = { CA: [], US: [] };
     const authFailedSources = new Set();
     for (const date of days) {
         let fx = null;  // fetched lazily, once per day, only if US has sales
@@ -77,9 +84,9 @@ async function run() {
 
                 if (source === 'US') {
                     if (!fx) fx = await getUsdCadRate(date);
-                    allRows.push(...toCadRows(sheetable, fx.rate));
+                    rowsBySource.US.push(...toCadRows(sheetable, fx.rate));
                 } else {
-                    allRows.push(...sheetable);
+                    rowsBySource.CA.push(...sheetable);
                 }
             } catch (e) {
                 log.errors.push(`${date}/${source}: ${e.message}`);
@@ -91,31 +98,38 @@ async function run() {
     }
 
     // If the session expired mid-week, alert (once per source) so the token can be
-    // refreshed — the weekly total below is posted anyway from whatever was reachable.
+    // refreshed — the weekly totals below are posted anyway from whatever was reachable.
     await alertAuthFailures(authFailedSources, log);
 
-    if (allRows.length === 0) {
+    if (rowsBySource.CA.length === 0 && rowsBySource.US.length === 0) {
         log.note = `No sheetable sales for week ending ${friday}.`;
         return log;
     }
 
-    const totals = aggregateRows(allRows);
-    log.totals = totals;
-
-    // Stamp the row with the week-ending Friday (a weekday, so the weekend guard
-    // in postDailyEntry does not skip it). Post once, new sheet only.
-    try {
-        const result = await postDailyEntry({
-            date: friday,
-            parts: totals.parts,
-            lots: totals.lots,
-            total: totals.total,
-            payout: totals.payout,
-            fees: totals.fees,
-        }, { only: 'new' });
-        log.sheets = { step: 'sheets_posted', result };
-    } catch (e) {
-        log.sheets = { step: 'sheets_failed', error: e.message };
+    // One POST per source (CA taxable, US zero-rated — the sheet's tax formulas
+    // need them on separate rows). Stamped with the week-ending Friday (a weekday,
+    // so the weekend guard in postDailyEntry does not skip it). New sheet only.
+    log.totals = {};
+    log.sheets = {};
+    for (const source of Object.keys(SOURCES)) {
+        const rows = rowsBySource[source];
+        if (rows.length === 0) continue;
+        const totals = aggregateRows(rows);
+        log.totals[source] = totals;
+        try {
+            const result = await postDailyEntry({
+                date: friday,
+                source,
+                parts: totals.parts,
+                lots: totals.lots,
+                total: totals.total,
+                payout: totals.payout,
+                fees: totals.fees,
+            }, { only: 'new' });
+            log.sheets[source] = { step: 'sheets_posted', result };
+        } catch (e) {
+            log.sheets[source] = { step: 'sheets_failed', error: e.message };
+        }
     }
 
     return log;
