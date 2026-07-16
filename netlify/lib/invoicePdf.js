@@ -159,7 +159,7 @@ export function renderInvoicePdf(inv) {
 
         // ---- Footer ---------------------------------------------------------
         const footer = inv.taxable
-            ? `Toutes les sommes sont en dollars canadiens (CAD). Vente de pièces à ${inv.client.name}, taxes incluses.`
+            ? `Toutes les sommes sont en dollars canadiens (CAD). Vente de pièces à ${inv.client.name} — TPS et TVQ en sus.`
             : `Toutes les sommes sont en dollars canadiens (CAD). Vente de pièces à ${inv.client.name} — exportation hors Canada, exonérée de TPS/TVQ.`;
         doc.font('Helvetica').fontSize(8).fillColor(MUTED)
             .text(footer, left, page.height - 80, { width: contentWidth, align: 'center' });

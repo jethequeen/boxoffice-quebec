@@ -1,16 +1,14 @@
 /**
- * Pure invoice math for the commission invoices billed to CFB.
+ * Pure invoice math — we bill the PAYOUT stated by the vendor reports.
  *
- * No I/O here — callers pass the sales-history array (from readSalesHistory()) and,
- * for the UFB invoice, the invoice-day USD→CAD rate (from getUsdCadRate()). This
- * keeps the money logic unit-testable without blobs, the network, or PDFs.
+ * No I/O here — callers pass the payouts (entered from the report emails, or derived
+ * from history/live fetch) and, for UFB, Manon's final USD→CAD rate. This keeps the
+ * money logic unit-testable without blobs, the network, or PDFs.
  *
- * Invoices cover an arbitrary [start, end] date range (inclusive). A range that
- * happens to be one whole calendar month is numbered like the monthly cron's
- * (e.g. CFB-2026-06); any other range uses a start_end key (CFB-2026-06-01_2026-06-15).
- *
- * See invoiceConfig.js for the business assumptions (25% tax-included commission,
- * 1% FX spread, Quebec TPS/TVQ rates).
+ * The payout is BEFORE taxes: CFB (Canadian client) gets TPS/TVQ added on top;
+ * UFB (export to USA First Bricks) is zero-rated. Invoices cover an arbitrary
+ * [start, end] range (inclusive); a whole calendar month is numbered CFB-2026-06,
+ * any other range CFB-2026-06-01_2026-06-15.
  */
 
 import {
@@ -129,25 +127,23 @@ export function collectSales(history, { source, start, end }) {
 }
 
 /**
- * Back GST/QST out of a TAX-INCLUDED grand total. The 25% commission already
- * contains the taxes, so: subtotal = total / (1 + tps + tvq); each tax = subtotal *
- * its rate. Rounded so subtotal + tps + tvq === total to the cent.
+ * Add GST/QST ON TOP of a tax-excluded subtotal. The payout in CFB's system is
+ * BEFORE taxes (confirmed by Manon 2026-07: payout 2406.49 → +TPS +TVQ = 2766.86),
+ * so the invoice charges payout + TPS(5%) + TVQ(9.975%).
  */
-export function extractTaxIncluded(grandTotal, rates = TAX_RATES) {
-    const total = round2(grandTotal);
-    const subtotal = round2(total / (1 + rates.tps + rates.tvq));
-    const tps = round2(subtotal * rates.tps);
-    // Absorb any rounding drift into TVQ so the parts always re-sum to `total`.
-    const tvq = round2(total - subtotal - tps);
-    return { subtotal, tps, tvq, total };
+export function addTaxes(subtotal, rates = TAX_RATES) {
+    const s = round2(subtotal);
+    const tps = round2(s * rates.tps);
+    const tvq = round2(s * rates.tvq);
+    return { subtotal: s, tps, tvq, total: round2(s + tps + tvq) };
 }
 
 /**
  * Build one invoice model (kind 'CFB' or 'UFB') for the inclusive range [start, end].
  *
  * We bill the PAYOUT — the amount the vendor report says CFB owes the vendor, already
- * net of the platform commission. No commission or conversion fee is re-derived here.
- *   CFB (CAD): billed = payout (taxes INCLUDED — Canadian client).
+ * net of the platform commission and BEFORE taxes. No commission/fee is re-derived.
+ *   CFB (CAD): billed = payout + TPS + TVQ (taxes ADDED — Canadian client).
  *   UFB (USD): billed = payout × `rate` (the final rate Manon provides, already −1%),
  *              no taxes (export to USA First Bricks).
  *
@@ -181,11 +177,11 @@ export function buildInvoice({ history, sales, kind, start, end, issueDate, rate
         billedTotal = netNative;
     }
 
-    // CFB (Canadian client) is taxable → back TPS/TVQ out of the billed total.
-    // UFB is billed to USA First Bricks (export, out-of-Canada) → zero-rated, no tax.
+    // CFB (Canadian client) is taxable → the payout is BEFORE taxes, so TPS/TVQ are
+    // ADDED on top. UFB (export to USA First Bricks) → zero-rated, no tax at all.
     const taxable = spec.taxable !== false;
     const amounts = taxable
-        ? extractTaxIncluded(billedTotal, TAX_RATES)
+        ? addTaxes(billedTotal, TAX_RATES)
         : { subtotal: billedTotal, tps: 0, tvq: 0, total: billedTotal };
 
     return {

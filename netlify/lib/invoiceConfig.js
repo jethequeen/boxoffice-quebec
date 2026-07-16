@@ -10,8 +10,9 @@
  * └──────────────────────────────────────────────────────────────────────────┘
  *
  * Deux factures, en CAD, saisies manuellement à partir des rapports (le « payout »
- * du mois) reçus par courriel :
- *   - 'CFB' — vente des pièces à Canada First Bricks (montant CAD), taxes incluses.
+ * du mois, AVANT taxes) reçus par courriel :
+ *   - 'CFB' — vente des pièces à Canada First Bricks (montant CAD), TPS/TVQ AJOUTÉES
+ *     par-dessus le payout.
  *   - 'UFB' — vente des pièces à USA First Bricks (montant US × le taux final fourni
  *     par Manon), SANS taxes (exportation hors Canada).
  *
@@ -54,9 +55,9 @@ const EMAIL_TO = '';
 //  RÈGLES DE CALCUL — à ajuster si Sylvain change d'idée
 // ════════════════════════════════════════════════════════════════════════════
 
-// Taxes du Québec. Sur la facture CFB (client canadien), le montant facturé est
-// TAXES INCLUSES → ces taux servent à EXTRAIRE la TPS/TVQ (voir extractTaxIncluded()).
-// La facture UFB (exportation) n'a pas de taxes.
+// Taxes du Québec. Le payout des rapports est AVANT taxes (confirmé par Manon) :
+// sur la facture CFB (client canadien), TPS/TVQ s'AJOUTENT par-dessus le payout
+// (voir addTaxes()). La facture UFB (exportation) n'a pas de taxes.
 const TPS_RATE = 0.05;       // TPS / GST
 const TVQ_RATE = 0.09975;    // TVQ / QST
 
