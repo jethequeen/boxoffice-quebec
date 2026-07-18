@@ -9,6 +9,7 @@ import {
 import { postDailyEntry } from '../lib/sheets.js';
 import { getUsdCadRate } from '../lib/fx.js';
 import { queueAuthFailure, alertAuthFailures } from '../lib/authAlert.js';
+import { TAX_RATES } from '../lib/invoiceConfig.js';
 
 /**
  * Weekly sheet aggregate for the streamlined "Journal officiel" sheet.
@@ -25,12 +26,17 @@ import { queueAuthFailure, alertAuthFailures } from '../lib/authAlert.js';
  * (Platforms + Manual Outputs with payout > 0), and posts the week's aggregates
  * to the new sheet only ({ only: 'new' }).
  *
- * ONE POST PER SOURCE: CA and US do NOT share tax rules — the CA payout is
- * taxable (TPS/TVQ added on top by the sheet's formula columns) while US sales
- * are zero-rated exports. The webhook therefore receives two entries per week,
- * tagged source 'CA' and 'US', which the Apps Script writes as separate
- * "Ventes - CA" / "Ventes - US" (and matching "Frais CFB - …") rows so the tax
- * formulas can apply 15% to CA and 0% to US. Every Montant stays HORS TAXES.
+ * ONE POST PER SOURCE: CA and US do NOT share tax rules — CA sales are taxable
+ * while US sales are zero-rated exports. The webhook therefore receives two
+ * entries per week, tagged source 'CA' and 'US', which the Apps Script writes as
+ * separate "Ventes - CA" / "Ventes - US" (and matching "Frais CFB - …") rows.
+ *
+ * MONTANT = THE MONEY THAT MOVED (taxes in) for CA rows: the journal's Montant
+ * column carries the tax-INCLUDED amount, so TPS/TVQ are added here and the
+ * sheet's J/K formulas extract them back out. The net of each pair
+ * (Ventes - Frais, taxes in) is exactly what CFB wires. US rows are zero-rated
+ * and posted as-is. The 25% commission stays computed on the gross HORS TAXES,
+ * so both lines are simply scaled by the same tax factor.
  *
  * Currency: US reports are USD, so each day's US rows are converted with that
  * day's USD→CAD rate before being pooled. Aggregating each source's rows once at
@@ -62,6 +68,11 @@ const toCadRows = (rows, rate) => rows.map((r) => ({
     total: r.total * rate,
     payout: r.payout * rate,
 }));
+
+// CA rows are taxable, so the Montant written to the journal is TAX-INCLUDED (the
+// amount that actually moves). US rows are zero-rated exports and pass through.
+const TAX_FACTOR = 1 + TAX_RATES.tps + TAX_RATES.tvq;
+const withTaxes = (n) => Math.round(Number(n || 0) * TAX_FACTOR * 100) / 100;
 
 async function run() {
     const today = todayInTZ();           // Saturday
@@ -115,16 +126,22 @@ async function run() {
         const rows = rowsBySource[source];
         if (rows.length === 0) continue;
         const totals = aggregateRows(rows);
-        log.totals[source] = totals;
+        // CA is taxable → post the tax-included amounts (what actually moves);
+        // US is a zero-rated export → post as-is. The commission stays 25% of the
+        // gross hors taxes, so scaling both lines by the same factor preserves it.
+        const taxable = source === 'CA';
+        const postTotal = taxable ? withTaxes(totals.total) : totals.total;
+        const postFees = taxable ? withTaxes(totals.fees) : totals.fees;
+        log.totals[source] = { ...totals, taxable, postTotal, postFees };
         try {
             const result = await postDailyEntry({
                 date: friday,
                 source,
                 parts: totals.parts,
                 lots: totals.lots,
-                total: totals.total,
+                total: postTotal,
                 payout: totals.payout,
-                fees: totals.fees,
+                fees: postFees,
             }, { only: 'new' });
             log.sheets[source] = { step: 'sheets_posted', result };
         } catch (e) {

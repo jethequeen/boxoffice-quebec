@@ -24,15 +24,22 @@
  * on top) while US sales are zero-rated exports.
  *
  * This script appends two rows per call to the journal, suffixed by the source:
- *   1) "Ventes - CA"    — catégorie V,  Montant = total (brut, HORS TAXES), + lots/pièces
- *   2) "Frais CFB - CA" — catégorie FT, Montant = -fees
- * (or "… - US" for the US POST). Net of each pair (total - fees) = that source's
- * payout, hors taxes.
+ *   1) "Ventes - CA"    — catégorie V,  Montant = brut, + lots/pièces
+ *   2) "Frais CFB - CA" — catégorie FT, Montant = -commission (25% du brut hors taxes)
+ * (or "… - US" for the US POST).
  *
- * TAX FORMULAS (columns J/K, owned by the sheet): compute the taxes ON TOP of the
- * CA payout — i.e. 15% (TPS 5% + TVQ 9.975%) of the NET of the CA pair
- * (Ventes - CA + Frais CFB - CA), and 0% for the US rows. Do NOT extract taxes
- * from the Montant: every amount posted here is already hors taxes.
+ * MONTANT = L'ARGENT QUI A BOUGÉ. For CA the backend sends TAX-INCLUDED amounts,
+ * so the net of the pair (Ventes - Frais) is exactly what CFB wires. US rows are
+ * zero-rated exports and carry no taxes.
+ *   ex. CA : Ventes 3 689,15 − Frais 922,28 = 2 766,86 versé
+ *            (hors taxes : 3 208,65 − 802,16 = 2 406,49 de revenu)
+ *
+ * TAX FORMULAS (columns J/K, owned by the sheet) must EXTRACT the taxes from the
+ * Montant on CA rows, and yield 0 on US rows:
+ *   J (TPS) = SI(DROITE($A2;2)="US"; 0; -($C2/1,14975)*5%)
+ *   K (TVQ) = SI(DROITE($A2;2)="US"; 0; -($C2/1,14975)*9,975%)
+ * (sign convention: taxes negative on Ventes, positive on Frais — the negative
+ *  Montant flips them automatically.)
  *
  * IMPORTANT — formula columns are never written:
  *   F  Compte débiteur   (VLOOKUP, only for TF transfers)
