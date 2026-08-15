@@ -1,4 +1,5 @@
 import { runWeek, fridayOfWeek } from '../lib/weekly.js';
+import { SOURCES } from '../lib/cfb.js';
 import { jsonResponse } from '../lib/http.js';
 
 const todayInTZ = (tz = 'America/Toronto') => {
@@ -22,6 +23,7 @@ const isYmd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s);
  * Query params:
  *   friday=YYYY-MM-DD | date=YYYY-MM-DD   any day in the target week (snapped to its
  *                                         Mon→Fri week-ending Friday). Default: last week.
+ *   source=CA|US|CA,US                    which origins to post (default both).
  *   dryRun=1                              compute + return what would be posted, no POST.
  */
 export const handler = async (event) => {
@@ -36,8 +38,15 @@ export const handler = async (event) => {
     // Default: the week ending on last Friday (same as the Saturday cron).
     const friday = fridayOfWeek(anchor || todayInTZ());
 
+    let sources = Object.keys(SOURCES);
+    if (qs.source) {
+        sources = qs.source.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+        const bad = sources.filter((s) => !SOURCES[s]);
+        if (bad.length) return jsonResponse(400, { error: `Unknown source(s): ${bad.join(', ')} — expected CA, US, or CA,US` });
+    }
+
     try {
-        const log = await runWeek({ friday, dryRun });
+        const log = await runWeek({ friday, dryRun, sources });
         return jsonResponse(200, log);
     } catch (e) {
         console.error('[runWeeklyNow] FAIL', e);

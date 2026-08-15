@@ -726,6 +726,154 @@ function CookieCheck() {
     );
 }
 
+// Replay the weekly streamlined-sheet aggregate (CA / US / both) for a given week —
+// for a week the Saturday cron missed (e.g. a token expiry).
+function WeeklyPush() {
+    const [token, setToken] = useState(() => {
+        try { return localStorage.getItem(TOKEN_STORAGE_KEY) || ''; } catch { return ''; }
+    });
+    const [date, setDate] = useState(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);   // default: last week (yesterday snaps to its Friday)
+        return d.toISOString().slice(0, 10);
+    });
+    const [source, setSource] = useState('');   // '' = both
+    const [dryRun, setDryRun] = useState(true);  // preview first by default
+    const [busy, setBusy] = useState(false);
+    const [result, setResult] = useState(null);
+    const [err, setErr] = useState(null);
+    const [open, setOpen] = useState(false);
+
+    const persistToken = (v) => {
+        setToken(v);
+        try {
+            if (v) localStorage.setItem(TOKEN_STORAGE_KEY, v);
+            else localStorage.removeItem(TOKEN_STORAGE_KEY);
+        } catch { /* ignore */ }
+    };
+
+    const submit = async () => {
+        if (!date) return;
+        setBusy(true);
+        setResult(null);
+        setErr(null);
+        try {
+            const params = new URLSearchParams({ date });
+            if (source) params.set('source', source);
+            if (dryRun) params.set('dryRun', '1');
+            const res = await fetch(`/.netlify/functions/runWeeklyNow?${params.toString()}`, {
+                method: 'POST',
+                headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+            setResult(data);
+        } catch (e) {
+            setErr(e.message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const totals = result?.totals ? Object.entries(result.totals) : [];
+
+    return (
+        <section className="inv-card inv-upload">
+            <div className="inv-card__head">
+                <h2>Rejouer le push hebdomadaire</h2>
+                <button type="button" className="inv-tab" onClick={() => setOpen((v) => !v)}>
+                    {open ? 'Fermer' : 'Ouvrir'}
+                </button>
+            </div>
+            {open && (
+                <div className="inv-upload__body">
+                    <p className="inv-upload__hint">
+                        Repousse l'agrégat de la semaine (Lun→Ven) vers la feuille — pour une semaine ratée
+                        par le cron (ex. token expiré). Un push par source.
+                    </p>
+                    <div className="inv-upload__row">
+                        <label>
+                            Semaine (n'importe quel jour)&nbsp;:{' '}
+                            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={busy} />
+                        </label>
+                        <label>
+                            Source&nbsp;:{' '}
+                            <select value={source} onChange={(e) => setSource(e.target.value)} disabled={busy}>
+                                <option value="">Les deux (CA + US)</option>
+                                <option value="CA">CA seulement</option>
+                                <option value="US">US seulement</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div className="inv-upload__row">
+                        <label>
+                            <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} disabled={busy} />
+                            {' '}Aperçu seulement (n'écrit rien dans la feuille)
+                        </label>
+                    </div>
+                    <div className="inv-upload__row">
+                        <input
+                            type="password"
+                            placeholder="Ingest token (laisse vide si non requis)"
+                            value={token}
+                            onChange={(e) => persistToken(e.target.value)}
+                            disabled={busy}
+                            className="inv-upload__token"
+                        />
+                    </div>
+                    <div className="inv-upload__row">
+                        <button type="button" className="inv-upload__submit" onClick={submit} disabled={!date || busy}>
+                            {busy ? 'En cours…' : (dryRun ? 'Aperçu' : 'Pousser vers la feuille')}
+                        </button>
+                    </div>
+
+                    {result && (
+                        <div className="inv-upload__ok">
+                            <div style={{ marginBottom: 8 }}>
+                                {result.dryRun ? '👁 Aperçu — rien écrit · ' : '✓ Poussé · '}
+                                semaine finissant {result.weekEnding}
+                            </div>
+                            {totals.length === 0 && <div>{result.note || 'Aucune vente pour cette semaine.'}</div>}
+                            {totals.length > 0 && (
+                                <table className="inv-invoice-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Source</th>
+                                            <th style={{ textAlign: 'right' }}>Ventes (C)</th>
+                                            <th style={{ textAlign: 'right' }}>Frais (C)</th>
+                                            <th style={{ textAlign: 'right' }}>Net</th>
+                                            <th style={{ textAlign: 'right' }}>Pièces</th>
+                                            <th>État</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {totals.map(([src, t]) => (
+                                            <tr key={src}>
+                                                <td>{src === 'CA' ? 'CA (taxable)' : 'US (export)'}</td>
+                                                <td style={{ textAlign: 'right' }}>{fmtMoney(t.postTotal)}</td>
+                                                <td style={{ textAlign: 'right' }}>{fmtMoney(-t.postFees)}</td>
+                                                <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmtMoney(t.postTotal - t.postFees)}</td>
+                                                <td style={{ textAlign: 'right' }}>{fmtInt(t.parts)}</td>
+                                                <td>{result.sheets?.[src]?.step === 'sheets_posted' ? '✓ posté' : (result.sheets?.[src]?.step === 'dry_run' ? 'aperçu' : (result.sheets?.[src]?.error || '—'))}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                            {result.errors?.length > 0 && (
+                                <ul style={{ color: '#b45309', marginTop: 8 }}>
+                                    {result.errors.map((x, i) => <li key={i}>{x}</li>)}
+                                </ul>
+                            )}
+                        </div>
+                    )}
+                    {err && <div className="inv-upload__err">⚠ {err}</div>}
+                </div>
+            )}
+        </section>
+    );
+}
+
 // Look up a single day's sales, split CFB (Canada) vs UFB (USA). Reads the daily
 // buckets already loaded — no extra request. US money is stored in CAD.
 function DaySales({ daily }) {
@@ -948,6 +1096,7 @@ export default function InventoryDashboard() {
             <UploadBsx onUploaded={() => setReloadTick((n) => n + 1)} />
             <RunIngest />
             <CookieCheck />
+            <WeeklyPush />
 
             <nav className="inv-tabs-nav">
                 <button

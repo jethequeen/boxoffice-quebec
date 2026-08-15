@@ -39,17 +39,20 @@ const toCadRows = (rows, rate) => rows.map((r) => ({ ...r, total: r.total * rate
 
 /**
  * Aggregate and post the week ending on `friday`. `dryRun` computes everything but
- * skips the sheet POST (returns what WOULD be posted). Returns a log object.
+ * skips the sheet POST (returns what WOULD be posted). `sources` restricts which
+ * origins are fetched/posted (default both — pass ['US'] to replay just US after a
+ * US-only token expiry). Returns a log object.
  */
-export async function runWeek({ friday, dryRun = false }) {
+export async function runWeek({ friday, dryRun = false, sources = Object.keys(SOURCES) }) {
+    const wanted = Object.keys(SOURCES).filter((s) => sources.includes(s));
     const days = weekdaysEndingFriday(friday);
-    const log = { weekEnding: friday, days, dryRun, errors: [] };
+    const log = { weekEnding: friday, days, dryRun, sources: wanted, errors: [] };
 
     const rowsBySource = { CA: [], US: [] };
     const authFailedSources = new Set();
     for (const date of days) {
         let fx = null;  // fetched lazily, once per day, only if US has sales
-        for (const source of Object.keys(SOURCES)) {
+        for (const source of wanted) {
             try {
                 const { html } = await generateReport({ startDate: date, endDate: date, source });
                 const { rows } = parseReportRows(html, date);
@@ -83,7 +86,7 @@ export async function runWeek({ friday, dryRun = false }) {
     // the same factor), so the sheet's J/K formulas extract the taxes back out.
     log.totals = {};
     log.sheets = {};
-    for (const source of Object.keys(SOURCES)) {
+    for (const source of wanted) {
         const rows = rowsBySource[source];
         if (rows.length === 0) continue;
         const totals = aggregateRows(rows);
