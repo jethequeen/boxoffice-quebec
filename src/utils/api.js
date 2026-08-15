@@ -143,3 +143,6 @@ export const getAutocomplete = (type, query) =>
 
 export const getInventorySnapshot = () =>
     apiCall('getInventorySnapshot');
+
+export const getInventoryHistory = () =>
+    apiCall('getInventoryHistory');

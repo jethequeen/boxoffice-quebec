@@ -1,6 +1,27 @@
 import { readBsx, readSalesHistory, readInventoryHistory } from '../lib/blobs.js';
-import { parseBsx, inventorySnapshot, getItems } from '../lib/bsx.js';
+import { parseBsx, inventorySnapshot } from '../lib/bsx.js';
 import { jsonResponse } from '../lib/http.js';
+
+const median = (values) => {
+    if (!values.length) return null;
+    const s = [...values].sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 === 1 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+// Median inventory value over the last `days` (for the Ventes-tab sales ratio).
+// Computed here so the payload no longer has to ship the whole snapshot history —
+// that now loads lazily from getInventoryHistory when the Inventaire tab opens.
+function inventoryStats(invHistory, days = 30) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffKey = cutoff.toISOString().slice(0, 10);
+    const recent = (invHistory || []).filter((s) => s.date >= cutoffKey);
+    return {
+        medianInvValue: median(recent.map((s) => Number(s.totalValue || 0)).filter((v) => v > 0)),
+        invSnapCount: recent.length,
+    };
+}
 
 const ymd = (d) => {
     const dt = d instanceof Date ? d : new Date(d);
@@ -101,34 +122,6 @@ function bucketSales(history) {
     };
 }
 
-function topSellers(sellers, doc) {
-    const items = getItems(doc);
-    const byKey = new Map();
-    for (const it of items) {
-        if (it.ItemID == null) continue;
-        const k = sellerKey(it.ItemID, it.ColorName, it.Condition);
-        if (!byKey.has(k)) byKey.set(k, it);
-    }
-    return [...sellers.values()]
-        .map((s) => {
-            const k = sellerKey(s.itemId, s.colorName, s.condition);
-            const it = byKey.get(k);
-            return {
-                itemId: s.itemId,
-                colorName: s.colorName,
-                condition: s.condition,
-                partsSold: s.partsSold,
-                occurrences: s.occurrences,
-                name: it?.ItemName || '(removed lot)',
-                category: it?.CategoryName || null,
-                price: Number(it?.Price ?? 0),
-                qtyOnHand: Number(it?.Qty ?? 0),
-            };
-        })
-        .sort((a, b) => b.partsSold - a.partsSold)
-        .slice(0, 25);
-}
-
 export const handler = async () => {
     try {
         const bsx = await readBsx();
@@ -139,16 +132,16 @@ export const handler = async () => {
         const history = await readSalesHistory();
         const invHistory = await readInventoryHistory();
         const buckets = bucketSales(history);
-        const top = topSellers(buckets.sellers, doc);
 
+        // Light payload: no full snapshot history (loaded lazily via
+        // getInventoryHistory) and no top-sellers scan of the whole .bsx.
         return jsonResponse(200, {
             inventory: snapshot,
-            inventoryHistory: invHistory,
+            invStats: inventoryStats(invHistory, 30),
             sales: {
                 daily: buckets.daily,
                 weekly: buckets.weekly,
                 monthly: buckets.monthly,
-                topSellers: top,
                 latestEntry: history[history.length - 1] || null,
                 entryCount: history.length,
             },

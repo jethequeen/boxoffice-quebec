@@ -3,7 +3,7 @@ import {
     LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
     BarChart, Bar, Legend,
 } from 'recharts';
-import { getInventorySnapshot } from '../utils/api';
+import { getInventorySnapshot, getInventoryHistory } from '../utils/api';
 import './InventoryDashboard.css';
 
 const TOKEN_STORAGE_KEY = 'cfb_ingest_token';
@@ -645,35 +645,6 @@ function pickRange(entries, days) {
     return entries.filter((e) => e.key >= cutoffKey);
 }
 
-function median(values) {
-    if (!values.length) return null;
-    const sorted = [...values].sort((a, b) => a - b);
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-function pickInvSnapshotsInRange(snapshots, days) {
-    if (!snapshots?.length) return [];
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    const cutoffKey = cutoff.toISOString().slice(0, 10);
-    return snapshots.filter((s) => s.date >= cutoffKey);
-}
-
-// Latest snapshot per calendar day, sorted ascending — keeps the inventory chart
-// readable when multiple writes hit the same day (daily ingest + a manual merge).
-function dailyInvSeries(snapshots) {
-    if (!snapshots?.length) return [];
-    const byDate = new Map();
-    for (const s of snapshots) {
-        const cur = byDate.get(s.date);
-        if (!cur || (s.timestamp || '') > (cur.timestamp || '')) {
-            byDate.set(s.date, s);
-        }
-    }
-    return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-}
-
 // Probe both CFB sessions; an expired one triggers the reset-email flow server-side.
 function CookieCheck() {
     const [token, setToken] = useState(() => {
@@ -821,6 +792,11 @@ export default function InventoryDashboard() {
     const [reloadTick, setReloadTick] = useState(0);
     const [invoiceTick, setInvoiceTick] = useState(0);
     const [tab, setTab] = useState('sales');
+    // Snapshot history is loaded lazily the first time the Inventaire tab is opened,
+    // to keep the initial dashboard load light.
+    const [invHistory, setInvHistory] = useState(null);
+    const [invHistoryLoading, setInvHistoryLoading] = useState(false);
+    const [invHistoryErr, setInvHistoryErr] = useState(null);
 
     useEffect(() => {
         let cancel = false;
@@ -838,6 +814,25 @@ export default function InventoryDashboard() {
         })();
         return () => { cancel = true; };
     }, [reloadTick]);
+
+    // Lazy-load the inventory snapshot history when the Inventaire tab first opens.
+    useEffect(() => {
+        if (tab !== 'inventory' || invHistory !== null || invHistoryLoading) return;
+        let cancel = false;
+        (async () => {
+            try {
+                setInvHistoryLoading(true);
+                setInvHistoryErr(null);
+                const d = await getInventoryHistory();
+                if (!cancel) setInvHistory(d.history || []);
+            } catch (e) {
+                if (!cancel) setInvHistoryErr(e.message || 'Erreur de chargement');
+            } finally {
+                if (!cancel) setInvHistoryLoading(false);
+            }
+        })();
+        return () => { cancel = true; };
+    }, [tab, invHistory, invHistoryLoading]);
 
     const dailySeries = useMemo(() => {
         const all = data?.sales?.daily || [];
@@ -920,15 +915,18 @@ export default function InventoryDashboard() {
             manuals: { parts: 0, payout: 0, total: 0 },
         });
 
-        // Sales ratio: 30d payout / median inventory value over the same window
-        const invSnaps30 = pickInvSnapshotsInRange(data?.inventoryHistory || [], 30);
-        const medianInvValue = median(invSnaps30.map((s) => Number(s.totalValue || 0)).filter((v) => v > 0));
+        // Sales ratio: 30d payout / median inventory value over the same window.
+        // The median is computed server-side (invStats) so the initial payload no
+        // longer ships the whole snapshot history.
+        const medianInvValue = data?.invStats?.medianInvValue ?? null;
         const salesRatio = medianInvValue ? sum30 / medianInvValue : null;
 
-        return { avgDaily, split, sum30, salesRatio, medianInvValue, invSnapCount: invSnaps30.length };
+        return { avgDaily, split, sum30, salesRatio, medianInvValue, invSnapCount: data?.invStats?.invSnapCount ?? 0 };
     }, [data]);
 
-    const invSeries = useMemo(() => dailyInvSeries(data?.inventoryHistory || []), [data]);
+    // The full snapshot history (Inventaire tab charts) is already downsampled to
+    // one point per day server-side, so use it as-is.
+    const invSeries = invHistory || [];
 
     if (loading) return <div className="inv-page-loading">Chargement de l'inventaire…</div>;
     if (err) return <div className="inv-error">⚠ {err}</div>;
@@ -1121,11 +1119,15 @@ export default function InventoryDashboard() {
                         />
                         <Kpi
                             label="Snapshots enregistrés"
-                            value={fmtInt(invSeries.length)}
+                            value={invHistory ? fmtInt(invSeries.length) : '…'}
                             sub={invSeries[0] ? `Depuis ${invSeries[0].date}` : null}
                         />
                     </section>
 
+                    {invHistoryLoading && <div className="inv-empty">Chargement de l'historique d'inventaire…</div>}
+                    {invHistoryErr && <div className="inv-error">⚠ {invHistoryErr}</div>}
+
+                    {!invHistoryLoading && !invHistoryErr && (<>
                     <section className="inv-card">
                         <div className="inv-card__head"><h2>Valeur de l'inventaire</h2></div>
                         {invSeries.length === 0 ? (
@@ -1182,6 +1184,7 @@ export default function InventoryDashboard() {
                             </div>
                         )}
                     </section>
+                    </>)}
                 </>
             )}
 
