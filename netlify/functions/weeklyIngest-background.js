@@ -1,48 +1,16 @@
 import { schedule } from '@netlify/functions';
-import {
-    SOURCES,
-    generateReport,
-    parseReportRows,
-    aggregateRows,
-    isSheetableSale,
-} from '../lib/cfb.js';
-import { postDailyEntry } from '../lib/sheets.js';
-import { getUsdCadRate } from '../lib/fx.js';
-import { queueAuthFailure, alertAuthFailures } from '../lib/authAlert.js';
-import { TAX_RATES } from '../lib/invoiceConfig.js';
+import { runWeek, fridayOfWeek, shiftYmd } from '../lib/weekly.js';
 
 /**
- * Weekly sheet aggregate for the streamlined "Journal officiel" sheet.
+ * Weekly streamlined-sheet aggregate for the "Journal officiel" sheet.
  *
  * The daily job (dailyIngest-background.js) keeps posting one row per day to the
  * LEGACY sheet and owns all inventory/sales-history side effects. The streamlined
- * sheet instead receives ONE combined entry per week (a "Ventes" row + a
- * "Frais CFB" row), stamped with the week-ending Friday.
+ * sheet instead receives ONE entry per source per week (see netlify/lib/weekly.js
+ * for the aggregation + tax-included Montant logic).
  *
- * This job runs Saturday morning, after Friday has fully settled on CFB (orders
- * trickle in through Friday evening — same reason the daily job ingests with a
- * one-day lag). It re-fetches each weekday's report (Mon→Fri) read-only, with
- * NO inventory or sales-history writes, filters to sheetable sales
- * (Platforms + Manual Outputs with payout > 0), and posts the week's aggregates
- * to the new sheet only ({ only: 'new' }).
- *
- * ONE POST PER SOURCE: CA and US do NOT share tax rules — CA sales are taxable
- * while US sales are zero-rated exports. The webhook therefore receives two
- * entries per week, tagged source 'CA' and 'US', which the Apps Script writes as
- * separate "Ventes - CA" / "Ventes - US" (and matching "Frais CFB - …") rows.
- *
- * MONTANT = THE MONEY THAT MOVED (taxes in) for CA rows: the journal's Montant
- * column carries the tax-INCLUDED amount, so TPS/TVQ are added here and the
- * sheet's J/K formulas extract them back out. The net of each pair
- * (Ventes - Frais, taxes in) is exactly what CFB wires. US rows are zero-rated
- * and posted as-is. The 25% commission stays computed on the gross HORS TAXES,
- * so both lines are simply scaled by the same tax factor.
- *
- * Currency: US reports are USD, so each day's US rows are converted with that
- * day's USD→CAD rate before being pooled. Aggregating each source's rows once at
- * the end (rather than summing per-day aggregates) keeps the weekly "Lots" count
- * distinct across the whole week instead of double-counting a lot sold on more
- * than one day.
+ * This job runs Saturday morning, after Friday has fully settled on CFB. To replay
+ * a missed week by hand, use runWeeklyNow.js.
  */
 
 const todayInTZ = (tz = 'America/Toronto') => {
@@ -50,114 +18,13 @@ const todayInTZ = (tz = 'America/Toronto') => {
     return fmt.format(new Date());
 };
 
-// Shift a YYYY-MM-DD by n days. Noon UTC anchor keeps the date math away from
-// any DST edge.
-const shiftYmd = (ymd, n) => {
-    const d = new Date(ymd + 'T12:00:00Z');
-    d.setUTCDate(d.getUTCDate() + n);
-    return d.toISOString().slice(0, 10);
-};
-
-// The five business days of the week ending on `friday`, Mon→Fri.
-const weekdaysEndingFriday = (friday) => [-4, -3, -2, -1, 0].map((n) => shiftYmd(friday, n));
-
-// US rows are denominated in USD — scale the monetary fields to CAD. Counts are
-// left untouched. aggregateRows() rounds the final sums, so no per-row rounding.
-const toCadRows = (rows, rate) => rows.map((r) => ({
-    ...r,
-    total: r.total * rate,
-    payout: r.payout * rate,
-}));
-
-// CA rows are taxable, so the Montant written to the journal is TAX-INCLUDED (the
-// amount that actually moves). US rows are zero-rated exports and pass through.
-const TAX_FACTOR = 1 + TAX_RATES.tps + TAX_RATES.tvq;
-const withTaxes = (n) => Math.round(Number(n || 0) * TAX_FACTOR * 100) / 100;
-
-async function run() {
-    const today = todayInTZ();           // Saturday
-    const friday = shiftYmd(today, -1);  // week-ending Friday (yesterday)
-    const days = weekdaysEndingFriday(friday);
-    const log = { weekEnding: friday, days, errors: [] };
-
-    // Pool every sheetable sale of the week PER SOURCE (US converted to CAD),
-    // then aggregate each source once.
-    const rowsBySource = { CA: [], US: [] };
-    const authFailedSources = new Set();
-    for (const date of days) {
-        let fx = null;  // fetched lazily, once per day, only if US has sales
-        for (const source of Object.keys(SOURCES)) {
-            try {
-                const { html } = await generateReport({ startDate: date, endDate: date, source });
-                const { rows } = parseReportRows(html, date);
-                const sheetable = rows.filter(isSheetableSale);
-                if (sheetable.length === 0) continue;
-
-                if (source === 'US') {
-                    if (!fx) fx = await getUsdCadRate(date);
-                    rowsBySource.US.push(...toCadRows(sheetable, fx.rate));
-                } else {
-                    rowsBySource.CA.push(...sheetable);
-                }
-            } catch (e) {
-                log.errors.push(`${date}/${source}: ${e.message}`);
-                console.error(`[weeklyIngest:${date}:${source}] FAIL`, e);
-                // Expired token — queue the day and flag the source for an alert.
-                if (await queueAuthFailure(e, { date, source })) authFailedSources.add(source);
-            }
-        }
-    }
-
-    // If the session expired mid-week, alert (once per source) so the token can be
-    // refreshed — the weekly totals below are posted anyway from whatever was reachable.
-    await alertAuthFailures(authFailedSources, log);
-
-    if (rowsBySource.CA.length === 0 && rowsBySource.US.length === 0) {
-        log.note = `No sheetable sales for week ending ${friday}.`;
-        return log;
-    }
-
-    // One POST per source (CA taxable, US zero-rated — the sheet's tax formulas
-    // need them on separate rows). Stamped with the week-ending Friday (a weekday,
-    // so the weekend guard in postDailyEntry does not skip it). New sheet only.
-    log.totals = {};
-    log.sheets = {};
-    for (const source of Object.keys(SOURCES)) {
-        const rows = rowsBySource[source];
-        if (rows.length === 0) continue;
-        const totals = aggregateRows(rows);
-        // CA is taxable → post the tax-included amounts (what actually moves);
-        // US is a zero-rated export → post as-is. The commission stays 25% of the
-        // gross hors taxes, so scaling both lines by the same factor preserves it.
-        const taxable = source === 'CA';
-        const postTotal = taxable ? withTaxes(totals.total) : totals.total;
-        const postFees = taxable ? withTaxes(totals.fees) : totals.fees;
-        log.totals[source] = { ...totals, taxable, postTotal, postFees };
-        try {
-            const result = await postDailyEntry({
-                date: friday,
-                source,
-                parts: totals.parts,
-                lots: totals.lots,
-                total: postTotal,
-                payout: totals.payout,
-                fees: postFees,
-            }, { only: 'new' });
-            log.sheets[source] = { step: 'sheets_posted', result };
-        } catch (e) {
-            log.sheets[source] = { step: 'sheets_failed', error: e.message };
-        }
-    }
-
-    return log;
-}
-
 // 10:30 UTC Saturday ≈ 06:30 Toronto — just after the daily job's 10:00 run that
 // ingests Friday, so the whole Mon→Fri week is settled on CFB. Netlify crons are UTC;
 // cron weekday 6 = Saturday.
 export const handler = schedule('30 10 * * 6', async () => {
     try {
-        const log = await run();
+        const friday = fridayOfWeek(shiftYmd(todayInTZ(), -1));  // yesterday's week-ending Friday
+        const log = await runWeek({ friday });
         console.log('[weeklyIngest] OK', JSON.stringify(log));
         return { statusCode: 200, body: JSON.stringify(log) };
     } catch (e) {
