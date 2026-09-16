@@ -191,6 +191,7 @@ function RunIngest() {
     });
     const [source, setSource] = useState('');   // '' = both CA + US
     const [replace, setReplace] = useState(false);
+    const [dryRun, setDryRun] = useState(false);
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);
     const [err, setErr] = useState(null);
@@ -212,7 +213,8 @@ function RunIngest() {
         try {
             const params = new URLSearchParams({ date });
             if (source) params.set('source', source);
-            if (replace) params.set('replace', '1');
+            if (dryRun) params.set('dryRun', '1');
+            else if (replace) params.set('replace', '1');
             const res = await fetch(`/.netlify/functions/runIngestNow?${params.toString()}`, {
                 method: 'POST',
                 headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -230,6 +232,7 @@ function RunIngest() {
     const alertSent = result?.alerts?.some((a) => a.sent);
     const sourceErrors = (result?.sources || []).filter((s) => s.error);
     const posted = result?.sheets?.step === 'sheets_posted';
+    const dryTotals = (result?.sources || []).filter((s) => s.totals);
 
     return (
         <section className="inv-card inv-upload">
@@ -264,9 +267,20 @@ function RunIngest() {
                         <label>
                             <input
                                 type="checkbox"
+                                checked={dryRun}
+                                onChange={(e) => setDryRun(e.target.checked)}
+                                disabled={busy}
+                            />
+                            {' '}Aperçu (lecture seule — montre les chiffres du vendeur Binobrick sans rien modifier)
+                        </label>
+                    </div>
+                    <div className="inv-upload__row">
+                        <label>
+                            <input
+                                type="checkbox"
                                 checked={replace}
                                 onChange={(e) => setReplace(e.target.checked)}
-                                disabled={busy}
+                                disabled={busy || dryRun}
                             />
                             {' '}Remplacer une journée déjà enregistrée (corriger un faux zéro laissé par un token expiré)
                         </label>
@@ -288,7 +302,7 @@ function RunIngest() {
                             onClick={submit}
                             disabled={!date || busy}
                         >
-                            {busy ? 'Ingestion en cours…' : (replace ? 'Remplacer cette journée' : 'Ingérer cette journée')}
+                            {busy ? 'En cours…' : (dryRun ? 'Aperçu' : (replace ? 'Remplacer cette journée' : 'Ingérer cette journée'))}
                         </button>
                     </div>
                     {result && (
@@ -296,13 +310,40 @@ function RunIngest() {
                             {alertSent && (
                                 <div>🔒 Session CFB expirée détectée — courriel d'alerte envoyé. Vérifie ta boîte pour réinitialiser le token.</div>
                             )}
-                            {!alertSent && posted && (
+                            {dryTotals.length > 0 && (
+                                <>
+                                    <div style={{ marginBottom: 6 }}>👁 Aperçu {result.date} (rien modifié) :</div>
+                                    <table className="inv-invoice-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Source</th>
+                                                <th style={{ textAlign: 'right' }}>Ventes brutes</th>
+                                                <th style={{ textAlign: 'right' }}>Payout</th>
+                                                <th style={{ textAlign: 'right' }}>Pièces</th>
+                                                <th style={{ textAlign: 'right' }}>Décréments</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {dryTotals.map((s) => (
+                                                <tr key={s.source}>
+                                                    <td>{s.source}</td>
+                                                    <td style={{ textAlign: 'right' }}>{fmtMoney(s.totals.total)}</td>
+                                                    <td style={{ textAlign: 'right' }}>{fmtMoney(s.totals.payout)}</td>
+                                                    <td style={{ textAlign: 'right' }}>{fmtInt(s.totals.parts)}</td>
+                                                    <td style={{ textAlign: 'right' }}>{fmtInt(s.decrementCount)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </>
+                            )}
+                            {!alertSent && !dryTotals.length && posted && (
                                 <div>
                                     ✓ Journée {result.date} ingérée · {fmtInt(result.sheets.combined.parts)} pièces ·
                                     {' '}payout {fmtMoney(result.sheets.combined.payout)}
                                 </div>
                             )}
-                            {!alertSent && !posted && <div>✓ Terminé pour {result.date} (rien à poster).</div>}
+                            {!alertSent && !dryTotals.length && !posted && <div>✓ Terminé pour {result.date} (rien à poster).</div>}
                             {sourceErrors.length > 0 && (
                                 <ul>
                                     {sourceErrors.map((s) => <li key={s.source}>{s.source} : {s.error}</li>)}
