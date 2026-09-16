@@ -85,6 +85,11 @@ async function fetchHtml(source, path, init = {}) {
  * Loads /new and pulls CSRF, form action, all named inputs (with defaults),
  * and identifies the start/end-date input names heuristically.
  */
+// Which vendor's report to pull. A second vendor (MLJQ) was added to the account
+// 2026-09, so the vendor <select> can now default to the wrong one — yielding an
+// empty ($0) report. We force the option whose text/value contains this keyword.
+const VENDOR_KEYWORD = (process.env.CFB_VENDOR || 'bino').toLowerCase();
+
 export async function loadReportForm(source = 'CA') {
     const { text } = await fetchHtml(source, REPORT_NEW_PATH);
     const $ = cheerio.load(text);
@@ -101,6 +106,7 @@ export async function loadReportForm(source = 'CA') {
     const fields = {};
     let startName = null;
     let endName = null;
+    let vendor = null;   // { field, value, label } once the Binobrick option is found
 
     $effectiveForm.find('input,select,textarea').each((_, el) => {
         const $el = $(el);
@@ -110,10 +116,24 @@ export async function loadReportForm(source = 'CA') {
 
         let value = '';
         if (tag === 'select') {
-            const $selected = $el.find('option[selected]').first();
-            const $first = $el.find('option').first();
-            const $eff = $selected.length ? $selected : $first;
-            value = $eff.attr('value') ?? $eff.text().trim() ?? '';
+            // Prefer the option matching our vendor over the default — a new vendor
+            // on the account (MLJQ) can otherwise become the default → $0 report.
+            let $vendorOpt = null;
+            $el.find('option').each((__, opt) => {
+                if ($vendorOpt) return;
+                const $opt = $(opt);
+                const hay = `${$opt.attr('value') || ''} ${$opt.text() || ''}`.toLowerCase();
+                if (hay.includes(VENDOR_KEYWORD)) $vendorOpt = $opt;
+            });
+            if ($vendorOpt) {
+                value = $vendorOpt.attr('value') ?? $vendorOpt.text().trim() ?? '';
+                vendor = { field: name, value, label: $vendorOpt.text().trim() };
+            } else {
+                const $selected = $el.find('option[selected]').first();
+                const $first = $el.find('option').first();
+                const $eff = $selected.length ? $selected : $first;
+                value = $eff.attr('value') ?? $eff.text().trim() ?? '';
+            }
         } else if (tag === 'textarea') {
             value = $el.text();
         } else {
@@ -134,7 +154,7 @@ export async function loadReportForm(source = 'CA') {
         if (!endName && looksLikeDate && /\b(end|to|until)\b/.test(lower)) endName = name;
     });
 
-    return { csrf, action, fields, startName, endName };
+    return { csrf, action, fields, startName, endName, vendor };
 }
 
 /**
@@ -158,7 +178,12 @@ export async function checkSession(source) {
  * the rendered report HTML.
  */
 export async function generateReport({ startDate, endDate, source = 'CA' } = {}) {
-    const { csrf, action, fields, startName, endName } = await loadReportForm(source);
+    const { csrf, action, fields, startName, endName, vendor } = await loadReportForm(source);
+    // Guard against a silent wrong-vendor $0 report: if the form has a vendor picker
+    // but no option matched our keyword, surface it instead of pulling MLJQ's data.
+    if (!vendor) {
+        console.warn(`[cfb:${source}] no vendor option matched "${VENDOR_KEYWORD}" — using the form default`);
+    }
     const body = new URLSearchParams();
     body.set('_csrf_token', csrf);
     for (const [k, v] of Object.entries(fields)) body.set(k, v);
@@ -171,7 +196,7 @@ export async function generateReport({ startDate, endDate, source = 'CA' } = {})
         body: body.toString(),
         redirect: 'follow',
     });
-    return { html: text, dateFields: { startName, endName }, source };
+    return { html: text, dateFields: { startName, endName }, vendor, source };
 }
 
 const NB_SPACE = / /g;
