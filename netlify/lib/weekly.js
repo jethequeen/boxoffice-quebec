@@ -50,28 +50,29 @@ export async function runWeek({ friday, dryRun = false, sources = Object.keys(SO
 
     const rowsBySource = { CA: [], US: [] };
     const authFailedSources = new Set();
-    for (const date of days) {
-        let fx = null;  // fetched lazily, once per day, only if US has sales
-        for (const source of wanted) {
-            try {
-                const { html } = await generateReport({ startDate: date, endDate: date, source });
-                const { rows } = parseReportRows(html, date);
-                const sheetable = rows.filter(isSheetableSale);
-                if (sheetable.length === 0) continue;
 
-                if (source === 'US') {
-                    if (!fx) fx = await getUsdCadRate(date);
-                    rowsBySource.US.push(...toCadRows(sheetable, fx.rate));
-                } else {
-                    rowsBySource.CA.push(...sheetable);
-                }
-            } catch (e) {
-                log.errors.push(`${date}/${source}: ${e.message}`);
-                console.error(`[weekly:${date}:${source}] FAIL`, e);
-                if (await queueAuthFailure(e, { date, source })) authFailedSources.add(source);
+    // Fetch every (day, source) report CONCURRENTLY — a synchronous Netlify function
+    // caps at ~10s, and 10 sequential report fetches (load form + POST each) blow
+    // past it (504). Running them in parallel keeps the whole week well under it.
+    const fetchOne = async (date, source) => {
+        try {
+            const { html } = await generateReport({ startDate: date, endDate: date, source });
+            const { rows } = parseReportRows(html, date);
+            const sheetable = rows.filter(isSheetableSale);
+            if (sheetable.length === 0) return;
+            if (source === 'US') {
+                const fx = await getUsdCadRate(date);
+                rowsBySource.US.push(...toCadRows(sheetable, fx.rate));
+            } else {
+                rowsBySource.CA.push(...sheetable);
             }
+        } catch (e) {
+            log.errors.push(`${date}/${source}: ${e.message}`);
+            console.error(`[weekly:${date}:${source}] FAIL`, e);
+            if (await queueAuthFailure(e, { date, source })) authFailedSources.add(source);
         }
-    }
+    };
+    await Promise.all(days.flatMap((date) => wanted.map((source) => fetchOne(date, source))));
 
     // One alert per source whose token expired, so it can be refreshed and replayed.
     await alertAuthFailures(authFailedSources, log);
