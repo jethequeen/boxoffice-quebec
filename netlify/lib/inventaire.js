@@ -9,10 +9,15 @@ import { getUsdCadRate } from './fx.js';
  * sortpack/cfb_inventory.py so the month-end value no longer depends on a laptop
  * being awake on the 1st.
  *
- * One report per (seller × portal): the form has a vendor <select> and an as-of
- * date, so any past date can be re-read. CA values are CAD; US values are USD and
- * converted at the Bank of Canada rate of the as-of date. Served to Alfred by
- * functions/inventaire.js.
+ * One report per (seller × portal): the form has a vendor <select> and an "as of"
+ * date. CA values are CAD; US values are USD and converted at the Bank of Canada
+ * rate of the as-of date. Served to Alfred by functions/inventaire.js.
+ *
+ * The as-of date does NOT rewind the inventory: it only drops batches ADDED after
+ * that date, while Qty Remaining is always the live quantity (checked 2026-10-31:
+ * Sept 30 and Oct 30 gave the same remaining pieces despite ~40 000 pieces sold in
+ * October). A month-end value can therefore only be read AT month-end — which is
+ * why the capture runs early on the 1st and past dates are refused.
  */
 
 const BATCH_NEW_PATH = '/bricklink/inventory_vendor_batch_reports/new';
@@ -197,6 +202,13 @@ export async function captureInventaire({ date }) {
 }
 
 /**
+ * A snapshot is final once it was read after its as-of day ended (e.g. Oct 31 read
+ * on Nov 1). One read during the day itself is provisional: the scheduled month-end
+ * capture replaces it instead of skipping it.
+ */
+export const isFinal = (snapshot) => Boolean(snapshot?.au) && snapshot.au.slice(0, 10) > snapshot.date;
+
+/**
  * The en_preparation entry that applies to an as-of `date`: the latest pushed on or
  * before it, within the same month (stock from a previous month says nothing about
  * this one). Null if the laptop pushed nothing that month.
@@ -217,6 +229,7 @@ export function toAlfred(snapshot, enPreparationEntries) {
     return {
         au: snapshot.au,
         date: snapshot.date,
+        definitif: isFinal(snapshot),
         binobrick: { ...snapshot.binobrick },
         mljq: {
             cfb: snapshot.mljq.cfb,

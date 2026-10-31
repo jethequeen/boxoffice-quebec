@@ -12,7 +12,8 @@ import { jsonResponse } from '../lib/http.js';
  *
  * Serves stored snapshots only (a live read takes ~10 s, too slow for a synchronous
  * function): no date → the latest snapshot; a date → that snapshot, or 404 if it was
- * never captured (capture it with captureInventaire-background?date=…). The secret
+ * never captured (a past month can't be re-read — the portal only knows today's
+ * quantities). `definitif` is false while the as-of day isn't over yet. The secret
  * is mandatory — if ALFRED_SECRET is unset, every request is refused.
  */
 
