@@ -20,9 +20,12 @@ const digest = (s) => createHash('sha256').update(String(s)).digest();
 
 const authorized = (event) => {
     const expected = process.env.ALFRED_SECRET;
-    if (!expected) return false;
     const got = event.headers?.['x-alfred-secret'] || event.headers?.['X-Alfred-Secret'] || '';
-    return timingSafeEqual(digest(got), digest(expected));
+    const ok = Boolean(expected) && timingSafeEqual(digest(got), digest(expected));
+    // Presence flags only, never the values — enough to tell a missing variable
+    // (redeploy needed) from a stripped header or a wrong secret.
+    if (!ok) console.warn('[inventaire] 401', { secretConfigured: Boolean(expected), headerPresent: Boolean(got), gotLength: got.length });
+    return ok;
 };
 
 const isYmd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s);
