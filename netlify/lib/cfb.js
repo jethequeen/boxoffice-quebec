@@ -63,7 +63,7 @@ const headers = async (source, extra = {}) => ({
     ...extra,
 });
 
-async function fetchHtml(source, path, init = {}) {
+export async function fetchHtml(source, path, init = {}) {
     const { base } = siteConfig(source);
     const url = path.startsWith('http') ? path : `${base}${path}`;
     const res = await fetch(url, { ...init, headers: { ...(await headers(source)), ...(init.headers || {}) } });

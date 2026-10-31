@@ -9,6 +9,8 @@ const INV_HISTORY_KEY = 'inventory-history.json';
 const COOKIES_KEY = 'cfb-cookies.json';
 const PENDING_BACKFILL_KEY = 'pending-backfill.json';
 const INVOICE_HISTORY_KEY = 'invoice-history.json';
+const INVENTAIRE_KEY = 'inventaire-snapshots.json';
+const EN_PREPARATION_KEY = 'en-preparation.json';
 // PDFs are stored base64-encoded as text so the local-filesystem dev store (which
 // only round-trips text) works the same as Netlify Blobs.
 const invoicePdfKey = (number) => `invoice-pdf/${number}.b64`;
@@ -201,4 +203,38 @@ export async function writeInvoicePdf(number, buffer) {
 /** Read a stored invoice PDF back as a base64 string (or null if absent). */
 export async function readInvoicePdfBase64(number) {
     return (await store().get(invoicePdfKey(number), { type: 'text' })) ?? null;
+}
+
+/**
+ * Month-end inventory value read from the CFB/UFB batch reports, one snapshot per
+ * as-of date ({ [YYYY-MM-DD]: snapshot }). Served read-only to Alfred by
+ * functions/inventaire.js — see lib/inventaire.js for the snapshot shape.
+ */
+export async function readInventaireSnapshots() {
+    const raw = await store().get(INVENTAIRE_KEY, { type: 'json' });
+    return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+}
+
+export async function writeInventaireSnapshot(snapshot) {
+    const all = await readInventaireSnapshots();
+    all[snapshot.date] = snapshot;
+    await store().setJSON(INVENTAIRE_KEY, all);
+    return all;
+}
+
+/**
+ * MLJQ stock "en préparation" (bought, sorted, not yet entered by CFB). Only the
+ * MLJQ laptop can value it (local SQLite + BrickStore price cache), so it pushes
+ * the figure here; one entry per date it represents ({ [YYYY-MM-DD]: entry }).
+ */
+export async function readEnPreparation() {
+    const raw = await store().get(EN_PREPARATION_KEY, { type: 'json' });
+    return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+}
+
+export async function writeEnPreparation(entry) {
+    const all = await readEnPreparation();
+    all[entry.date] = entry;
+    await store().setJSON(EN_PREPARATION_KEY, all);
+    return all;
 }
